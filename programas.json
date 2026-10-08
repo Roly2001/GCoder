@@ -1,0 +1,55 @@
+{
+  "titulo": "GCoder",
+  "programas": [
+    {
+      "id": "soldadura",
+      "nombre": "Soldadura Láser",
+      "descripcion": "Localizador de centro, lámina y puntos de soldadura. Genera G-code.",
+      "icono": "haz",
+      "carpeta": "programas/SoldaduraLaser",
+      "archivo": "SoldaduraLaser_v*.html",
+      "estado": "listo",
+      "color": "#d9541f"
+    },
+    {
+      "id": "sketch",
+      "nombre": "Diseñador de Contornos",
+      "descripcion": "Sketch 2D con cotas y capas. Dibuja el contorno de la lámina.",
+      "icono": "regla",
+      "carpeta": "programas/DisenoContorno",
+      "archivo": "DisenoContorno_v*.html",
+      "estado": "listo",
+      "color": "#2f6fb8"
+    },
+    {
+      "id": "gcode",
+      "nombre": "Editor de G-code",
+      "descripcion": "Lee, ordena y prueba programas de corte. Arrastra bloques para cambiar el orden.",
+      "icono": "camino",
+      "carpeta": "programas/EditorGcode",
+      "archivo": "EditorGcode_v*.html",
+      "estado": "listo",
+      "color": "#7a55c2"
+    },
+    {
+      "id": "origen",
+      "nombre": "Origen",
+      "descripcion": "Recupera el cero de pieza perdido: eliges una referencia del dibujo y todo se recoloca.",
+      "icono": "reticula",
+      "carpeta": "programas/Origen",
+      "archivo": "Origen_v*.html",
+      "estado": "listo",
+      "color": "#1f8a6d"
+    },
+    {
+      "id": "stent",
+      "nombre": "Cortes de Stent",
+      "descripcion": "De DXF/CAD a G-code para corte de stent. Por empezar.",
+      "icono": "malla",
+      "carpeta": "",
+      "archivo": "",
+      "estado": "pendiente",
+      "color": "#0f8ba5"
+    }
+  ]
+}

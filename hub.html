@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GCoder</title>
+<link rel="icon" href="/logotipo.png">
+<style>
+  :root{
+    /* Fondo con temperatura: papel calido, no blanco de oficina. */
+    --bg:#f4f2ee; --bg-2:#eae7e0;
+    --panel:#ffffff; --panel-2:#f6f4f0; --panel-3:#efece6;
+    --line:#dcd8d0; --line-soft:#e9e5dd;
+    --text:#1e2320; --text-2:#4a4f4a; --muted:#7d817a;
+
+    --laser:#d9541f; --ok:#1f8a6d; --warn:#b3790c; --mal:#c0392b;
+    /* El acento cambia con el programa que tengas delante. */
+    --acento:#d9541f;
+
+    --sombra:0 1px 2px rgba(31,28,22,.05), 0 2px 6px rgba(31,28,22,.05);
+    --sombra-alta:0 2px 4px rgba(31,28,22,.06), 0 10px 26px rgba(31,28,22,.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;
+    background:var(--bg);color:var(--text);
+    font-family:"IBM Plex Sans",-apple-system,Segoe UI,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .shell{display:grid;grid-template-rows:auto 1fr;height:100vh;}
+
+  /* ============================== barra superior ============================== */
+  .barra{display:flex;align-items:stretch;padding:0 12px;position:relative;
+    background:linear-gradient(180deg,#ffffff 0%,#faf8f5 100%);
+    border-bottom:1px solid var(--line);}
+  /* Hilo de color del programa activo: cruza toda la barra por arriba. */
+  .barra::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,var(--acento),
+               color-mix(in srgb,var(--acento) 42%,#ffffff));
+    transition:background .25s ease;}
+
+  .marca{display:flex;align-items:center;gap:10px;padding:0 18px 0 4px;margin-right:4px;}
+  .marca img{width:22px;height:22px;border-radius:6px;display:block;
+    box-shadow:0 1px 3px rgba(31,28,22,.28);}
+  .marca h1{font-size:13px;margin:0;letter-spacing:.07em;text-transform:uppercase;
+    font-weight:700;color:var(--text);}
+
+  .tab{display:flex;align-items:center;gap:8px;background:none;border:none;
+    border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;
+    padding:14px 15px;font-size:12.5px;font-family:inherit;font-weight:600;
+    white-space:nowrap;transition:color .12s,background .12s;}
+  .tab:hover{color:var(--text);background:rgba(0,0,0,.028);}
+  .tab.on{color:var(--text);border-bottom-color:var(--tono,var(--laser));
+    background:linear-gradient(180deg,transparent 55%,
+               color-mix(in srgb,var(--tono,var(--laser)) 10%,transparent) 100%);}
+  .tab .ico{font-size:15px;line-height:1;color:var(--tono,var(--muted));opacity:.75;
+    display:flex;align-items:center;}
+  .tab.on .ico{opacity:1;}
+  .tab .pend{font-size:9px;text-transform:uppercase;letter-spacing:.05em;
+    background:var(--panel-3);border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;color:var(--muted);}
+  .tab.inicio{border-right:1px solid var(--line-soft);margin-right:4px;}
+
+  .hueco{flex:1;}
+  .info{display:flex;align-items:center;gap:10px;padding:0 4px;font-size:11px;color:var(--muted);}
+  .info .archivo{font-family:"IBM Plex Mono",Consolas,monospace;}
+  .btn{background:#fff;border:1px solid var(--line);border-radius:7px;color:var(--text-2);
+    cursor:pointer;padding:6px 11px;font-size:11px;font-family:inherit;font-weight:600;
+    box-shadow:var(--sombra);transition:border-color .12s,color .12s,transform .06s;}
+  .btn:hover{border-color:var(--acento);color:var(--acento);}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{opacity:.45;cursor:default;border-color:var(--line);color:var(--muted);}
+
+  /* Pastilla del proyecto abierto: de ella depende donde acaba lo que guardes. */
+  .chip{display:flex;align-items:center;gap:7px;border-radius:999px;padding:5px 12px;
+    font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
+    background:linear-gradient(180deg,#ffffff,var(--panel-2));
+    border:1px solid var(--line);color:var(--text);box-shadow:var(--sombra);
+    transition:border-color .12s,box-shadow .12s;}
+  .chip:hover{border-color:var(--acento);box-shadow:var(--sombra-alta);}
+  .chip .pt{width:7px;height:7px;border-radius:50%;background:var(--pieza,var(--ok));
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--pieza,var(--ok)) 20%,transparent);}
+  .chip.vacio{color:var(--muted);font-weight:600;}
+  .chip.vacio .pt{background:var(--line);box-shadow:none;}
+
+  .escenario{position:relative;min-height:0;background:var(--bg);}
+  .escenario iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff;}
+  .oculto{display:none !important;}
+
+  .aviso{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:12px;text-align:center;padding:40px;}
+  .aviso .grande{opacity:.32;color:var(--tono,var(--muted));}
+  .aviso h2{margin:0;font-size:17px;font-weight:700;}
+  .aviso p{margin:0;max-width:520px;color:var(--muted);font-size:13px;line-height:1.6;}
+  .aviso code{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;
+    padding:2px 6px;font-family:"IBM Plex Mono",Consolas,monospace;font-size:12px;}
+  .aviso.malo h2{color:var(--warn);}
+
+  /* ============================ pantalla de proyectos ============================ */
+  .proyectos{position:absolute;inset:0;overflow:auto;padding:0 0 44px;
+    background:
+      radial-gradient(1100px 380px at 12% -8%, rgba(217,84,31,.06), transparent 70%),
+      radial-gradient(900px 340px at 88% -4%, rgba(47,111,184,.055), transparent 72%),
+      linear-gradient(180deg,var(--bg) 0%,var(--bg-2) 100%);}
+
+  .cabecera{padding:24px 30px 19px;border-bottom:1px solid var(--line-soft);
+    margin-bottom:20px;
+    background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,0));}
+  .cab{display:flex;align-items:center;gap:13px;margin-bottom:9px;}
+  .cab img{width:32px;height:32px;border-radius:9px;
+    box-shadow:0 2px 7px rgba(31,28,22,.22);}
+  .cab h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.02em;}
+  .cab .sub{color:var(--muted);font-size:11.5px;font-weight:600;
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:3px 11px;}
+  .intro{color:var(--text-2);font-size:12.5px;line-height:1.65;max-width:700px;margin:0;}
+
+  .rejilla{display:grid;/* 430 y no menos: en la fila de un archivo caben el nombre, su tipo y
+     los botones, y el nombre es lo que hay que poder leer entero. */
+  grid-template-columns:repeat(auto-fill,minmax(430px,1fr));
+    gap:16px;padding:0 30px;align-items:start;}
+
+  .tarjeta{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:0 0 14px;display:flex;flex-direction:column;gap:11px;
+    box-shadow:var(--sombra);overflow:hidden;position:relative;
+    transition:box-shadow .16s ease,transform .16s ease;}
+  .tarjeta:hover{box-shadow:var(--sombra-alta);transform:translateY(-1px);}
+  /* Cada pieza tiene su color, estable: siempre reconoces la Cervical. */
+  .tarjeta::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;
+    background:linear-gradient(90deg,var(--pieza,var(--laser)),
+               color-mix(in srgb,var(--pieza,var(--laser)) 28%,#ffffff));}
+  .tarjeta > *{margin-left:16px;margin-right:16px;}
+  .tarjeta .fila-cab{margin-top:16px;}
+
+  .tarjeta.nueva{border-style:dashed;background:rgba(255,255,255,.62);
+    justify-content:center;min-height:176px;gap:9px;padding:17px;box-shadow:none;}
+  .tarjeta.nueva::before{display:none;}
+  .tarjeta.nueva > *{margin-left:0;margin-right:0;}
+  .tarjeta.nueva:hover{border-color:var(--laser);background:#fff;transform:none;
+    box-shadow:var(--sombra);}
+
+  .tarjeta h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em;}
+  .tarjeta .fila-cab{display:flex;align-items:baseline;gap:10px;}
+  .tarjeta .fecha{margin-left:auto;font-size:10.5px;color:var(--muted);
+    font-family:"IBM Plex Mono",Consolas,monospace;}
+
+  .resumen{display:flex;flex-wrap:wrap;gap:5px;}
+  .pastilla{font-size:10.5px;border-radius:6px;padding:3px 8px;font-weight:600;
+    color:var(--t,var(--muted));
+    background:color-mix(in srgb,var(--t,var(--muted)) 10%,#ffffff);
+    border:1px solid color-mix(in srgb,var(--t,var(--muted)) 24%,#ffffff);}
+  .pastilla b{font-weight:700;}
+  .vacia{font-size:11.5px;color:var(--muted);font-style:italic;}
+
+  .rotulo{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);font-weight:700;}
+  .progs{display:flex;flex-wrap:wrap;gap:6px;}
+  .bprog{display:flex;align-items:center;gap:7px;border-radius:8px;padding:7px 11px;
+    font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;
+    color:var(--text-2);background:#fff;
+    border:1px solid color-mix(in srgb,var(--tono,#dcd8d0) 26%,#ffffff);
+    box-shadow:var(--sombra);transition:all .13s ease;}
+  .bprog:hover{color:var(--tono);border-color:var(--tono);
+    background:color-mix(in srgb,var(--tono) 8%,#ffffff);transform:translateY(-1px);}
+  .bprog:active{transform:translateY(0);}
+  .bprog .ico{font-size:13px;color:var(--tono);display:flex;align-items:center;}
+  .bprog .n{font-size:9.5px;font-weight:700;border-radius:5px;padding:1px 5px;
+    color:var(--tono);background:color-mix(in srgb,var(--tono) 13%,#ffffff);}
+
+  .archivos{border-top:1px solid var(--line-soft);padding-top:10px;display:flex;
+    flex-direction:column;gap:2px;}
+  .arch{display:flex;align-items:center;gap:9px;padding:5px 7px;border-radius:7px;
+    font-size:11.5px;border-left:3px solid transparent;transition:background .12s;}
+  .arch:hover{background:var(--panel-2);border-left-color:var(--t,transparent);}
+  /* El NOMBRE es lo que se lee para saber cual es cual, asi que se queda con
+     el espacio; la etiqueta del tipo cede antes, y el color ya la dice. */
+  .arch .nom{font-family:"IBM Plex Mono",Consolas,monospace;font-size:11px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);
+    flex:1 1 auto;min-width:0;}
+  .arch .tip{font-size:10px;white-space:nowrap;font-weight:600;color:var(--t,var(--muted));
+    flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;}
+  .arch .sep{flex:0 0 4px;}
+  .arch .abrir{display:flex;gap:3px;}
+  .arch .mini{border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;
+    line-height:1;padding:4px 7px;color:var(--muted);font-family:inherit;
+    display:flex;align-items:center;transition:all .12s;}
+  .arch .mini:hover{border-color:var(--tono);color:var(--tono);
+    background:color-mix(in srgb,var(--tono) 9%,#ffffff);}
+  /* Renombrar y abrir carpeta no son "abrir en un programa": van en gris y
+     solo se encienden al pasar por encima, para no competir con los otros. */
+  .arch .util{border-color:var(--line-soft);color:#a6a89f;}
+  .arch .util:hover{border-color:var(--muted);color:var(--text);background:var(--panel-2);}
+  .tarjeta .carpeta{
+    border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;
+    font-size:11px;line-height:1;padding:3px 7px;color:var(--muted);font-family:inherit;
+    display:flex;align-items:center;gap:4px;
+  }
+  .tarjeta .carpeta:hover{border-color:var(--pieza);color:var(--pieza);}
+  /* Quitar un proyecto se ve distinto de las otras dos: no es navegar, y no
+     tiene que costar lo mismo llegar a el por descuido. */
+  .tarjeta .carpeta.peligro:hover{border-color:#c0392b;color:#c0392b;
+    background:color-mix(in srgb,#c0392b 7%,#ffffff);}
+  .tarjeta .utiles{display:flex;gap:4px;margin-left:8px;}
+  .arch.raro .tip{color:var(--warn);}
+
+  .campo{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;
+    font-size:12.5px;font-family:inherit;background:#fff;color:var(--text);
+    transition:border-color .12s,box-shadow .12s;}
+  .campo:focus{outline:none;border-color:var(--acento);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--acento) 15%,transparent);}
+
+  /* ============================ modal y aviso flotante ============================ */
+  .velo{position:fixed;inset:0;background:rgba(24,24,22,.38);display:flex;
+    align-items:center;justify-content:center;z-index:50;
+    backdrop-filter:blur(2px);animation:aparece .13s ease;}
+  @keyframes aparece{from{opacity:0}to{opacity:1}}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+    padding:19px 20px 16px;width:min(440px,92vw);display:flex;flex-direction:column;gap:11px;
+    box-shadow:0 20px 52px rgba(0,0,0,.22);animation:sube .16s ease;}
+  @keyframes sube{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  .modal h3{margin:0;font-size:15px;font-weight:700;}
+  .modal p{margin:0;font-size:12px;color:var(--text-2);line-height:1.6;}
+  .modal .acc{display:flex;gap:7px;justify-content:flex-end;margin-top:4px;flex-wrap:wrap;}
+  .modal .acc .btn{padding:8px 14px;font-size:11.5px;}
+  .modal .btn.principal{background:var(--acento);border-color:var(--acento);color:#fff;
+    box-shadow:0 2px 8px color-mix(in srgb,var(--acento) 34%,transparent);}
+  .modal .btn.principal:hover{filter:brightness(.93);color:#fff;}
+
+  .toast{position:fixed;right:18px;bottom:18px;z-index:60;color:#fff;
+    background:linear-gradient(180deg,#2a2e2a,#1c1f1c);
+    border-radius:10px;padding:11px 15px;font-size:12px;max-width:410px;line-height:1.5;
+    box-shadow:0 12px 30px rgba(0,0,0,.28);border-left:3px solid var(--ok);
+    animation:sube .18s ease;}
+  .toast.malo{border-left-color:var(--mal);}
+  .toast .ruta{display:block;font-family:"IBM Plex Mono",Consolas,monospace;font-size:10.5px;
+    opacity:.7;margin-top:4px;word-break:break-all;}
+
+  /* Barras de desplazamiento discretas, a juego. */
+  .proyectos::-webkit-scrollbar{width:11px;}
+  .proyectos::-webkit-scrollbar-thumb{background:#d3cfc6;border-radius:9px;
+    border:3px solid transparent;background-clip:content-box;}
+  .proyectos::-webkit-scrollbar-thumb:hover{background:#bdb8ad;background-clip:content-box;}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="barra" id="barra">
+    <div class="marca"><img src="/logotipo.png" alt=""><h1>GCoder</h1></div>
+  </div>
+  <div class="escenario" id="escenario"></div>
+</div>
+
+<script>
+var PROGRAMAS = [];
+var PROYECTOS = [];
+var activo = null;
+var proyectoActivo = null;
+
+/* Que sabe leer cada programa, en orden de preferencia. De aqui sale que
+   archivo se abre cuando pulsas el boton de un programa en una tarjeta. */
+var LEE = {
+  soldadura: ["lamina", "recorrido-soldadura", "coordenadas"],
+  sketch:    ["contorno"],
+  gcode:     ["corte", "recorrido-soldadura", "recalibrado"],
+  origen:    ["recorrido-soldadura", "corte", "coordenadas", "lamina", "recalibrado"]
+};
+
+/* Un color por TIPO de archivo. Esto no es adorno: el dia que se abrio el
+   archivo equivocado, todos los .txt se veian exactamente igual. Ahora una
+   lamina, un recorrido, un corte y un contorno se distinguen sin leer. */
+/* Los dibujos de los programas. Son SVG de trazo, sin fondo: heredan el
+   color de quien los contiene, asi que valen igual en una pestana clara, en
+   un boton o en la barra de un programa. Los mismos que llevan los programas
+   en su propia ventana, para que la pestana y el titulo sean lo mismo. */
+var ICONOS = {
+  "camino": '<path d="M3.7 18.3 8.9 10.7 14.2 14 20.3 5.7"/><circle cx="3.7" cy="18.3" r="1.75" fill="currentColor" stroke="none"/><circle cx="8.9" cy="10.7" r="1.75" fill="currentColor" stroke="none"/><circle cx="14.2" cy="14" r="1.75" fill="currentColor" stroke="none"/><circle cx="20.3" cy="5.7" r="1.75" fill="currentColor" stroke="none"/>',
+  "casa": '<path d="M3.4 10.6 12 3.4l8.6 7.2"/><path d="M5.6 12.4v8h12.8v-8"/><path d="M9.8 20.4v-5.2h4.4v5.2"/>',
+  "haz": '<path d="M12 2.4 7.2 12.6h9.6z" fill="currentColor" stroke="none" opacity=".2"/><path d="M12 2.4 7.2 12.6M12 2.4 16.8 12.6"/><path d="M4.2 18.4h15.6"/><circle cx="12" cy="15.5" r="2.7" fill="currentColor" stroke="none"/>',
+  "malla": '<path d="M12 2.2 17.8 8 12 13.8 6.2 8z"/><path d="M12 10.2 17.8 16 12 21.8 6.2 16z"/>',
+  "regla": '<path d="M4.3 15.7 6 10.8 15.3 1.5 19 5.2 9.7 14.5z"/><path d="M12.8 4 16.5 7.7"/><path d="M2.6 17.4h18.8v4.1H2.6z"/><path d="M7.6 17.4v1.9M12 17.4v2.7M16.4 17.4v1.9"/>',
+  "reticula": '<circle cx="12" cy="12" r="5.3"/><path d="M12 1.9v3.7M12 18.4v3.7M1.9 12h3.7M18.4 12h3.7"/><circle cx="12" cy="12" r="1.9" fill="currentColor" stroke="none"/>'
+};
+
+/* Devuelve el dibujo, o el caracter tal cual si el nombre no se reconoce: un
+   programa nuevo puede seguir poniendo un simbolo en programas.json. */
+function marca(nombre, px){
+  var d = ICONOS[nombre];
+  if(!d){ return nodo("span", null, nombre || "\u00b7"); }
+  var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.7");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("width", px);
+  svg.setAttribute("height", px);
+  svg.style.display = "block";
+  svg.innerHTML = d;
+  return svg;
+}
+
+var COLOR_TIPO = {
+  "lamina": "#b3790c",
+  "recorrido-soldadura": "#d9541f",
+  "contorno": "#2f6fb8",
+  "corte": "#7a55c2",
+  "coordenadas": "#1f8a6d",
+  "recalibrado": "#0f8ba5",
+  "desconocido": "#8a8f88"
+};
+
+/* Un color por PIEZA, sacado de su nombre: la Cervical sale siempre del mismo
+   color, en cualquier equipo y aunque cambie el orden de la rejilla. */
+var TONOS_PIEZA = ["#d9541f","#2f6fb8","#7a55c2","#1f8a6d",
+                   "#b3790c","#0f8ba5","#c0392b","#5b7f2a"];
+
+function tonoDePieza(nombre){
+  var h = 0;
+  for(var i = 0; i < nombre.length; i++) h = (h * 31 + nombre.charCodeAt(i)) >>> 0;
+  return TONOS_PIEZA[h % TONOS_PIEZA.length];
+}
+
+function colorDe(pid){
+  var p = PROGRAMAS.filter(function(x){ return x.id === pid; })[0];
+  return (p && p.color) || "#7d817a";
+}
+
+var PLURAL = {
+  "lamina": ["lámina", "láminas"],
+  "recorrido-soldadura": ["recorrido", "recorridos"],
+  "contorno": ["contorno", "contornos"],
+  "corte": ["corte", "cortes"],
+  "coordenadas": ["lista", "listas"],
+  "recalibrado": ["recalibrado", "recalibrados"],
+  "desconocido": ["sin identificar", "sin identificar"]
+};
+
+function nodo(tag, clase, texto){
+  var e = document.createElement(tag);
+  if(clase) e.className = clase;
+  if(texto !== undefined) e.textContent = texto;
+  return e;
+}
+
+function apiPython(){
+  return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
+}
+
+/* =================================================================
+   Puente de guardado.
+
+   Nace para reenviar las descargas al dialogo nativo de Windows. Ahora hace
+   algo mas util: si hay un PROYECTO abierto, el archivo va derecho a su
+   carpeta, con el nombre que toca y con su linea de identidad. Nadie escribe
+   una ruta y ningun archivo queda sin decir lo que es.
+
+   Hay que instalarlo DENTRO de cada iframe, porque cada uno tiene sus propios
+   objetos URL y HTMLAnchorElement. Solo es posible porque todo se sirve desde
+   el mismo origen (http://127.0.0.1).
+   ================================================================= */
+function instalarPuente(ventana, marco){
+  if(!ventana || ventana.__puenteInstalado) return false;
+  ventana.__puenteInstalado = true;
+
+  var blobs = new Map();
+  var crearOrig = ventana.URL.createObjectURL.bind(ventana.URL);
+  var revocarOrig = ventana.URL.revokeObjectURL.bind(ventana.URL);
+
+  ventana.URL.createObjectURL = function(obj){
+    var u = crearOrig(obj);
+    try { if(obj instanceof ventana.Blob) blobs.set(u, obj); } catch(e){}
+    return u;
+  };
+  /* El programa revoca la URL en el mismo tick del click; retenemos el
+     Blob un rato para poder leerlo de forma asincrona. */
+  ventana.URL.revokeObjectURL = function(u){
+    setTimeout(function(){ blobs.delete(u); }, 60000);
+    return revocarOrig(u);
+  };
+
+  var clickOrig = ventana.HTMLAnchorElement.prototype.click;
+  ventana.HTMLAnchorElement.prototype.click = function(){
+    var nombre = this.getAttribute("download");
+    var href = this.href || "";
+    if(nombre){
+      var b = blobs.get(href);
+      if(b && interceptarGuardado(ventana, marco, b, nombre, clickOrig, this)) return;
+    }
+    return clickOrig.apply(this, arguments);
+  };
+
+  /* Lo que el programa puede pedirle a GCoder. De momento solo lo consulta
+     alguno; existir no molesta y evita tener que inventar un canal despues. */
+  ventana.GCODER = {
+    proyecto: function(){ return proyectoActivo; },
+    listar: function(){ return fetch("/api/proyectos").then(function(r){ return r.json(); }); },
+    leer: function(proy, arch){
+      return fetch("/api/archivo?proyecto=" + encodeURIComponent(proy) +
+                   "&nombre=" + encodeURIComponent(arch))
+        .then(function(r){ return r.json(); });
+    }
+  };
+  return true;
+}
+
+/* Devuelve true si se hace cargo del guardado. */
+function interceptarGuardado(ventana, marco, blob, nombre, clickOrig, ancla){
+  var esTexto = /\.(txt|nc|gcode|tap|cnc)$/i.test(nombre);
+
+  /* Un .zip o cualquier binario no es del proyecto: al dialogo de siempre. */
+  if(!esTexto) return guardarFuera(blob, nombre, clickOrig, ancla);
+
+  if(!proyectoActivo){
+    /* Sin proyecto abierto no hay a donde guardar; se ofrece elegir uno. */
+    return guardarSinProyecto(ventana, blob, nombre, clickOrig, ancla);
+  }
+
+  var lector = new ventana.FileReader();
+  lector.onload = function(){
+    var texto = String(lector.result);
+    fetch("/api/sugerir", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({proyecto: proyectoActivo, contenido: texto, nombre: nombre,
+                            abierto: (marco && marco.__archivoAbierto) || ""})
+    }).then(function(r){ return r.json(); })
+      .then(function(s){ dialogoGuardar(texto, s, nombre, blob, clickOrig, ancla); })
+      .catch(function(){ guardarFuera(blob, nombre, clickOrig, ancla); });
+  };
+  lector.readAsText(blob);
+  return true;
+}
+
+function guardarSinProyecto(ventana, blob, nombre, clickOrig, ancla){
+  modal({
+    titulo: "No hay ningún proyecto abierto",
+    texto: "Puedes guardarlo donde quieras, o abrir un proyecto en la pantalla " +
+           "de inicio para que todo lo de esta pieza quede junto.",
+    acciones: [
+      {rotulo: "Ir a Proyectos", principal: true, accion: function(){ activar("__proyectos"); }},
+      {rotulo: "Guardar fuera…", accion: function(){ guardarFuera(blob, nombre, clickOrig, ancla); }},
+      {rotulo: "Cancelar"}
+    ]
+  });
+  return true;
+}
+
+function dialogoGuardar(texto, sugerido, nombreOriginal, blob, clickOrig, ancla){
+  var campo = document.createElement("input");
+  campo.className = "campo";
+  campo.value = sugerido.nombre;
+
+  modal({
+    titulo: "Guardar en «" + proyectoActivo + "»",
+    texto: sugerido.sobrescribe
+      ? ("Reconocido como " + (sugerido.etiqueta || sugerido.tipo).toLowerCase() +
+         ". Se guarda ENCIMA del que abriste. Cambia el nombre si prefieres uno nuevo.")
+      : ("Reconocido como " + (sugerido.etiqueta || sugerido.tipo).toLowerCase() +
+         ". El programa lo llamaba " + nombreOriginal + "."),
+    extra: campo,
+    foco: campo,
+    acciones: [
+      {rotulo: "Guardar", principal: true, accion: function(){
+        fetch("/api/archivo", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({proyecto: proyectoActivo, nombre: campo.value,
+                                contenido: texto, tipo: sugerido.tipo})
+        }).then(function(r){
+          if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+          return r.json();
+        }).then(function(res){
+          toast("Guardado en " + proyectoActivo, res.ruta);
+          cargarProyectos();
+        }).catch(function(e){ toast("No se pudo guardar: " + e.message, "", true); });
+      }},
+      {rotulo: "Guardar fuera…", accion: function(){ guardarFuera(blob, nombreOriginal, clickOrig, ancla); }},
+      {rotulo: "Cancelar"}
+    ]
+  });
+}
+
+/* El camino de antes: dialogo nativo si estamos dentro de GCoder.exe, y si no,
+   la descarga normal del navegador. */
+function guardarFuera(blob, nombre, clickOrig, ancla){
+  var api = apiPython();
+  if(!api){
+    if(clickOrig && ancla) clickOrig.apply(ancla, []);
+    return true;
+  }
+  var lector = new FileReader();
+  lector.onload = function(){
+    var s = String(lector.result);
+    /* Si hay proyecto abierto, el dialogo se abre en SU carpeta: es de lejos
+       el sitio mas probable, aunque al final se guarde en otro. */
+    api.save_file({name: nombre, b64: s.slice(s.indexOf(",") + 1), dir: carpetaDelProyecto()});
+  };
+  lector.readAsDataURL(blob);
+  return true;
+}
+
+function carpetaDelProyecto(){
+  if(!proyectoActivo) return "";
+  var p = PROYECTOS.filter(function(x){ return x.nombre === proyectoActivo; })[0];
+  return p ? (p.carpeta || "") : "";
+}
+
+/* ====================== modal y aviso flotante ====================== */
+function modal(cfg){
+  cerrarModal();
+  var velo = nodo("div", "velo");
+  velo.id = "velo";
+  var m = nodo("div", "modal");
+  m.appendChild(nodo("h3", null, cfg.titulo));
+  if(cfg.texto) m.appendChild(nodo("p", null, cfg.texto));
+  if(cfg.extra) m.appendChild(cfg.extra);
+  var acc = nodo("div", "acc");
+  (cfg.acciones || []).forEach(function(a){
+    var b = nodo("button", "btn" + (a.principal ? " principal" : ""), a.rotulo);
+    b.onclick = function(){ cerrarModal(); if(a.accion) a.accion(); };
+    acc.appendChild(b);
+  });
+  m.appendChild(acc);
+  velo.appendChild(m);
+  velo.onclick = function(e){ if(e.target === velo) cerrarModal(); };
+  document.body.appendChild(velo);
+  if(cfg.foco) setTimeout(function(){ cfg.foco.focus(); cfg.foco.select(); }, 30);
+}
+function cerrarModal(){
+  var v = document.getElementById("velo");
+  if(v) v.remove();
+}
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") cerrarModal(); });
+
+var temporizadorToast = null;
+function toast(msg, ruta, malo){
+  var viejo = document.getElementById("toast");
+  if(viejo) viejo.remove();
+  var t = nodo("div", "toast" + (malo ? " malo" : ""), msg);
+  t.id = "toast";
+  if(ruta) t.appendChild(nodo("span", "ruta", ruta));
+  document.body.appendChild(t);
+  clearTimeout(temporizadorToast);
+  temporizadorToast = setTimeout(function(){ t.remove(); }, malo ? 7000 : 4200);
+}
+
+/* ====================== pantalla de proyectos ====================== */
+function cuantos(n, tipo){
+  var p = PLURAL[tipo] || [tipo, tipo];
+  return n + " " + (n === 1 ? p[0] : p[1]);
+}
+
+function fechaCorta(iso){
+  if(!iso) return "";
+  var d = new Date(iso);
+  if(isNaN(d)) return iso;
+  var hoy = new Date();
+  var mismoDia = d.toDateString() === hoy.toDateString();
+  if(mismoDia) return "hoy " + d.toTimeString().slice(0,5);
+  return d.toISOString().slice(0,10);
+}
+
+function candidatos(proy, pid){
+  var orden = LEE[pid] || [];
+  var out = [];
+  orden.forEach(function(t){
+    proy.archivos.forEach(function(a){ if(a.tipo === t) out.push(a); });
+  });
+  return out;
+}
+
+function tarjeta(proy){
+  var c = nodo("div", "tarjeta");
+  c.style.setProperty("--pieza", tonoDePieza(proy.nombre));
+
+  var cab = nodo("div", "fila-cab");
+  cab.appendChild(nodo("h3", null, proy.nombre));
+  cab.appendChild(nodo("span", "fecha", fechaCorta(proy.modificado)));
+  var utiles = nodo("div", "utiles");
+  [["\u270e", "Cambiar el nombre de este proyecto", false, function(){ renombrarProyecto(proy); }],
+   ["\u2197", "Abrir esta carpeta en el Explorador de Windows", false, function(){ abrirCarpeta(proy.nombre); }],
+   ["\u2715", "Quitar este proyecto (va a la papelera)", true, function(){ quitarProyecto(proy); }]
+  ].forEach(function(op){
+    var b = nodo("button", "carpeta" + (op[2] ? " peligro" : ""), op[0]);
+    b.title = op[1];
+    b.addEventListener("click", function(ev){ ev.stopPropagation(); op[3](); });
+    utiles.appendChild(b);
+  });
+  cab.appendChild(utiles);
+  c.appendChild(cab);
+
+  var res = nodo("div", "resumen");
+  var tipos = Object.keys(proy.resumen);
+  if(!tipos.length){
+    res.appendChild(nodo("span", "vacia", "Todavía no tiene archivos."));
+  } else {
+    tipos.forEach(function(t){
+      var p = nodo("span", "pastilla");
+      p.style.setProperty("--t", COLOR_TIPO[t] || COLOR_TIPO.desconocido);
+      p.appendChild(nodo("b", null, String(proy.resumen[t])));
+      p.appendChild(document.createTextNode(" " + (PLURAL[t] ? PLURAL[t][proy.resumen[t] === 1 ? 0 : 1] : t)));
+      res.appendChild(p);
+    });
+  }
+  c.appendChild(res);
+
+  c.appendChild(nodo("div", "rotulo", "Abrir en"));
+  var progs = nodo("div", "progs");
+  PROGRAMAS.forEach(function(p){
+    if(!p.disponible) return;
+    var cand = candidatos(proy, p.id);
+    var b = nodo("button", "bprog");
+    b.style.setProperty("--tono", p.color || "#7d817a");
+    var icoP = nodo("span", "ico");
+    icoP.appendChild(marca(p.icono, 14));
+    b.appendChild(icoP);
+    b.appendChild(nodo("span", null, p.nombre));
+    if(cand.length) b.appendChild(nodo("span", "n", String(cand.length)));
+    b.title = cand.length
+      ? ("Abre " + cand[0].nombre + (cand.length > 1 ? " (hay " + cand.length + " que sirven)" : ""))
+      : ("Abre " + p.nombre + " con el proyecto puesto, sin ningún archivo cargado.");
+    b.onclick = function(){ abrirPrograma(proy, p.id); };
+    progs.appendChild(b);
+  });
+  c.appendChild(progs);
+
+  if(proy.archivos.length){
+    var lista = nodo("div", "archivos");
+    proy.archivos.forEach(function(a){
+      var f = nodo("div", "arch" + (a.tipo === "desconocido" ? " raro" : ""));
+      f.style.setProperty("--t", COLOR_TIPO[a.tipo] || COLOR_TIPO.desconocido);
+      /* Dentro de la tarjeta de la Cervical todos empiezan por "Cervical.":
+         repetirlo en cada fila se come el ancho justo donde esta lo que
+         distingue un archivo de otro. El nombre entero queda en el titulo. */
+      var corto = a.nombre;
+      var pref = proy.nombre + ".";
+      if(corto.toLowerCase().indexOf(pref.toLowerCase()) === 0){
+        corto = corto.slice(pref.length);
+      }
+      var n = nodo("span", "nom", corto);
+      n.title = a.nombre + (a.origen ? ("\nviene de " + a.origen) : "");
+      f.appendChild(n);
+      f.appendChild(nodo("span", "tip", a.etiqueta));
+      f.appendChild(nodo("span", "sep"));
+      var ab = nodo("span", "abrir");
+
+      var bRen = nodo("button", "mini util", "\u270e");
+      bRen.title = "Cambiar el nombre de este archivo";
+      bRen.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        renombrar(proy.nombre, a.nombre);
+      });
+      ab.appendChild(bRen);
+      PROGRAMAS.forEach(function(p){
+        if(!p.disponible || (LEE[p.id] || []).indexOf(a.tipo) < 0) return;
+        var m = nodo("button", "mini");
+        m.appendChild(marca(p.icono, 13));
+        m.style.setProperty("--tono", p.color || "#7d817a");
+        m.title = "Abrir en " + p.nombre;
+        m.onclick = function(){ abrirArchivo(proy.nombre, a.nombre, p.id); };
+        ab.appendChild(m);
+      });
+      f.appendChild(ab);
+      lista.appendChild(f);
+    });
+    c.appendChild(lista);
+  }
+  return c;
+}
+
+function tarjetaNueva(){
+  var c = nodo("div", "tarjeta nueva");
+  c.appendChild(nodo("div", "rotulo", "Nuevo proyecto"));
+  var campo = document.createElement("input");
+  campo.className = "campo";
+  campo.placeholder = "Nombre de la pieza…";
+  c.appendChild(campo);
+  c.appendChild(nodo("p", "intro",
+    "Se crea una carpeta con ese nombre. Todo lo que guardes con el proyecto " +
+    "abierto irá ahí dentro."));
+  var b = nodo("button", "btn", "Crear");
+  b.onclick = function(){ crearProyecto(campo.value, campo); };
+  campo.onkeydown = function(e){ if(e.key === "Enter") crearProyecto(campo.value, campo); };
+  c.appendChild(b);
+  return c;
+}
+
+/* Cambiar el nombre de un proyecto.
+
+   Arrastra mas de lo que parece: el nombre del proyecto es la PIEZA del
+   nombre de cada archivo (Cervical.recorrido-Equis.txt) y va tambien dentro,
+   en la linea de identidad. El servidor hace las tres cosas; aqui se avisa de
+   cuantas tocó, porque cambiar diez nombres sin decirlo asusta. */
+function renombrarProyecto(proy){
+  var campo = document.createElement("input");
+  campo.className = "campo";
+  campo.value = proy.nombre;
+
+  modal({
+    titulo: "Cambiar el nombre del proyecto",
+    texto: "Los archivos de dentro tambi\u00e9n cambian: el nombre del proyecto es " +
+           "la primera parte del nombre de cada uno.",
+    extra: campo,
+    foco: campo,
+    acciones: [
+      {rotulo: "Cambiar", principal: true, accion: function(){
+        var nuevo = campo.value.trim();
+        if(!nuevo || nuevo === proy.nombre) return;
+        fetch("/api/proyecto/renombrar", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({nombre: proy.nombre, nuevo: nuevo})
+        }).then(function(r){
+          if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+          return r.json();
+        }).then(function(d){
+          /* Los programas abiertos siguen a un archivo por su nombre, y esos
+             nombres acaban de cambiar. Se les suelta: guardar propondra un
+             nombre nuevo en vez de machacar algo que ya no existe. */
+          if(proyectoActivo === proy.nombre) proyectoActivo = d.nombre;
+          PROGRAMAS.forEach(function(p){
+            var m = document.getElementById("vista-" + p.id);
+            if(m) m.__archivoAbierto = null;
+          });
+          var extra = d.renombrados
+            ? " (" + d.renombrados + " archivo" + (d.renombrados === 1 ? "" : "s") + " renombrado" + (d.renombrados === 1 ? "" : "s") + ")"
+            : "";
+          toast('"' + proy.nombre + '" ahora es "' + d.nombre + '".' + extra);
+          cargarProyectos();
+        }).catch(function(e){ toast(e.message, "", true); });
+      }},
+      {rotulo: "Cancelar"}
+    ]
+  });
+}
+
+/* Quitar un proyecto. No lo borra: lo manda a Proyectos/_papelera con la
+   fecha. Un clic de mas no puede llevarse por delante un mes de mediciones, y
+   el aviso dice cuantos archivos hay dentro antes de tocar nada. */
+function quitarProyecto(proy){
+  var n = (proy.archivos || []).length;
+  var cuantos = n
+    ? "Se lleva " + n + " archivo" + (n === 1 ? "" : "s") + " con \u00e9l."
+    : "Est\u00e1 vac\u00edo.";
+
+  modal({
+    titulo: "Quitar \u00ab" + proy.nombre + "\u00bb",
+    texto: cuantos + " No se borra: queda en la carpeta _papelera, dentro de " +
+           "Proyectos, por si lo quieres de vuelta.",
+    acciones: [
+      {rotulo: "Quitar", principal: true, accion: function(){
+        fetch("/api/proyecto/borrar", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({nombre: proy.nombre})
+        }).then(function(r){
+          if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+          return r.json();
+        }).then(function(d){
+          if(proyectoActivo === proy.nombre) proyectoActivo = null;
+          toast('"' + d.nombre + '" est\u00e1 en la papelera.', d.papelera);
+          cargarProyectos();
+        }).catch(function(e){ toast(e.message, "", true); });
+      }},
+      {rotulo: "Cancelar"}
+    ]
+  });
+}
+
+/* Abre el Explorador donde de verdad esta el archivo. Lo hace el servidor,
+   porque una pagina no puede abrir una carpeta del disco por su cuenta. */
+function abrirCarpeta(proyecto, archivo){
+  fetch("/api/explorar", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({proyecto: proyecto, nombre: archivo || null})
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+    return r.json();
+  }).then(function(d){
+    toast("Abierto en el Explorador", d.abierto);
+  }).catch(function(e){
+    toast("No se pudo abrir la carpeta: " + e.message, "", true);
+  });
+}
+
+/* Cambiar el nombre de un archivo sin salir del hub. El nombre importa: es lo
+   que se lee al buscarlo dentro de tres semanas. */
+function renombrar(proyecto, archivo){
+  var campo = document.createElement("input");
+  campo.className = "campo";
+  campo.value = archivo;
+
+  modal({
+    titulo: "Cambiar el nombre",
+    texto: "Se queda en el mismo proyecto. Si no pones .txt al final, se a\u00f1ade solo.",
+    extra: campo,
+    foco: campo,
+    acciones: [
+      {rotulo: "Cambiar", principal: true, accion: function(){
+        var nuevo = campo.value.trim();
+        if(!nuevo || nuevo === archivo) return;
+        fetch("/api/renombrar", {
+          method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({proyecto: proyecto, nombre: archivo, nuevo: nuevo})
+        }).then(function(r){
+          if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+          return r.json();
+        }).then(function(d){
+          /* Si el archivo renombrado era el que tenia abierto un programa, se
+             deja de seguir: guardar propondria machacar uno que ya no existe. */
+          PROGRAMAS.forEach(function(p){
+            var m = document.getElementById("vista-" + p.id);
+            if(m && m.__archivoAbierto === archivo) m.__archivoAbierto = d.nombre;
+          });
+          toast('"' + archivo + '" ahora es "' + d.nombre + '".');
+          cargarProyectos();
+        }).catch(function(e){ toast(e.message, "", true); });
+      }},
+      {rotulo: "Cancelar"}
+    ]
+  });
+}
+
+function crearProyecto(nombre, campo){
+  nombre = (nombre || "").trim();
+  if(!nombre){ toast("Ponle un nombre al proyecto.", "", true); return; }
+  fetch("/api/proyectos", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({nombre: nombre})
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+    return r.json();
+  }).then(function(d){
+    if(campo) campo.value = "";
+    proyectoActivo = d.proyecto.nombre;
+    guardarProyectoActivo();
+    toast("Proyecto «" + d.proyecto.nombre + "» creado y abierto.");
+    cargarProyectos();
+  }).catch(function(e){ toast(e.message, "", true); });
+}
+
+function pintarProyectos(){
+  var cont = document.getElementById("pantalla-proyectos");
+  if(!cont) return;
+  cont.textContent = "";
+
+  var cabecera = nodo("div", "cabecera");
+  var cab = nodo("div", "cab");
+  var logo = document.createElement("img");
+  logo.src = "/logotipo.png";
+  logo.alt = "";
+  cab.appendChild(logo);
+  cab.appendChild(nodo("h2", null, "Proyectos"));
+  cab.appendChild(nodo("span", "sub", PROYECTOS.length
+    ? (PROYECTOS.length + (PROYECTOS.length === 1 ? " pieza" : " piezas"))
+    : "todavía ninguno"));
+  cabecera.appendChild(cab);
+
+  cabecera.appendChild(nodo("p", "intro",
+    "Cada proyecto es una pieza, y dentro está todo lo suyo: la lámina medida, " +
+    "sus recorridos, su contorno y su programa de corte. Pulsa un programa para " +
+    "abrir ahí el archivo que le corresponde; lo que guardes volverá a esta misma carpeta."));
+  cont.appendChild(cabecera);
+
+  var rej = nodo("div", "rejilla");
+  PROYECTOS.forEach(function(p){ rej.appendChild(tarjeta(p)); });
+  rej.appendChild(tarjetaNueva());
+  cont.appendChild(rej);
+}
+
+function cargarProyectos(despues){
+  fetch("/api/proyectos", {cache: "no-store"})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      PROYECTOS = d.proyectos || [];
+      /* Si el proyecto abierto ya no existe (lo borraron fuera), se suelta. */
+      if(proyectoActivo && !PROYECTOS.some(function(p){ return p.nombre === proyectoActivo; })){
+        proyectoActivo = null;
+        guardarProyectoActivo();
+      }
+      pintarProyectos();
+      pintarChip();
+      if(despues) despues();
+    })
+    .catch(function(e){
+      var cont = document.getElementById("pantalla-proyectos");
+      if(!cont) return;
+      cont.textContent = "";
+      var a = nodo("div", "aviso malo");
+      a.appendChild(nodo("h2", null, "No se pudo leer la lista de proyectos"));
+      a.appendChild(nodo("p", null,
+        "Esto solo funciona con GCoder abierto desde su ventana o desde " +
+        "servir.py. Con el HTML suelto (file://) no hay servidor que responda."));
+      a.appendChild(nodo("p", null, String(e)));
+      cont.appendChild(a);
+    });
+}
+
+/* ====================== abrir programas ====================== */
+function abrirPrograma(proy, pid){
+  proyectoActivo = proy.nombre;
+  guardarProyectoActivo();
+  var cand = candidatos(proy, pid);
+  if(!cand.length){
+    activar(pid);
+    toast("«" + proy.nombre + "» abierto. No hay ningún archivo que " +
+          nombreDe(pid) + " sepa leer todavía.");
+    return;
+  }
+  if(cand.length === 1){ abrirArchivo(proy.nombre, cand[0].nombre, pid); return; }
+
+  /* Varios sirven: que elija, en vez de adivinar por el. */
+  var caja = nodo("div", "archivos");
+  caja.style.borderTop = "none";
+  cand.forEach(function(a){
+    var f = nodo("div", "arch");
+    f.style.cursor = "pointer";
+    f.appendChild(nodo("span", "nom", a.nombre));
+    f.appendChild(nodo("span", "tip", a.etiqueta));
+    f.onclick = function(){ cerrarModal(); abrirArchivo(proy.nombre, a.nombre, pid); };
+    caja.appendChild(f);
+  });
+  modal({
+    titulo: "¿Cuál abro en " + nombreDe(pid) + "?",
+    texto: "«" + proy.nombre + "» tiene varios archivos que ese programa sabe leer.",
+    extra: caja,
+    acciones: [{rotulo: "Cancelar"}]
+  });
+}
+
+function nombreDe(pid){
+  var p = PROGRAMAS.filter(function(x){ return x.id === pid; })[0];
+  return p ? p.nombre : pid;
+}
+
+function abrirArchivo(proyecto, archivo, pid){
+  proyectoActivo = proyecto;
+  guardarProyectoActivo();
+  activar(pid);
+  conPrograma(pid, function(win){
+    fetch("/api/archivo?proyecto=" + encodeURIComponent(proyecto) +
+          "&nombre=" + encodeURIComponent(archivo), {cache: "no-store"})
+      .then(function(r){
+        if(!r.ok) return r.text().then(function(t){ throw new Error(t); });
+        return r.json();
+      })
+      .then(function(d){
+        /* El conjunto ha cambiado de nombre dos veces y en las carpetas quedan
+           versiones anteriores de cada programa. Se prueban los tres nombres
+           para que volver a una version vieja siga funcionando. */
+        const puerta = win.GCODER_ABRIR || win.GFORGE_ABRIR || win.TALLER_ABRIR;
+        if(typeof puerta === "function"){
+          puerta(d.nombre, d.contenido);
+          /* Se recuerda para que al guardar se proponga el mismo archivo y no
+             una copia numerada: editar y guardar es guardar encima. */
+          var m = document.getElementById("vista-" + pid);
+          if(m) m.__archivoAbierto = archivo;
+          toast(archivo + " abierto en " + nombreDe(pid));
+        } else {
+          toast(nombreDe(pid) + " todavía no sabe recibir archivos del proyecto. " +
+                "Ábrelo con su propio botón.", "", true);
+        }
+      })
+      .catch(function(e){ toast("No se pudo abrir: " + e.message, "", true); });
+  });
+}
+
+/* El iframe puede estar aun cargando: se guarda lo que hay que hacer y se
+   ejecuta cuando avise. */
+function conPrograma(id, fn){
+  var marco = document.getElementById("vista-" + id);
+  if(!marco){ return; }
+  if(marco.__listo){ fn(marco.contentWindow); return; }
+  marco.__cola = marco.__cola || [];
+  marco.__cola.push(fn);
+}
+
+function marcoListo(marco){
+  marco.__listo = true;
+  instalarPuente(marco.contentWindow, marco);
+  var cola = marco.__cola || [];
+  marco.__cola = [];
+  cola.forEach(function(f){ f(marco.contentWindow); });
+}
+
+/* ====================== barra y navegacion ====================== */
+function pintarChip(){
+  var chip = document.getElementById("chip");
+  if(!chip) return;
+  chip.textContent = "";
+  chip.appendChild(nodo("span", "pt"));
+  chip.appendChild(nodo("span", null, proyectoActivo || "sin proyecto"));
+  chip.className = "chip" + (proyectoActivo ? "" : " vacio");
+  if(proyectoActivo) chip.style.setProperty("--pieza", tonoDePieza(proyectoActivo));
+  chip.title = proyectoActivo
+    ? "Lo que guardes irá a la carpeta de «" + proyectoActivo + "». Pulsa para cambiar."
+    : "No hay proyecto abierto: al guardar te preguntará. Pulsa para elegir uno.";
+}
+
+function guardarProyectoActivo(){
+  try { localStorage.setItem("taller.proyecto", proyectoActivo || ""); } catch(e){}
+  pintarChip();
+}
+function recuperarProyectoActivo(){
+  try { proyectoActivo = localStorage.getItem("taller.proyecto") || null; } catch(e){ proyectoActivo = null; }
+}
+
+function construirBarra(){
+  var barra = document.getElementById("barra");
+
+  var inicio = nodo("button", "tab inicio");
+  inicio.style.setProperty("--tono", "#d9541f");
+  inicio.id = "tab-__proyectos";
+  var icoInicio = nodo("span", "ico");
+  icoInicio.appendChild(marca("casa", 15));
+  inicio.appendChild(icoInicio);
+  inicio.appendChild(nodo("span", null, "Proyectos"));
+  inicio.onclick = function(){ activar("__proyectos"); };
+  barra.appendChild(inicio);
+
+  PROGRAMAS.forEach(function(p){
+    var b = nodo("button", "tab");
+    b.style.setProperty("--tono", p.color || "#7d817a");
+    b.id = "tab-" + p.id;
+    var ico = nodo("span", "ico");
+    ico.appendChild(marca(p.icono, 15));
+    b.appendChild(ico);
+    b.appendChild(nodo("span", null, p.nombre));
+    if(!p.disponible) b.appendChild(nodo("span", "pend", "pendiente"));
+    b.onclick = function(){ activar(p.id); };
+    barra.appendChild(b);
+  });
+
+  barra.appendChild(nodo("div", "hueco"));
+
+  var info = nodo("div", "info");
+  var chip = nodo("button", "chip");
+  chip.id = "chip";
+  chip.onclick = function(){ activar("__proyectos"); };
+  info.appendChild(chip);
+  var arch = nodo("span", "archivo", "");
+  arch.id = "archivo";
+  info.appendChild(arch);
+  var rec = nodo("button", "btn", "Recargar");
+  rec.onclick = recargar;
+  info.appendChild(rec);
+  barra.appendChild(info);
+  pintarChip();
+}
+
+function panelAviso(p){
+  var cont = nodo("div", "aviso" + (p.problema ? " malo" : ""));
+  cont.style.setProperty("--tono", p.color || "#7d817a");
+  cont.id = "aviso-" + p.id;
+  var grande = nodo("div", "grande");
+  grande.appendChild(marca(p.icono, 48));
+  cont.appendChild(grande);
+  cont.appendChild(nodo("h2", null, p.problema ? "No se pudo cargar" : p.nombre));
+  if(p.problema){
+    cont.appendChild(nodo("p", null, p.problema));
+  } else {
+    var msg = nodo("p", null);
+    msg.appendChild(document.createTextNode(p.descripcion || ""));
+    msg.appendChild(document.createElement("br"));
+    msg.appendChild(document.createElement("br"));
+    msg.appendChild(document.createTextNode("Cuando lo tengas, apunta su carpeta y su archivo en "));
+    msg.appendChild(nodo("code", null, "programas.json"));
+    msg.appendChild(document.createTextNode(" y aparecera aqui."));
+    cont.appendChild(msg);
+  }
+  return cont;
+}
+
+function activar(id){
+  activo = id;
+  var escenario = document.getElementById("escenario");
+
+  /* El hilo de arriba y los botones toman el color del programa en el que
+     estas: es la señal mas barata de "dónde estoy". */
+  document.documentElement.style.setProperty(
+    "--acento", id === "__proyectos" ? "#d9541f" : colorDe(id));
+
+  var tabs = document.querySelectorAll(".tab");
+  Array.prototype.forEach.call(tabs, function(t){
+    t.classList.toggle("on", t.id === "tab-" + id);
+  });
+  Array.prototype.forEach.call(escenario.children, function(c){ c.classList.add("oculto"); });
+
+  if(id === "__proyectos"){
+    var pant = document.getElementById("pantalla-proyectos");
+    if(!pant){
+      pant = nodo("div", "proyectos");
+      pant.id = "pantalla-proyectos";
+      escenario.appendChild(pant);
+      cargarProyectos();
+    } else {
+      pant.classList.remove("oculto");
+      cargarProyectos();
+    }
+    document.getElementById("archivo").textContent = "";
+    return;
+  }
+
+  var p = PROGRAMAS.filter(function(x){ return x.id === id; })[0];
+  if(!p) return;
+
+  var existente = document.getElementById("vista-" + id) || document.getElementById("aviso-" + id);
+  if(existente){
+    existente.classList.remove("oculto");
+  } else if(p.disponible){
+    /* El iframe se crea solo la primera vez; luego se oculta, no se
+       destruye, asi que cada programa conserva su estado al cambiar
+       de pestana. */
+    var marco = document.createElement("iframe");
+    marco.id = "vista-" + id;
+    marco.src = p.url;
+    marco.onload = function(){ marcoListo(marco); };
+    escenario.appendChild(marco);
+  } else {
+    escenario.appendChild(panelAviso(p));
+  }
+
+  document.getElementById("archivo").textContent = p.archivo_resuelto || "";
+}
+
+function recargar(){
+  if(activo === "__proyectos"){ cargarProyectos(); toast("Lista de proyectos actualizada."); return; }
+  var marco = document.getElementById("vista-" + activo);
+  if(!marco){ location.reload(); return; }
+  /* Se vuelve a pedir el manifiesto por si guardaste una version mas nueva. */
+  cargarManifiesto(function(){
+    var p = PROGRAMAS.filter(function(x){ return x.id === activo; })[0];
+    if(p && p.url){
+      marco.__puenteInstalado = false;
+      marco.__listo = false;
+      marco.contentWindow.__puenteInstalado = false;
+      marco.src = p.url + "?t=" + Date.now();
+      document.getElementById("archivo").textContent = p.archivo_resuelto || "";
+    }
+  });
+}
+
+/* Las carpetas de los programas, para la pantalla de rescate. Solo se usan
+   cuando NO hay servidor y por tanto no se puede leer programas.json, que es
+   de donde salen normalmente. Si alguna vez se anade un programa, aqui hay
+   que anadirlo tambien; lo peor que pasa si se olvida es que falte un enlace
+   en esa pantalla. */
+var CARPETAS = [
+  ["Soldadura L\u00e1ser", "programas/SoldaduraLaser/"],
+  ["Dise\u00f1ador de Contornos", "programas/DisenoContorno/"],
+  ["Editor de G-code", "programas/EditorGcode/"],
+  ["Origen", "programas/Origen/"]
+];
+
+/* Sin servidor no hay hub. Se explica por que y se da salida. */
+function sinServidor(err, forzarSuelto){
+  /* El parametro solo existe para poder probar las dos ramas: en uso real
+     manda el protocolo. */
+  var suelto = (forzarSuelto === undefined) ? (location.protocol === "file:") : forzarSuelto;
+  var esc = document.getElementById("escenario");
+  esc.textContent = "";
+
+  var cont = nodo("div", "aviso" + (suelto ? "" : " malo"));
+
+  if(!suelto){
+    cont.appendChild(nodo("h2", null, "No se pudo leer programas.json"));
+    cont.appendChild(nodo("p", null, String(err)));
+    esc.appendChild(cont);
+    return;
+  }
+
+  // El texto va alineado a la izquierda dentro de una caja centrada: un
+  // parrafo largo centrado no se lee.
+  var caja = nodo("div");
+  caja.style.cssText = "max-width:560px;text-align:left;display:flex;" +
+                       "flex-direction:column;gap:11px;";
+  cont.appendChild(caja);
+  caja.appendChild(nodo("h2", null, "Esta pantalla necesita GCoder abierto"));
+
+  var p1 = nodo("p", null);
+  p1.appendChild(document.createTextNode(
+    "Has abierto el hub directamente desde la carpeta. Asi no puede funcionar: " +
+    "la pantalla de Proyectos necesita el servidor que trae GCoder, y el navegador " +
+    "no deja leer archivos del disco por su cuenta."));
+  caja.appendChild(p1);
+
+  var p2 = nodo("p", null);
+  p2.innerHTML = "<b>Abre <code>GCoder.exe</code></b>, que est\u00e1 en esta misma carpeta. " +
+    "No necesita instalar nada. Si el antivirus se lo llevo, usa " +
+    "<code>ABRIR GCoder.bat</code> (ese necesita Python).";
+  caja.appendChild(p2);
+
+  caja.appendChild(nodo("div", "rotulo", "O entra directo a un programa"));
+
+  var p3 = nodo("p", null);
+  p3.style.marginBottom = "2px";
+  p3.appendChild(document.createTextNode(
+    "Los programas si funcionan sueltos: cada uno es un solo archivo. Abre la " +
+    "carpeta y elige el de version mas alta. Lo unico que no tendras son los " +
+    "Proyectos; lo que guardes ira a Descargas."));
+  caja.appendChild(p3);
+
+  var lista = nodo("div", "progs");
+  lista.style.marginTop = "4px";
+  CARPETAS.forEach(function(c){
+    var a = document.createElement("a");
+    a.className = "bprog";
+    a.href = c[1];
+    a.style.textDecoration = "none";
+    a.appendChild(nodo("span", null, c[0]));
+    lista.appendChild(a);
+  });
+  caja.appendChild(lista);
+
+  esc.appendChild(cont);
+}
+
+function cargarManifiesto(despues){
+  fetch("/programas.json", {cache:"no-store"})
+    .then(function(r){ return r.json(); })
+    .then(function(d){ PROGRAMAS = d.programas || []; if(despues) despues(); })
+    .catch(function(e){ sinServidor(e); });
+}
+
+recuperarProyectoActivo();
+cargarManifiesto(function(){
+  construirBarra();
+  /* Se entra siempre por los proyectos: elegir la pieza es el primer paso
+     del trabajo, y es lo que faltaba el dia que se abrio el archivo que no era. */
+  activar("__proyectos");
+});
+</script>
+</body>
+</html>
+<!-- Diseñado por Rolando Ordoñez Rodriguez A01177301 -->

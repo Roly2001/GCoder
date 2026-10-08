@@ -1,0 +1,2624 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Origen · Recalibrar el cero de pieza (v1.11)</title>
+<!-- VERSION: 1.1 — incrementar en cada cambio, aquí y en <title>/insignia, y renombrar el archivo -->
+<style>
+  :root{
+    --bg:#f4f2ee; --panel:#ffffff; --panel-2:#f0ede7;
+    --line:#dcd8d0; --line-soft:#e9e5dd; --text:#1e2320; --muted:#7d817a;
+    --accent:#2563eb; --accent-dim:#2563eb33;
+    --laser:#d9541f; --move:#1f8f84;
+    --ok:#2e8f4f; --warn:#c1462f; --sin:#d97706;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: radial-gradient(1200px 600px at 80% -10%, rgba(31,138,109,.055) 0%, transparent 62%), linear-gradient(180deg, var(--bg) 0%, #eeebe4 100%);
+    color:var(--text); font-family:'IBM Plex Sans', -apple-system, Segoe UI, sans-serif;
+  }
+  .mono{ font-family:'IBM Plex Mono', 'Consolas', monospace; }
+  .app-shell{ display:grid; grid-template-rows:auto 1fr; height:100vh; }
+
+  .topbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--panel); border-bottom:1px solid var(--line); padding:10px 20px;
+  }
+  .brand{ display:flex; align-items:baseline; gap:9px; margin-right:8px; }
+  .brand .dot{
+    width:8px; height:8px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 10px 2px var(--accent-dim); flex-shrink:0;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.5; transform:scale(.8);} }
+  .brand h1{ font-size:13px; margin:0; letter-spacing:.05em; text-transform:uppercase; font-weight:700; white-space:nowrap; }
+  .version-tag{
+    font-size:9.5px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:4px; padding:1px 6px; letter-spacing:.03em; margin-left:2px;
+  }
+  .topbar-field{ display:flex; flex-direction:column; gap:2px; }
+  .topbar-field label{ font-size:9px; color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
+  .topbar-field input{
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; color:var(--text);
+    padding:6px 9px; font-size:12.5px; outline:none; width:200px;
+  }
+  .topbar-field input:focus{ border-color:var(--accent); }
+  .topbar-spacer{ flex:1; }
+  .topbar-actions{ display:flex; gap:8px; }
+
+  .btn-secondary{
+    background:#ffffff; color:var(--text); border:1px solid var(--line); border-radius:7px;
+    padding:8px 12px; font-size:11.5px; font-weight:600; letter-spacing:.02em;
+    cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center;
+    gap:6px; white-space:nowrap;
+  }
+  .btn-secondary:hover:not(:disabled){ border-color:#c7c4bb; background:var(--panel-2); }
+  .btn-secondary:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-secondary.fuerte{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn-secondary.fuerte:hover:not(:disabled){ filter:brightness(1.08); background:var(--accent); }
+  .btn-tiny{
+    background:#ffffff; color:var(--muted); border:1px solid var(--line); border-radius:6px;
+    padding:5px 9px; font-size:10.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .btn-tiny:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+  .btn-tiny:disabled{ opacity:.35; cursor:not-allowed; }
+
+  .app-body{ display:grid; grid-template-columns: 265px 1fr 315px; min-height:0; }
+  .col{ background:var(--panel); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:13px; min-height:0; }
+  .col > *{ flex-shrink:0; }
+  .col-left{ border-right:1px solid var(--line); }
+  .col-right{ border-left:1px solid var(--line); }
+  .col::-webkit-scrollbar{ width:7px; }
+  .col::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .divider{ height:1px; background:var(--line); margin:2px 0; }
+  .status{ font-size:11.5px; color:var(--muted); line-height:1.5; min-height:16px; }
+  .status.err{ color:var(--warn); }
+  .status.ok{ color:var(--ok); }
+  .vacio{ font-size:11.5px; color:#a6a89f; padding:10px 4px; font-style:italic; line-height:1.5; }
+  .nota{ font-size:9.5px; color:var(--muted); line-height:1.5; padding:4px 2px 0; }
+  .nota b{ color:var(--text); }
+
+  /* ---- recorridos ---- */
+  .rec{
+    border:1px solid var(--line); border-radius:9px; background:#ffffff;
+    padding:9px 10px; display:flex; flex-direction:column; gap:7px;
+    border-left:3px solid var(--tono, var(--line));
+  }
+  .rec.activo{ border-color:var(--tono); box-shadow:0 0 0 2px color-mix(in srgb, var(--tono) 18%, transparent); }
+  .rec-cab{ display:flex; align-items:center; gap:7px; }
+  .rec-cab input{
+    flex:1; min-width:0; border:1px solid transparent; border-radius:5px; background:transparent;
+    font-family:inherit; font-size:12.5px; font-weight:700; color:var(--text); padding:3px 5px;
+  }
+  .rec-cab input:hover{ border-color:var(--line); }
+  .rec-cab input:focus{ outline:none; border-color:var(--tono); background:#fff; }
+  .rec-pt{ width:9px; height:9px; border-radius:50%; background:var(--tono); flex-shrink:0; }
+  .rec-n{ font-size:9.5px; color:var(--muted); background:var(--panel-2); border-radius:4px; padding:1px 5px; }
+
+  .rec-puntos{ display:flex; flex-direction:column; gap:2px; }
+  .rec-pto{
+    display:flex; align-items:center; gap:6px; font-size:11px; padding:2px 4px; border-radius:5px;
+  }
+  .rec-pto:hover{ background:var(--panel-2); }
+  .rec-pto .orden{
+    width:16px; height:16px; border-radius:50%; background:var(--tono); color:#fff;
+    font-size:9px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .rec-pto .nom{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rec-pto .xy{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; color:var(--muted); }
+  .rec-pto button{
+    border:1px solid var(--line); background:#fff; border-radius:4px; cursor:pointer;
+    font-size:9.5px; line-height:1; padding:2px 4px; color:var(--muted); font-family:inherit;
+  }
+  .rec-pto button:hover{ border-color:var(--tono); color:var(--tono); }
+  .rec-pto button:disabled{ opacity:.35; cursor:default; }
+
+  .rec-par{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  /* La etiqueta va ENCIMA del campo: al lado, en una columna estrecha, el
+     campo se queda sin sitio y la cifra se corta. */
+  .rec-par .fila{ display:flex; flex-direction:column; align-items:stretch; gap:2px; }
+  .rec-par .fila .k{ font-size:8.5px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--muted); white-space:nowrap; }
+  .rec-par input, .rec-par select{
+    width:100%; border:1px solid var(--line); border-radius:5px; padding:4px 6px;
+    font-size:11px; font-family:inherit; background:#fff; color:var(--text);
+  }
+  .rec-vacio{ font-size:10.5px; color:#a6a89f; font-style:italic; padding:3px 4px; }
+  .rec-gc{
+    width:100%; border:1px solid var(--line); border-radius:6px; background:var(--panel-2);
+    font-family:'IBM Plex Mono', monospace; font-size:9.5px; line-height:1.45; color:var(--text);
+    padding:7px 8px; resize:none; overflow:hidden;
+  }
+
+  /* ---- lienzo ---- */
+  .col-center{ position:relative; padding:16px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .stage-frame{
+    position:relative; width:100%; height:100%; max-width:1200px;
+    background:#ffffff; border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow: inset 0 0 40px #00000008;
+  }
+  .stage-badge{
+    position:absolute; top:14px; left:16px; font-size:10.5px; color:var(--muted);
+    letter-spacing:.08em; text-transform:uppercase; z-index:5; display:flex; gap:6px; align-items:center;
+    pointer-events:none;
+  }
+  .stage-badge b{ color:var(--text); font-weight:600; }
+  .stage-scale{ position:absolute; top:14px; right:16px; font-size:10px; color:#a6a89f; z-index:5; pointer-events:none; }
+  svg{ width:100%; height:100%; display:block; }
+  svg.panning{ cursor:grabbing; }
+  #canvas, #canvas *{ cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="25" height="25"><g stroke="%23ffffff" stroke-width="3.2" stroke-linecap="round"><line x1="12.5" y1="1" x2="12.5" y2="8"/><line x1="12.5" y1="17" x2="12.5" y2="24"/><line x1="1" y1="12.5" x2="8" y2="12.5"/><line x1="17" y1="12.5" x2="24" y2="12.5"/></g><g stroke="%23111111" stroke-width="1.3" stroke-linecap="round"><line x1="12.5" y1="1" x2="12.5" y2="8"/><line x1="12.5" y1="17" x2="12.5" y2="24"/><line x1="1" y1="12.5" x2="8" y2="12.5"/><line x1="17" y1="12.5" x2="24" y2="12.5"/></g><circle cx="12.5" cy="12.5" r="2.6" fill="%232563eb" stroke="%23ffffff" stroke-width="1.1"/></svg>') 12 12, crosshair !important; }
+
+  .zoom-controls{
+    position:absolute; bottom:16px; right:16px; z-index:6;
+    display:flex; flex-direction:column; gap:4px; background:#ffffff;
+    border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 2px 8px #00000012;
+  }
+  .zoom-btn{
+    width:30px; height:30px; border:none; background:#ffffff; color:var(--text);
+    font-size:16px; font-weight:700; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-btn:hover{ background:var(--panel-2); }
+  .zoom-fit-btn{
+    width:30px; height:24px; border:none; background:#ffffff; color:var(--muted);
+    font-size:13px; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-fit-btn:hover{ background:var(--panel-2); color:var(--accent); }
+  .hint-bar{
+    position:absolute; bottom:16px; left:16px; z-index:6; background:#fff; border:1px solid var(--line);
+    border-radius:7px; padding:6px 11px; font-size:11px; color:var(--muted); max-width:62%;
+  }
+  .hint-bar b{ color:var(--accent); }
+
+  /* ---- datos ---- */
+  .datos{ display:flex; flex-direction:column; gap:4px; }
+  .dato{
+    display:flex; justify-content:space-between; gap:8px; font-size:10.5px;
+    padding:5px 8px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+  }
+  .dato .k{ color:var(--muted); }
+  .dato .v{ font-family:'IBM Plex Mono', monospace; font-weight:600; }
+
+  /* ---- campos ---- */
+  .fila{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:6px 8px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:6px; margin-top:5px;
+  }
+  .fila .k{ font-size:10.5px; color:var(--muted); }
+  .fila input, .fila select{
+    width:92px; font-size:11px; padding:4px 6px; border:1px solid var(--line);
+    border-radius:5px; background:#fff; color:var(--text); outline:none;
+    font-family:'IBM Plex Mono', monospace; text-align:right;
+  }
+  .fila input:focus, .fila select:focus{ border-color:var(--accent); }
+  .conG{ display:flex; align-items:center; gap:3px; }
+  .conG .g{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:700; color:var(--muted); }
+  .conG input{ width:56px; }
+
+  .opciones{ display:flex; gap:6px; margin-top:5px; }
+  .opt{
+    flex:1; text-align:center; padding:5px 4px; border:1px solid var(--line); border-radius:6px;
+    background:#fff; color:var(--muted); font-size:10px; font-weight:600; cursor:pointer; user-select:none;
+  }
+  .opt:hover{ border-color:#c7c4bb; }
+  .opt.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .opt small{ display:block; font-family:'IBM Plex Mono', monospace; font-size:9px; opacity:.75; font-weight:500; }
+
+  /* ---- medicion ---- */
+  .med-fila{ display:grid; grid-template-columns: 58px 1fr 1fr; gap:5px; align-items:center; margin-top:4px; }
+  .med-fila label{ font-size:9.5px; color:var(--muted); }
+  .med-fila input{
+    width:100%; font-size:10.5px; padding:3px 5px; border:1px solid var(--line); border-radius:5px;
+    background:#fff; color:var(--text); outline:none; font-family:'IBM Plex Mono', monospace; text-align:right;
+  }
+  .med-fila input:focus{ border-color:var(--accent); }
+  .med-fila input.auto{ background:#f6f8fe; color:#3f5fa8; }
+  .resultado{
+    margin-top:8px; padding:8px 10px; border-radius:7px; border:1px solid var(--line);
+    background:var(--panel-2); font-family:'IBM Plex Mono', monospace; font-size:11px;
+  }
+  .resultado.hay{ border-color:#c2e2cd; background:#eefaf1; }
+  .resultado .g{ display:block; font-size:9px; color:var(--muted); font-family:'IBM Plex Sans', sans-serif;
+                 text-transform:uppercase; letter-spacing:.05em; margin-bottom:2px; }
+
+  /* ---- lista de elementos ---- */
+  .lista{ display:flex; flex-direction:column; gap:5px; }
+  .elem{
+    display:flex; align-items:center; gap:7px; padding:7px 8px; background:var(--panel-2);
+    border:1px solid var(--line); border-left-width:4px; border-radius:7px; cursor:pointer;
+  }
+  .elem:hover{ background:#eeece6; }
+  .elem.sel{ box-shadow: inset 0 0 0 2px var(--accent); }
+  .elem .luz{
+    width:15px; height:15px; border-radius:50%; flex-shrink:0; border:2px solid #fff;
+    box-shadow:0 0 0 1px currentColor;
+  }
+  .elem .cuerpo{ flex:1; min-width:0; }
+  .elem .tit{ font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .elem .sub{ font-size:9.5px; color:var(--muted); font-family:'IBM Plex Mono', monospace;
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .elem.nosuelda .tit{ color:var(--muted); }
+  .elem.nosuelda{ opacity:.72; }
+  .interruptor{ width:13px; height:13px; flex-shrink:0; cursor:pointer; accent-color:var(--ok); margin:0; }
+  .etq-nos{
+    font-size:8.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    padding:1px 5px; border-radius:4px; white-space:nowrap;
+    color:var(--muted); border:1px solid var(--line); background:#efeee9;
+  }
+  .elem .acc{ display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+  .elem .acc button{
+    width:19px; height:15px; border:1px solid var(--line); background:#fff; border-radius:4px;
+    font-size:9px; line-height:1; cursor:pointer; color:var(--muted); padding:0;
+  }
+  .elem .acc button:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+  .elem .acc button:disabled{ opacity:.3; cursor:not-allowed; }
+
+  .contadores{ display:flex; gap:6px; }
+  .cont{
+    flex:1; text-align:center; padding:6px 3px; border:1px solid var(--line); border-radius:6px;
+    background:#fff; font-size:9.5px; color:var(--muted);
+  }
+  .cont b{ display:block; font-size:15px; font-family:'IBM Plex Mono', monospace; line-height:1.2; }
+  .cont.sin b{ color:var(--sin); }
+  .cont.ok b{ color:var(--ok); }
+  .cont.mal b{ color:var(--warn); }
+
+  /* ---- g-code ---- */
+  .gc-fila{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .gc-nota{ font-size:9.5px; color:var(--muted); }
+  #gcodeTexto{
+    width:100%; min-height:90px; resize:none; background:#fbfbf9;
+    border:1px solid var(--line); border-radius:6px; color:var(--text);
+    font-family:'IBM Plex Mono', Consolas, monospace; font-size:10.5px;
+    line-height:1.5; padding:8px; white-space:pre; overflow:hidden; outline:none;
+  }
+  .acciones{ display:flex; gap:6px; }
+  .acciones button{ flex:1; }
+  /* Dos ordenes largas no caben al lado en una columna estrecha. */
+  .acciones.apiladas{ flex-direction:column; }
+  .footer-note{ font-size:10.3px; color:#5b6167; line-height:1.5; padding-top:10px;
+                border-top:1px solid var(--line-soft); margin-top:auto; }
+
+  @media (max-width: 1180px){
+    .app-body{ grid-template-columns: 230px 1fr 285px; }
+  }
+
+  /* ===================================================================
+     Retoque visual de GCoder. Solo color y relieve: ni un cambio de
+     maquetacion, y ningun color con significado (--accent, --laser,
+     --move, --ok, --warn) se toca, porque aqui un color dice algo.
+
+     --ident es el tono de este programa, el mismo de su pestana en el
+     hub: asi se sabe donde se esta sin leer el titulo.
+     =================================================================== */
+  :root{
+    --ident:#1f8a6d;
+    --sombra:0 1px 2px rgba(31,28,22,.05), 0 2px 5px rgba(31,28,22,.045);
+  }
+
+  /* Las columnas eran blanco puro, que es de donde venia la sensacion de
+     plano. Un hueso muy claro las separa del lienzo, que sigue blanco. */
+  .col-left, .col-right{
+    background:linear-gradient(180deg,#fbf9f6 0%,#f7f4ef 100%);
+  }
+
+  .topbar{
+    position:relative;
+    background:linear-gradient(180deg,#ffffff 0%,#faf8f5 100%);
+  }
+  /* Hilo de identidad, igual que en el hub. */
+  .topbar::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--ident),
+               color-mix(in srgb, var(--ident) 40%, #ffffff));
+  }
+  .brand .dot{
+    background:var(--ident);
+    box-shadow:0 0 10px 2px color-mix(in srgb, var(--ident) 34%, transparent);
+  }
+
+  /* Los rotulos de seccion llevan el tono: ordenan la columna de un vistazo. */
+  .section-title{ color:color-mix(in srgb, var(--ident) 62%, #6b6f68); }
+
+  .btn-secondary, .btn-tiny{ box-shadow:var(--sombra); }
+  .btn-secondary:hover, .btn-tiny:hover{
+    border-color:var(--ident);
+    color:color-mix(in srgb, var(--ident) 80%, #000000);
+  }
+
+  /* El simbolo del programa, el mismo que lleva su pestana en el hub. */
+  .brand{ align-items:center; }
+  .marca-svg{
+    width:19px; height:19px; color:var(--ident); flex-shrink:0;
+    filter:drop-shadow(0 0 5px color-mix(in srgb, var(--ident) 30%, transparent));
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <svg class="marca-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5.3"/><path d="M12 1.9v3.7M12 18.4v3.7M1.9 12h3.7M18.4 12h3.7"/><circle cx="12" cy="12" r="1.9" fill="currentColor" stroke="none"/></svg>
+      <h1>Origen</h1>
+      <span class="version-tag mono">v1.11</span>
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de archivo</label>
+      <input type="text" id="nombreArchivo" value="recalibrado" spellcheck="false">
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-actions">
+      <button class="btn-secondary" id="deshacerBtn" disabled>↶ Deshacer</button>
+      <button class="btn-secondary" id="rehacerBtn" disabled>↷ Rehacer</button>
+      <button class="btn-secondary" id="abrirBtn">📂 Abrir</button>
+      <button class="btn-secondary" id="guardarBtn">💾 Guardar .txt</button>
+    </div>
+    <input type="file" id="fileInput" accept=".txt,.nc,.gcode,.tap,.cnc" style="display:none">
+  </div>
+
+  <div class="app-body">
+
+    <!-- ==================== IZQUIERDA ==================== -->
+    <div class="col col-left">
+      <div class="section-title">Archivo</div>
+      <div class="datos" id="datos">
+        <div class="vacio">Abre un archivo: una lista de puntos, un G-code de corte o uno de recorrido.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Medir un centro</div>
+      <div class="opciones" id="metodoFila"></div>
+      <div id="medicion"></div>
+      <div class="resultado" id="resultado"><span class="g">Centro medido</span>—</div>
+      <div class="acciones" style="margin-top:6px;">
+        <button class="btn-tiny" id="usarComoCeroBtn" disabled>Es el nuevo 0,0</button>
+        <button class="btn-tiny" id="usarComoRealBtn" disabled>Es donde está el elegido</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Recalibrar el cero</div>
+      <div id="recalibrar"></div>
+
+      <div class="footer-note">
+        Dos cosas distintas con los mismos campos. <b>Mover el cero aquí</b>
+        desplaza el programa entero para que ese elemento caiga en esa coordenada:
+        es lo que se hace cuando se ha perdido el cero de pieza. <b>Mover solo
+        este</b> corrige uno que esté mal sin tocar a los demás —también en
+        <b>G91</b>, porque se recalculan su salto y el del siguiente.
+      </div>
+    </div>
+
+    <!-- ==================== CENTRO ==================== -->
+    <div class="col-center">
+      <div class="stage-frame">
+        <div class="stage-badge">Vista · <b id="badge">sin archivo</b></div>
+        <div class="stage-scale mono" id="escala"></div>
+        <svg id="canvas" viewBox="0 0 900 820" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="hint-bar" id="hint">Abre un archivo para empezar.</div>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomInBtn" title="Acercar">+</button>
+          <button class="zoom-fit-btn" id="zoomFitBtn" title="Ajustar vista">⤢</button>
+          <button class="zoom-btn" id="zoomOutBtn" title="Alejar">−</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== DERECHA ==================== -->
+    <div class="col col-right">
+      <div class="section-title">Comprobación</div>
+      <div class="contadores" id="contadores"></div>
+      <div class="lista" id="lista"><div class="vacio">Nada cargado.</div></div>
+
+      <div class="divider" id="divRec"></div>
+
+      <div class="section-title" id="tituloRec">Recorridos</div>
+      <div class="nota" id="pistaRec">Un recorrido es una lista de puntos en el orden
+        en que la máquina los va a soldar. Puedes tener varios, cada uno con sus
+        puntos y sus parámetros.</div>
+      <div class="acciones" id="accRec" style="margin-bottom:2px;">
+        <button class="btn-secondary" id="nuevoRecBtn">+ Nuevo recorrido</button>
+      </div>
+      <div id="recorridos"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Parámetros</div>
+      <div id="params"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">G-code</div>
+      <div class="gc-fila"><div class="gc-nota" id="gcNota">—</div></div>
+      <textarea id="gcodeTexto" spellcheck="false" readonly></textarea>
+      <div class="acciones">
+        <button class="btn-secondary" id="exportarBtn">💾 Guardar .txt</button>
+      </div>
+
+      <div class="divider"></div>
+      <div class="status mono" id="status">Listo.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const svg = document.getElementById('canvas');
+const NS = 'http://www.w3.org/2000/svg';
+const W = 900, H = 820;
+const PAD = 90;
+
+// ---------------------------------------------------------------- ESTADO
+// doc lo guarda todo: de donde salio, los elementos con su estado, y -- si
+// vino de un G-code -- las lineas originales para poder devolverlas tocadas
+// lo justo.
+let doc = null;
+let seleccionado = -1;
+
+/* Recorridos: como en Soldadura Laser, pero sin materiales. Viven en el doc
+   para que entren en deshacer igual que todo lo demas. */
+let recorridoActivo = null;   // el que recibe los clics del lienzo
+let modoAnadir = false;
+const PALETA_REC = ['#2563eb', '#d9541f', '#1f8a6d', '#7a55c2',
+                    '#b3790c', '#0f8ba5', '#c0392b', '#5b7f2a'];
+let camera = null;
+let isPanning = false, panStartPt = null, panStartCamera = null, panMoved = false;
+
+const COLORES = { sin:'#d97706', ok:'#2e8f4f', mal:'#c1462f' };
+const ETIQUETAS = { sin:'sin comprobar', ok:'correcta', mal:'incorrecta' };
+
+let metodo = '6p';                 // metodo de medicion: '6p' | 'np'
+let npCount = 3;
+let medidos = {};                  // valores tecleados de la medicion
+let sobrescritos = new Set();      // campos que el usuario escribio a mano
+let centroMedido = null;
+
+// ------------------------------------------------------------- UTILIDADES
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function nodo(tag, clase, texto){
+  const e = document.createElement(tag);
+  if(clase) e.className = clase;
+  if(texto !== undefined) e.textContent = texto;
+  return e;
+}
+function limpiarSvg(){ svg.innerHTML = ''; }
+function fmt4(n){ return (+n).toFixed(4); }
+function fmt2(n){ return (+n).toFixed(2); }
+function r4(v){ return Math.round(v * 1e4) / 1e4; }
+function gnum(v){
+  let s = (+v).toFixed(4);
+  if(s.indexOf('.') >= 0) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return (s === '-0') ? '0' : s;
+}
+function numOr(v, porDefecto){
+  const n = parseFloat(v);
+  return isFinite(n) ? n : porDefecto;
+}
+function setStatus(msg, tipo){
+  const s = document.getElementById('status');
+  s.textContent = msg;
+  s.className = 'status mono' + (tipo ? ' ' + tipo : '');
+}
+/* El punto NO se quita: es lo que separa la pieza del tipo en
+   Pieza.tipo-etiqueta.txt, y sin el queda "Cervicallamina-2026-09-03", un
+   nombre que ya no dice ni de que pieza es ni que lleva dentro. */
+function sanitizeFilename(name){
+  return (name || '').replace(/[^a-zA-Z0-9_.\-áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
+}
+function descargar(texto, nombre){
+  const blob = new Blob([texto], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function unidad(){ return (doc && doc.unidades === 'in') ? 'in' : 'mm'; }
+
+// ======================================================= CIRCULO POR PUNTOS
+// Copiado tal cual del programa de puntos de soldadura: es el mismo calculo y
+// tiene que dar exactamente lo mismo.
+function det3(m){
+  return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+       - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+       + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+}
+function solve3x3(M, b){
+  const D = det3(M);
+  if(Math.abs(D) < 1e-9) return null;
+  function replaceCol(col, vec){
+    return M.map(function(row,i){ return row.map(function(v,j){ return j===col ? vec[i] : v; }); });
+  }
+  return [det3(replaceCol(0,b))/D, det3(replaceCol(1,b))/D, det3(replaceCol(2,b))/D];
+}
+function fitCircleLeastSquares(pts){
+  const n = pts.length;
+  let Sx=0,Sy=0,Sxx=0,Syy=0,Sxy=0,Sxz=0,Syz=0,Sz=0;
+  pts.forEach(function(p){
+    const x=p[0], y=p[1], z = x*x+y*y;
+    Sx+=x; Sy+=y; Sxx+=x*x; Syy+=y*y; Sxy+=x*y; Sxz+=x*z; Syz+=y*z; Sz+=z;
+  });
+  const sol = solve3x3([[Sxx,Sxy,Sx],[Sxy,Syy,Sy],[Sx,Sy,n]], [Sxz,Syz,Sz]);
+  if(!sol) return null;
+  const cx = sol[0]/2, cy = sol[1]/2;
+  const rr = sol[2] + cx*cx + cy*cy;
+  if(rr < 0) return null;
+  return { cx:cx, cy:cy, r:Math.sqrt(rr) };
+}
+function compute6p(pts, choice){
+  const A1=pts[0], A2=pts[1], B1=pts[2], B2=pts[3], C1=pts[4], C2=pts[5];
+  const cx1 = (A1[0]+A2[0])/2;
+  const cy  = (B1[1]+B2[1])/2;
+  const cx2 = (C1[0]+C2[0])/2;
+  const cx = choice === 'cx1' ? cx1 : (choice === 'cx2' ? cx2 : (cx1+cx2)/2);
+  const r = pts.reduce(function(s,p){ return s + Math.hypot(p[0]-cx, p[1]-cy); }, 0) / pts.length;
+  return { cx:cx, cy:cy, r:r, cx1:cx1, cx2:cx2, deltaX:Math.abs(cx2-cx1) };
+}
+
+// ============================================================== LECTURA
+// Tres entradas posibles y se reconocen solas: la lista de puntos que guarda
+// el programa de soldadura, un G-code (de corte o de recorrido) y una lista
+// pelada de coordenadas.
+// Prefijo con el que se guarda una orden apagada. Se quita al leer, asi que
+// para el resto del programa es una linea normal, solo que marcada.
+const MARCA_OFF = ';OFF';
+
+function tokenizar(raw){
+  let cuerpo = raw, comentario = '', off = false;
+  const mo = cuerpo.match(/^(\s*);OFF ?/);
+  if(mo){ off = true; cuerpo = mo[1] + cuerpo.slice(mo[0].length); raw = cuerpo; }
+  const iPC = cuerpo.indexOf(';');
+  if(iPC >= 0){ comentario = cuerpo.slice(iPC+1).trim(); cuerpo = cuerpo.slice(0, iPC); }
+  cuerpo = cuerpo.replace(/\(([^)]*)\)/g, function(_, c){
+    if(!comentario) comentario = c.trim();
+    return ' ';
+  });
+  const palabras = [];
+  const re = /([A-Za-z])\s*(-?\d*\.?\d+)/g;
+  let m;
+  while((m = re.exec(cuerpo))) palabras.push({ letra:m[1].toUpperCase(), valor:parseFloat(m[2]) });
+  return { raw:raw.replace(/\s+$/,''), comentario:comentario, palabras:palabras, off:off,
+           vacia: cuerpo.trim() === '' && comentario === '' };
+}
+function palabra(it, letra){
+  for(let i=0;i<it.palabras.length;i++) if(it.palabras[i].letra === letra) return it.palabras[i];
+  return null;
+}
+
+// Recorre el programa como lo haria el control y deja en cada linea su destino
+// en coordenadas ABSOLUTAS. Eso es la ingenieria inversa: sin tocar nada ya
+// sabemos donde cae cada cosa respecto al cero que traiga el archivo.
+function pasarModal(items){
+  const sinMarcas = !items.some(function(it){
+    return it.palabras.some(function(w){ return w.letra === 'M' && (w.valor === 7 || w.valor === 3); });
+  });
+  let modo = 'abs', laser = false, x = 0, y = 0, fAct = 0;
+  let movModal = null, trabajo = null, unidades = 'mm';
+  let vioG91 = false, vioG90 = false;
+
+  items.forEach(function(it, i){
+    it.idx = i;
+    it.antes = { x:x, y:y };
+    it.mov = null;
+    it.espera = undefined;
+    const gs = [], ms = [];
+    it.palabras.forEach(function(p){
+      if(p.letra === 'G') gs.push(p.valor);
+      if(p.letra === 'M') ms.push(p.valor);
+    });
+    gs.forEach(function(g){
+      if(g === 90){ modo = 'abs'; vioG90 = true; }
+      else if(g === 91){ modo = 'inc'; vioG91 = true; }
+      else if(g === 20){ unidades = 'in'; }
+      else if(g === 21){ unidades = 'mm'; }
+      else if(g >= 54 && g <= 59){ trabajo = 'G' + g; }
+      else if(g === 0 || g === 1 || g === 2 || g === 3){ movModal = g; }
+    });
+    it.modo = modo;
+    ms.forEach(function(mm){
+      if(mm === 7 || mm === 3) laser = true;
+      else if(mm === 9 || mm === 5) laser = false;
+    });
+    it.laser = laser;
+    it.m7 = ms.indexOf(7) >= 0 || ms.indexOf(3) >= 0;
+    it.m9 = ms.indexOf(9) >= 0 || ms.indexOf(5) >= 0;
+    it.fin = ms.indexOf(30) >= 0 || ms.indexOf(2) >= 0;
+    if(gs.indexOf(4) >= 0){
+      const P = palabra(it, 'P');
+      it.espera = P ? P.valor : 0;
+    }
+    const wx = palabra(it, 'X'), wy = palabra(it, 'Y'), wf = palabra(it, 'F');
+    if(wf) fAct = wf.valor;
+    if(wx || wy){
+      const wi = palabra(it, 'I'), wj = palabra(it, 'J');
+      let g = null;
+      for(let k=0;k<gs.length;k++) if(gs[k]===0||gs[k]===1||gs[k]===2||gs[k]===3) g = gs[k];
+      const gmov = (g !== null) ? g : (movModal !== null ? movModal : 0);
+      const nx = wx ? (modo === 'inc' ? x + wx.valor : wx.valor) : x;
+      const ny = wy ? (modo === 'inc' ? y + wy.valor : wy.valor) : y;
+      it.mov = { g:gmov, de:{x:x,y:y}, a:{x:nx,y:ny},
+                 i: wi ? wi.valor : null, j: wj ? wj.valor : null,
+                 f: fAct, corte: sinMarcas ? (gmov !== 0) : laser };
+      x = nx; y = ny;
+    }
+  });
+  return { modo: vioG91 ? 'inc' : 'abs', modoMixto: vioG91 && vioG90,
+           unidades:unidades, trabajo:trabajo, sinMarcas:sinMarcas };
+}
+
+function arcoDe(mov){
+  const cx = mov.de.x + (mov.i || 0), cy = mov.de.y + (mov.j || 0);
+  const r = Math.hypot(mov.de.x - cx, mov.de.y - cy);
+  const a0 = Math.atan2(mov.de.y - cy, mov.de.x - cx);
+  const a1 = Math.atan2(mov.a.y - cy, mov.a.x - cx);
+  const horario = (mov.g === 2);
+  let barrido;
+  if(Math.hypot(mov.a.x - mov.de.x, mov.a.y - mov.de.y) < 1e-9){
+    barrido = horario ? -2*Math.PI : 2*Math.PI;
+  } else {
+    barrido = a1 - a0;
+    if(horario){ while(barrido >= 0) barrido -= 2*Math.PI; while(barrido < -2*Math.PI) barrido += 2*Math.PI; }
+    else { while(barrido <= 0) barrido += 2*Math.PI; while(barrido > 2*Math.PI) barrido -= 2*Math.PI; }
+  }
+  return { cx:cx, cy:cy, r:r, a0:a0, barrido:barrido };
+}
+function puntosDe(mov){
+  if(mov.g !== 2 && mov.g !== 3) return [mov.de, mov.a];
+  const a = arcoDe(mov);
+  if(!isFinite(a.r) || a.r < 1e-9) return [mov.de, mov.a];
+  const n = Math.max(8, Math.ceil(Math.abs(a.barrido) / (Math.PI/36)));
+  const pts = [];
+  for(let k = 0; k <= n; k++){
+    const t = a.a0 + a.barrido*(k/n);
+    pts.push({ x:a.cx + a.r*Math.cos(t), y:a.cy + a.r*Math.sin(t) });
+  }
+  return pts;
+}
+
+// ---- entrada 1: G-code -----------------------------------------------
+function leerGcode(texto, nombre){
+  const finLinea = texto.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+  const items = texto.replace(/\r\n?/g, '\n').split('\n').map(tokenizar);
+  const est = pasarModal(items);
+
+  // Se agrupa igual que en Path: de la entrada al apagado. Aqui solo hace
+  // falta para poder nombrar y dibujar cada seccion, no para reordenarla.
+  const n = items.length;
+  const duenio = new Array(n).fill(-1);
+  const rangos = [];
+  let i = 0;
+  while(i < n){
+    if(!items[i].m7){ i++; continue; }
+    let fin = i;
+    while(fin < n && !items[fin].m9) fin++;
+    if(fin >= n) fin = n - 1;
+    while(fin + 1 < n && duenio[fin+1] === -1 && !items[fin+1].vacia &&
+          items[fin+1].palabras.length && !items[fin+1].mov && !items[fin+1].fin) fin++;
+    let ini = i;
+    while(ini > 0 && duenio[ini-1] === -1 && !items[ini-1].vacia &&
+          items[ini-1].palabras.length && !items[ini-1].mov) ini--;
+    if(ini > 0 && duenio[ini-1] === -1 && items[ini-1].mov && !items[ini-1].mov.corte) ini--;
+    while(ini > 0 && duenio[ini-1] === -1 &&
+          !items[ini-1].palabras.length && items[ini-1].comentario) ini--;
+    rangos.push({ ini:ini, fin:fin });
+    for(let t = ini; t <= fin; t++) duenio[t] = rangos.length - 1;
+    i = fin + 1;
+  }
+  if(!rangos.length){
+    const movs = [];
+    items.forEach(function(it, t){ if(it.mov) movs.push(t); });
+    if(movs.length){
+      let ini = movs[0];
+      for(let t = 1; t < movs.length; t++){
+        if(items[movs[t]].mov.g === 0){ rangos.push({ini:ini, fin:movs[t-1]}); ini = movs[t]; }
+      }
+      rangos.push({ ini:ini, fin:movs[movs.length-1] });
+      rangos.forEach(function(r, bi){ for(let t=r.ini; t<=r.fin; t++) duenio[t] = bi; });
+    }
+  }
+
+  const elementos = rangos.map(function(r, bi){
+    const lista = items.slice(r.ini, r.fin + 1).filter(function(it){ return !it.vacia; });
+    const cortes = lista.filter(function(it){ return it.mov && it.mov.corte; });
+    const esPunto = cortes.length === 0 && lista.some(function(it){ return it.m7; });
+    const entrada = lista.find(function(it){ return it.mov && !it.mov.corte; });
+    // Un punto de soldadura no se mueve con el laser encendido: su sitio es
+    // donde lo deja el traslado de entrada. Un corte empieza donde empieza.
+    const pos = esPunto
+      ? (entrada ? { x:entrada.mov.a.x, y:entrada.mov.a.y } : { x:items[r.ini].antes.x, y:items[r.ini].antes.y })
+      : (cortes.length ? { x:cortes[0].mov.de.x, y:cortes[0].mov.de.y }
+                       : { x:items[r.ini].antes.x, y:items[r.ini].antes.y });
+    // Si las ordenes de soldadura ya venian marcadas, el punto viene apagado.
+    const ordenes = lista.filter(esOrdenDeSoldadura);
+    const suelda = !(ordenes.length && ordenes.every(function(it){ return it.off; }));
+    return {
+      id: 'e' + bi,
+      nombre: nombreDeBloque(lista, esPunto, bi),
+      tipo: esPunto ? 'punto' : 'corte',
+      pos: pos,
+      estado: 'sin',
+      suelda: suelda,
+      items: lista,
+      trazos: cortes.map(function(it){ return puntosDe(it.mov); }),
+      medida: null
+    };
+  });
+
+  // El primer punto de un recorrido de soldadura no trae traslado propio: su
+  // nombre esta en la cabecera del archivo, antes del primer bloque.
+  if(elementos.length && rangos.length && !/^(Punto|Corte) \d+$/.test(elementos[0].nombre) === false){
+    for(let k = rangos[0].ini - 1; k >= 0; k--){
+      const m = (items[k].comentario || '').match(/->\s*(.+)$/);
+      if(m){ elementos[0].nombre = m[1].trim(); break; }
+    }
+  }
+
+  return {
+    origen: 'gcode', nombre: nombre || 'programa',
+    items: items, finLinea: finLinea,
+    modo: est.modo, modoMixto: est.modoMixto, unidades: est.unidades,
+    trabajo: est.trabajo, sinMarcas: est.sinMarcas,
+    elementos: elementos,
+    ceroAplicado: { dx:0, dy:0 },
+    salida: 'archivo',                 // 'archivo' = el que entro, 'recorrido' = uno nuevo
+    params: leerParametros(items, est)
+  };
+}
+
+// La secuencia de soldadura de un punto: encender gas y laser, esperar, y
+// apagar. NO incluye el movimiento -- ese es justo el que hay que conservar
+// para que la cadena de un programa incremental no se rompa.
+function esOrdenDeSoldadura(it){
+  if(it.mov) return false;
+  if(it.espera !== undefined) return true;
+  return it.palabras.some(function(w){
+    return w.letra === 'M' && [3,5,7,8,9].indexOf(w.valor) >= 0;
+  });
+}
+
+function nombreDeBloque(lista, esPunto, bi){
+  let cab = null;
+  for(let i = 0; i < lista.length; i++){
+    if(lista[i].palabras.length) break;
+    if(lista[i].comentario) cab = lista[i];
+  }
+  if(cab){
+    const t = cab.comentario.replace(/^[-=*#\s]+|[-=*#\s]+$/g, '');
+    if(t) return t;
+  }
+  let flecha = null;
+  lista.forEach(function(it){
+    const m = (it.comentario || '').match(/->\s*(.+)$/);
+    if(m && !flecha) flecha = m[1].trim();
+  });
+  if(flecha) return flecha;
+  return (esPunto ? 'Punto ' : 'Corte ') + (bi + 1);
+}
+
+function leerParametros(items, est){
+  const junta = function(fn){
+    const v = [];
+    items.forEach(function(it){ const x = fn(it); if(x !== null && x !== undefined && v.indexOf(x) < 0) v.push(x); });
+    return v;
+  };
+  const fC = junta(function(it){ const w = palabra(it,'F'); return (w && it.mov && it.mov.corte) ? w.valor : null; });
+  const fT = junta(function(it){ const w = palabra(it,'F'); return (w && !(it.mov && it.mov.corte)) ? w.valor : null; });
+  const pS = junta(function(it){ return (it.espera !== undefined && it.laser) ? it.espera : null; });
+  const pA = junta(function(it){ return (it.espera !== undefined && !it.laser) ? it.espera : null; });
+  return {
+    trabajo: est.trabajo || 'G54',
+    modo: est.modo,
+    fCorte: fC.length ? fC[0] : null,
+    fTraslado: fT.length ? fT[0] : 400,
+    pSolda: pS.length ? pS[0] : null,
+    pAsen: pA.length ? pA[0] : null
+  };
+}
+
+// ---- entrada 2: lista de puntos del programa de soldadura -------------
+function leerListaPuntos(texto, nombre){
+  const lineas = texto.replace(/\r\n?/g, '\n').split('\n');
+  const elementos = [];
+  let dentro = false, i = 0, lamina = nombre;
+  lineas.forEach(function(l){
+    const t = l.trim();
+    const mL = t.match(/^#\s*L[áa]mina:\s*(.+)$/i);
+    if(mL) lamina = mL[1].trim();
+    if(t === '[CIRCULOS]'){ dentro = true; return; }
+    if(t === '[/CIRCULOS]'){ dentro = false; return; }
+    if(!dentro || !t || t[0] === '#') return;
+    const partes = t.split('|').map(function(s){ return s.trim(); });
+    if(partes.length < 3) return;
+    const nom = partes[0], met = partes[1].toUpperCase();
+    const bordes = [], extras = [];
+    for(let k = 2; k < partes.length; k++){
+      const m = partes[k].match(/^(-?[\d.]+)\s*,\s*(-?[\d.]+)$/);
+      if(m) bordes.push([parseFloat(m[1]), parseFloat(m[2])]);
+      else extras.push(partes[k]);
+    }
+    const res = centroDeMedida(met, bordes, extras);
+    if(!res) return;
+    elementos.push({
+      id: 'p' + (i++), nombre: nom, tipo: 'punto',
+      pos: { x:res.cx, y:res.cy }, estado: 'sin', suelda: true,
+      items: null, trazos: [],
+      medida: { metodo: met, bordes: bordes, extras: extras, r: res.r }
+    });
+  });
+  if(!elementos.length) return null;
+  // Una LAMINA trae sus secciones; una lista de coordenadas pelada, no. Solo
+  // se puede devolver recalibrado lo que vino completo.
+  const esLamina = /^\s*\[CIRCULOS\]\s*$/m.test(texto);
+  return {
+    origen: 'puntos', nombre: lamina || 'puntos',
+    items: null, finLinea: '\n', modo: 'abs', modoMixto: false,
+    unidades: 'mm', trabajo: 'G58', sinMarcas: false,
+    elementos: elementos,
+    ceroAplicado: { dx:0, dy:0 },
+    // El texto tal cual entro. Se devuelve reescribiendo sobre el, no
+    // regenerandolo: el contorno y los materiales no llegan hasta aqui y
+    // regenerar los perderia.
+    textoOriginal: esLamina ? texto : null,
+    // Lo que se abre es lo que se guarda, como en todos los demas programas.
+    salida: esLamina ? 'lamina' : 'recorrido',
+    params: { trabajo:'G58', modo:'abs', fCorte:null, fTraslado:400, pSolda:18, pAsen:100 }
+  };
+}
+
+function centroDeMedida(met, bordes, extras){
+  if(met === 'DR'){
+    if(!bordes.length) return null;
+    let r = 0.5;
+    extras.forEach(function(e){
+      const d = e.match(/^D:\s*([\d.]+)$/i); if(d) r = parseFloat(d[1])/2;
+      const rr = e.match(/^R:\s*([\d.]+)$/i); if(rr) r = parseFloat(rr[1]);
+    });
+    return { cx:bordes[0][0], cy:bordes[0][1], r:r };
+  }
+  if(met === '6P'){
+    if(bordes.length < 6) return null;
+    let choice = 'prom';
+    extras.forEach(function(e){ const m = e.match(/^CX:\s*(\w+)$/i); if(m) choice = m[1]; });
+    return compute6p(bordes, choice);
+  }
+  if(bordes.length < 3) return null;
+  return fitCircleLeastSquares(bordes);
+}
+
+// ---- entrada 3: lista pelada de coordenadas --------------------------
+function leerCoordenadas(texto, nombre){
+  const elementos = [];
+  let i = 0;
+  texto.replace(/\r\n?/g, '\n').split('\n').forEach(function(l){
+    const t = l.trim();
+    if(!t || t[0] === '#' || t[0] === ';') return;
+    const m = t.match(/^(?:(.+?)\s*[|:,;\t]\s*)?(-?\d*\.?\d+)\s*[,; \t]\s*(-?\d*\.?\d+)\s*$/);
+    if(!m) return;
+    elementos.push({
+      id: 'c' + i, nombre: (m[1] || ('Punto ' + (i+1))).trim(), tipo: 'punto',
+      pos: { x:parseFloat(m[2]), y:parseFloat(m[3]) }, estado: 'sin', suelda: true,
+      items: null, trazos: [], medida: null
+    });
+    i++;
+  });
+  if(!elementos.length) return null;
+  return {
+    origen: 'lista', nombre: nombre || 'coordenadas',
+    items: null, finLinea: '\n', modo: 'abs', modoMixto: false,
+    unidades: 'mm', trabajo: 'G54', sinMarcas: false,
+    elementos: elementos,
+    ceroAplicado: { dx:0, dy:0 },
+    salida: 'recorrido',
+    params: { trabajo:'G54', modo:'abs', fCorte:null, fTraslado:400, pSolda:18, pAsen:100 }
+  };
+}
+
+function leerArchivo(texto, nombre){
+  if(/\[CIRCULOS\]/.test(texto)){
+    const d = leerListaPuntos(texto, nombre);
+    if(d) return d;
+  }
+  if(/^\s*[GgMm]\d/m.test(texto)) return leerGcode(texto, nombre);
+  const d = leerCoordenadas(texto, nombre);
+  if(d) return d;
+  return leerGcode(texto, nombre);          // ultimo recurso: que lo intente
+}
+
+// ============================================================== RECALIBRAR
+// Escribe en una linea las coordenadas que le tocan. Si la cifra que ya hay
+// dice lo mismo NO se toca: reescribirla cambiaria "X11.5000" por "X11.5" sin
+// motivo, y abrir y guardar un archivo sin editarlo tiene que devolverlo igual.
+function fijarXY(raw, x, y){
+  let t = raw;
+  const mx = raw.match(/[Xx]\s*(-?\d*\.?\d+)/);
+  const my = raw.match(/[Yy]\s*(-?\d*\.?\d+)/);
+  if(mx && Math.abs(parseFloat(mx[1]) - x) > 5e-5) t = t.replace(/([Xx])\s*-?\d*\.?\d+/, '$1' + gnum(x));
+  if(my && Math.abs(parseFloat(my[1]) - y) > 5e-5) t = t.replace(/([Yy])\s*-?\d*\.?\d+/, '$1' + gnum(y));
+  if(!mx || !my){
+    // Una linea puede callarse un eje: significa "en ese no te muevas". Si ese
+    // eje ahora SI tiene que moverse, hay que nombrarlo.
+    const falta = (!mx ? ' X' + gnum(x) : '') + (!my ? ' Y' + gnum(y) : '');
+    const mG = t.match(/[Gg]\s*\d+/);
+    if(mG) t = t.replace(mG[0], mG[0] + falta);
+    else t = t.replace(/^(\s*)/, '$1' + falta.trim() + ' ');
+  }
+  return t;
+}
+
+// El unico sitio por el que se mueve geometria. Se le da un mapa
+// "linea -> coordenada ABSOLUTA a la que debe ir"; las lineas que no aparecen
+// conservan la suya. Luego se recorre el programa en orden llevando la
+// posicion real de la maquina y se escribe lo que toca en cada dialecto: la
+// coordenada en G90, el salto desde donde se esta en G91.
+//
+// Asi se arregla solo el problema del incremental: si un elemento cambia de
+// sitio se recalculan su salto Y el del siguiente contra destinos absolutos
+// que no han cambiado, de modo que nadie mas se mueve. Es el mismo remedio que
+// `reanclarBloques` en Path.
+function reescribirDestinos(mapa){
+  if(!doc || !doc.items) return 0;
+  let px = 0, py = 0, n = 0;      // el paso modal tambien arranca en 0,0
+  doc.items.forEach(function(it){
+    if(!it.mov) return;
+    const d = (mapa && mapa.get(it)) || { x:it.mov.a.x, y:it.mov.a.y };
+    const inc = (it.modo === 'inc');
+    // lo que la linea deberia decir, y lo que dice hoy
+    const vx = inc ? (d.x - px) : d.x;
+    const vy = inc ? (d.y - py) : d.y;
+    const ax = inc ? (it.mov.a.x - it.mov.de.x) : it.mov.a.x;
+    const ay = inc ? (it.mov.a.y - it.mov.de.y) : it.mov.a.y;
+    // Solo se reescribe la linea cuyas cifras cambian de verdad; las demas se
+    // quedan intactas, letra por letra.
+    if(Math.abs(vx - ax) > 5e-5 || Math.abs(vy - ay) > 5e-5){
+      const antes = it.raw;
+      it.raw = fijarXY(it.raw, vx, vy);
+      if(it.raw !== antes){ reTokenizar(it); n++; }
+    }
+    px = d.x; py = d.y;
+  });
+  pasarModal(doc.items);
+  remedirElementos();
+  return n;
+}
+
+// Tras reescribir, donde esta cada elemento sale de sus propias lineas. Asi no
+// hay dos verdades que puedan separarse.
+function remedirElementos(){
+  doc.elementos.forEach(function(e){
+    if(!e.items || !e.items.length) return;
+    const cortes = e.items.filter(function(it){ return it.mov && it.mov.corte; });
+    const entrada = e.items.find(function(it){ return it.mov && !it.mov.corte; });
+    e.trazos = cortes.map(function(it){ return puntosDe(it.mov); });
+    if(e.tipo === 'punto'){
+      e.pos = entrada ? { x:entrada.mov.a.x, y:entrada.mov.a.y }
+                      : { x:e.items[0].antes.x, y:e.items[0].antes.y };
+    } else {
+      e.pos = cortes.length ? { x:cortes[0].mov.de.x, y:cortes[0].mov.de.y }
+                            : { x:e.items[0].antes.x, y:e.items[0].antes.y };
+    }
+  });
+}
+
+// Los movimientos que colocan y dibujan un elemento. El primer punto de un
+// recorrido no trae traslado propio -- su sitio lo deja la cabecera del
+// archivo --, asi que quien lo coloca es el ultimo movimiento anterior.
+function movimientosDe(e){
+  if(!e.items || !doc.items) return [];
+  const propios = e.items.filter(function(it){ return it.mov; });
+  if(propios.length) return propios;
+  const ini = e.items[0].idx;
+  for(let k = ini - 1; k >= 0; k--) if(doc.items[k].mov) return [doc.items[k]];
+  return [];
+}
+
+// Desplazar el programa entero: todos los destinos se corren lo mismo.
+function aplicarDesplazamiento(dx, dy){
+  if(!doc) return 0;
+  doc.elementos.forEach(function(e){
+    e.pos = { x:e.pos.x + dx, y:e.pos.y + dy };
+    e.trazos = e.trazos.map(function(t){
+      return t.map(function(p){ return { x:p.x + dx, y:p.y + dy }; });
+    });
+    if(e.medida && e.medida.bordes){
+      e.medida.bordes = e.medida.bordes.map(function(b){ return [b[0]+dx, b[1]+dy]; });
+    }
+  });
+  let n = doc.elementos.length;
+  if(doc.items){
+    const mapa = new Map();
+    doc.items.forEach(function(it){
+      if(it.mov) mapa.set(it, { x:it.mov.a.x + dx, y:it.mov.a.y + dy });
+    });
+    n = reescribirDestinos(mapa);
+  }
+  doc.ceroAplicado.dx += dx;
+  doc.ceroAplicado.dy += dy;
+  return n;
+}
+
+// Mover UN elemento y solo ese. Los demas ni se enteran: sus destinos
+// absolutos no entran en el mapa, asi que se conservan tal cual.
+function moverElemento(e, nx, ny){
+  if(!doc || !e) return 0;
+  const dx = nx - e.pos.x, dy = ny - e.pos.y;
+  if(!isFinite(dx) || !isFinite(dy)) return 0;
+  if(Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return 0;
+
+  // Queda apuntado: un punto corregido a mano ya no es lo que se midio, y eso
+  // tiene que poder saberse despues, abriendo el archivo.
+  e.movidoAMano = true;
+
+  if(e.medida && e.medida.bordes){
+    e.medida.bordes = e.medida.bordes.map(function(b){ return [b[0]+dx, b[1]+dy]; });
+  }
+
+  if(doc.items && e.items){
+    const movs = movimientosDe(e);
+    if(!movs.length){
+      setStatus('"' + e.nombre + '" no tiene ninguna coordenada propia que mover.', 'warn');
+      return 0;
+    }
+    const mapa = new Map();
+    movs.forEach(function(it){ mapa.set(it, { x:it.mov.a.x + dx, y:it.mov.a.y + dy }); });
+    return reescribirDestinos(mapa);
+  }
+
+  // Lista de coordenadas: no hay lineas detras, basta con moverlo.
+  e.pos = { x:nx, y:ny };
+  e.trazos = e.trazos.map(function(t){
+    return t.map(function(p){ return { x:p.x + dx, y:p.y + dy }; });
+  });
+  return 1;
+}
+
+function reTokenizar(it){
+  const t = tokenizar(it.raw);
+  it.palabras = t.palabras; it.comentario = t.comentario; it.vacia = t.vacia;
+}
+
+// ============================================================== ESCRITURA
+function soloPuntos(){
+  return !!doc && doc.elementos.length > 0 &&
+         doc.elementos.every(function(e){ return e.tipo === 'punto'; });
+}
+
+function escribirPrograma(){
+  if(!doc) return '';
+  if(doc.salida === 'lamina') return escribirLamina();
+  if(doc.salida === 'recorrido') return escribirRecorrido(recorridoEnFoco());
+  return escribirDesdeGcode();
+}
+
+// Devuelve el archivo tal cual, salvo las ordenes de soldadura de los puntos
+// apagados, que salen comentadas. El MOVIMIENTO no se toca nunca: por eso la
+// cadena de un programa incremental sigue cuadrando.
+function escribirDesdeGcode(){
+  const apagadas = new Set();
+  doc.elementos.forEach(function(e){
+    if(e.suelda || !e.items) return;
+    e.items.forEach(function(it){ if(esOrdenDeSoldadura(it)) apagadas.add(it); });
+  });
+  const out = doc.items.map(function(it){
+    return apagadas.has(it) ? (MARCA_OFF + ' ' + it.raw) : it.raw;
+  });
+  const fl = doc.finLinea || '\n';
+  return out.join(fl).replace(/(\r?\n)+$/, '') + fl;
+}
+
+// Recorrido de puntos: la version corta del programa de soldadura, sin
+// materiales. Solo los parametros que se tocan de verdad.
+function escribirRecorrido(r){
+  if(!r) return '; No hay ningún recorrido. Crea uno con «+ Nuevo recorrido».';
+  const p = r;
+  const pts = r.elementos.map(elementoPorId).filter(Boolean);
+  if(!pts.length) return '; "' + r.nombre + '" está vacío: añádele puntos.';
+  const inc = (p.modo === 'inc');
+  const L = [];
+  L.push('; Recorrido: ' + r.nombre + ' (' + (inc ? 'incremental' : 'absoluto') + ')');
+  L.push('; Pieza: ' + doc.nombre + ' — ' + pts.length + ' punto(s)');
+  if(doc.ceroAplicado.dx || doc.ceroAplicado.dy){
+    L.push('; Cero recalibrado ' + gnum(doc.ceroAplicado.dx) + ',' + gnum(doc.ceroAplicado.dy));
+  }
+  const marcados = pts.filter(function(e){ return e.estado !== 'sin'; });
+  if(marcados.length){
+    L.push('; Comprobación de posiciones:');
+    pts.forEach(function(e){
+      if(e.estado === 'sin') return;
+      L.push(';   ' + e.nombre + ': ' + (e.estado === 'ok' ? 'correcta' : 'INCORRECTA'));
+    });
+  }
+  L.push('');
+  L.push('G21');
+  const f = numOr(p.fTraslado, 400);
+  L.push('G90 ' + (p.trabajo || 'G54') + ' G01 X' + fmt4(pts[0].pos.x) + ' Y' + fmt4(pts[0].pos.y) +
+         ' Z0 A0 F' + gnum(f) + '   ; -> ' + pts[0].nombre);
+  L.push(inc ? 'G91' : 'G90');
+  const solda = numOr(p.pSolda, 18), asen = numOr(p.pAsen, 100);
+  // La secuencia de soldadura de un punto. Si el punto esta apagado sale
+  // comentada: el cabezal pasa por ahi pero no suelda, y la cadena de saltos
+  // se mantiene intacta porque el movimiento sigue estando.
+  const secuencia = function(e, conEsperaInicial){
+    const m = e.suelda ? '' : (MARCA_OFF + ' ');
+    if(conEsperaInicial) L.push(m + 'G04 P' + gnum(asen) + '                         ; espera');
+    L.push(m + 'M08 (GAS ON)');
+    L.push(m + 'M07 (LASER ON)');
+    L.push(m + 'G04 P' + gnum(solda) + '                          ; solda');
+    L.push(m + 'M09 (LASER OFF, GAS OFF)');
+    L.push(m + 'G04 P' + gnum(asen) + '                         ; espera');
+  };
+  L.push('');
+  secuencia(pts[0], true);
+  for(let i = 1; i < pts.length; i++){
+    const x = inc ? (pts[i].pos.x - pts[i-1].pos.x) : pts[i].pos.x;
+    const y = inc ? (pts[i].pos.y - pts[i-1].pos.y) : pts[i].pos.y;
+    L.push('');
+    L.push('G01 X' + fmt4(x) + ' Y' + fmt4(y) + '   ; -> ' + pts[i].nombre);
+    secuencia(pts[i], false);
+  }
+  L.push('');
+  if(inc) L.push('G90');
+  L.push('M30');
+  const medidas = medidasDeOrigen();
+  return L.join('\n') + '\n' + (medidas ? medidas + '\n' : '');
+}
+
+// ============================================================ RECORRIDOS
+// Un recorrido es una lista de elementos por ID, no por posicion: asi
+// reordenar la lista de la izquierda no descoloca lo que ya montaste.
+function recorridos(){
+  if(doc && !doc.recorridos) doc.recorridos = [];
+  return doc ? doc.recorridos : [];
+}
+
+function recorridoPorId(id){
+  return recorridos().filter(function(r){ return r.id === id; })[0] || null;
+}
+
+function elementoPorId(id){
+  return doc.elementos.filter(function(e){ return e.id === id; })[0] || null;
+}
+
+// El que se ve en el cuadro de G-code y el que exporta el boton de abajo.
+function recorridoEnFoco(){
+  return recorridoPorId(recorridoActivo) || recorridos()[0] || null;
+}
+
+function nuevoRecorrido(conTodos){
+  const lista = recorridos();
+  const r = {
+    id: 'rec-' + Date.now() + '-' + lista.length,
+    nombre: 'Recorrido ' + (lista.length + 1),
+    color: PALETA_REC[lista.length % PALETA_REC.length],
+    elementos: conTodos ? doc.elementos.filter(function(e){ return e.tipo === 'punto'; })
+                              .map(function(e){ return e.id; }) : [],
+    // Arrancan con los parametros de arriba, que son los de la pieza; a
+    // partir de ahi cada recorrido va por su cuenta.
+    trabajo: doc.params.trabajo || 'G54',
+    modo: doc.params.modo || 'abs',
+    fTraslado: doc.params.fTraslado,
+    pSolda: doc.params.pSolda,
+    pAsen: doc.params.pAsen,
+    verGcode: false
+  };
+  lista.push(r);
+  recorridoActivo = r.id;
+  return r;
+}
+
+function borrarRecorrido(id){
+  doc.recorridos = recorridos().filter(function(r){ return r.id !== id; });
+  if(recorridoActivo === id){ recorridoActivo = null; modoAnadir = false; }
+}
+
+// Lo que hace el clic en el lienzo mientras estas anadiendo.
+function anadirAlRecorrido(idElem){
+  const r = recorridoPorId(recorridoActivo);
+  if(!r) return false;
+  pushUndo();
+  const i = r.elementos.indexOf(idElem);
+  if(i >= 0) r.elementos.splice(i, 1);      // volver a pulsarlo lo quita
+  else r.elementos.push(idElem);
+  refrescar(i >= 0
+    ? ('Quitado de "' + r.nombre + '". Quedan ' + r.elementos.length + '.')
+    : ('Añadido a "' + r.nombre + '": ' + r.elementos.length + ' punto(s).'));
+  podarUndo();
+  return true;
+}
+
+function moverEnRecorrido(r, desde, hasta){
+  if(hasta < 0 || hasta >= r.elementos.length) return;
+  pushUndo();
+  const t = r.elementos[desde];
+  r.elementos[desde] = r.elementos[hasta];
+  r.elementos[hasta] = t;
+  refrescar('Orden de "' + r.nombre + '" cambiado.');
+  podarUndo();
+}
+
+/* Devuelve la lamina que entro, con el cero ya movido.
+
+   Se reescribe SOBRE el texto original en vez de generarlo de nuevo: aqui no
+   llegan ni el contorno ni los materiales (leerListaPuntos solo saca los
+   circulos), asi que generar desde cero los perderia. Se tocan tres cosas y
+   el resto pasa palabra por palabra. */
+function escribirLamina(){
+  if(!doc || !doc.textoOriginal){
+    return '; Esto no vino de una lamina medida, no hay lamina que devolver.';
+  }
+  const dx = doc.ceroAplicado.dx, dy = doc.ceroAplicado.dy;
+  const porNombre = {};
+  doc.elementos.forEach(function(e){ porNombre[e.nombre] = e; });
+
+  let dentro = false, offsetHecho = false, marcaHecha = false;
+  const salida = doc.textoOriginal.replace(/\r\n?/g, '\n').split('\n').map(function(l){
+    const t = l.trim();
+    if(/^\[CIRCULOS\]$/i.test(t)){ dentro = true; return l; }
+    if(/^\[\/CIRCULOS\]$/i.test(t)){ dentro = false; return l; }
+
+    // 1. La marca de recalibrado, si el archivo ya traia una: se actualiza
+    //    sumandole lo de esta vez.
+    const marca = l.match(RE_MARCA);
+    if(marca){
+      if(marcaHecha) return l;
+      marcaHecha = true;
+      return lineaDeMarca(parseFloat(marca[1]), parseFloat(marca[2]),
+                          parseInt(marca[3] || '0', 10));
+    }
+
+    // 2. El desplazamiento del contorno se mueve con los puntos: si no, la
+    //    pieza dibujada se quedaria donde estaba y los puntos ya no caerian
+    //    dentro. Solo lo mueve el cero global; mover un punto suelto no.
+    //    Solo el PRIMERO: el lector se queda con ese y los de debajo son
+    //    historia de guardados anteriores. Moverlos tambien seria inventar.
+    const off = l.match(/^(\s*;\s*OFFSET\s+)(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*$/i);
+    if(off){
+      if(offsetHecho) return l;
+      offsetHecho = true;
+      return off[1] + (parseFloat(off[2]) + dx) + ',' + (parseFloat(off[3]) + dy);
+    }
+
+    if(!dentro) return l;
+
+    // 2. El comentario de referencia de cada circulo. Solo se reescribe si el
+    //    punto se movio de verdad: si la cifra ya dice lo mismo se deja tal
+    //    cual, porque reescribirla cambiaria el ultimo decimal por puro
+    //    redondeo y abrir y guardar sin tocar nada tiene que devolver el
+    //    mismo archivo.
+    const com = t.match(/^#\s*(.+?)\s+—\s+C\((-?[\d.]+),\s*(-?[\d.]+)\)/);
+    if(com && porNombre[com[1]]){
+      const ec = porNombre[com[1]];
+      const igual = Math.abs(parseFloat(com[2]) - ec.pos.x) < 5e-5 &&
+                    Math.abs(parseFloat(com[3]) - ec.pos.y) < 5e-5;
+      return igual ? l : comentarioDeCirculo(ec);
+    }
+    if(!t || t[0] === '#') return l;
+
+    // 3. Los bordes medidos. El centro no se escribe: se recalcula de ellos
+    //    al cargar, asi que mover los bordes mueve el centro exactamente igual.
+    const e = porNombre[t.split('|')[0].trim()];
+    return (e && e.medida) ? lineaDeCirculo(e) : l;
+  });
+
+  // Si el archivo no traia marca y aqui se ha movido algo, se mete debajo de
+  // la linea del nombre: es donde se mira para saber que es este archivo.
+  if(!marcaHecha && (dx || dy || manosMovidas())){
+    const i = salida.findIndex(function(l){ return /^\s*#\s*L[aá]mina:/i.test(l); });
+    salida.splice(i < 0 ? 0 : i + 1, 0, lineaDeMarca(0, 0, 0));
+  }
+  return salida.join('\n');
+}
+
+/* La linea que dice que esta lamina ya no es la que salio del microscopio.
+
+   Sirve para dos cosas. El servidor la lee para llamar al archivo
+   `Pieza.lamina-<fecha>-recalibrado.txt`, en vez de dejar tres laminas del
+   mismo dia que no se distinguen. Y quien abra el archivo ve de cuanto fue el
+   movimiento y cuantos puntos se tocaron a mano.
+
+   Si ya venia una, se suma: importa cuanto se ha movido desde la medicion
+   original, no cuanto en el ultimo retoque. */
+const RE_MARCA = /^\s*#\s*Recalibrado con Origen:\s*cero movido\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)(?:[^\d]+(\d+))?/i;
+
+function manosMovidas(){
+  return doc.elementos.filter(function(e){ return e.movidoAMano; }).length;
+}
+
+function lineaDeMarca(dxPrevio, dyPrevio, manosPrevias){
+  const dx = (dxPrevio || 0) + doc.ceroAplicado.dx;
+  const dy = (dyPrevio || 0) + doc.ceroAplicado.dy;
+  const manos = (manosPrevias || 0) + manosMovidas();
+  let l = '# Recalibrado con Origen: cero movido ' + gnum(dx) + ',' + gnum(dy);
+  if(manos){
+    l += '  \u00b7  ' + manos + (manos === 1 ? ' punto corregido' : ' puntos corregidos') + ' a mano';
+  }
+  return l;
+}
+
+/* Un recorrido dice por donde pasa la maquina, y nada mas. Los centros se
+   pueden recuperar de el —un punto se suelda EN el centro—, pero el diametro
+   y los seis bordes medidos solo viven en la lamina, y sin ellos no hay nada
+   que recalcular: al abrir un recorrido de Origen en el programa de puntos,
+   los circulos salian con diametro 0.
+
+   Asi que el recorrido se lleva la lamina dentro, comentada —la maquina la
+   ignora, el programa la lee— y ya recalibrada, para que los puntos y las
+   medidas que los acompanan hablen del mismo cero. Es lo que hace el programa
+   de soldadura con los suyos: da igual cual de los dos archivos se abra. */
+function medidasDeOrigen(){
+  if(!doc || !doc.textoOriginal) return '';
+  const cuerpo = escribirLamina().replace(/\r\n?/g, '\n').split('\n')
+    // La identidad es del archivo que la lleva delante; esto va pegado al
+    // final y no es un archivo aparte.
+    .filter(function(l){ return !/^\s*[;#]\s*(?:GCODER|GFORGE|TALLER)\b/.test(l); });
+
+  const bloque = [
+    '',
+    '; ==================================================================',
+    '; MEDIDAS DE ORIGEN — no las lee la maquina, las lee el programa de',
+    '; puntos de soldadura. Son las que hicieron falta para sacar estos',
+    '; puntos; sin ellas, de este archivo solo se pueden recuperar los',
+    '; centros, no los diametros.',
+    '; =================================================================='
+  ];
+  cuerpo.forEach(function(l){ bloque.push(l === '' ? '' : '; ' + l); });
+  return bloque.join('\n');
+}
+
+/* La linea de un circulo, en el formato que lee el programa de soldadura. */
+function lineaDeCirculo(e){
+  const m = e.medida;
+  // Al mover el cero, 0.347 - 1.5016 sale como -1.1546000000000002: ruido
+  // binario, no medida. Se escribe con la misma precision que trae la lamina
+  // (4 decimales, decimas de micra) para que el archivo siga siendo legible.
+  const coords = m.bordes.map(function(b){ return gnum(b[0]) + ',' + gnum(b[1]); });
+  return [e.nombre, m.metodo].concat(coords, m.extras || []).join(' | ');
+}
+
+function comentarioDeCirculo(e){
+  const r = (e.medida && e.medida.r) || 0;
+  return '# ' + e.nombre + ' \— C(' + fmt4(e.pos.x) + ', ' + fmt4(e.pos.y) + ')  R ' +
+         fmt4(r) + '  D ' + fmt4(r * 2) + '  A ' + fmt4(Math.PI * r * r);
+}
+
+// ============================================================== DESHACER
+let undoStack = [], redoStack = [];
+const MAX_UNDO = 60;
+
+function foto(){
+  if(!doc) return null;
+  return {
+    raws: doc.items ? doc.items.map(function(it){ return it.raw; }) : null,
+    elementos: doc.elementos.map(function(e){
+      return { id:e.id, estado:e.estado, suelda:e.suelda, pos:{x:e.pos.x, y:e.pos.y},
+               trazos: e.trazos.map(function(t){ return t.map(function(p){ return {x:p.x,y:p.y}; }); }),
+               bordes: e.medida && e.medida.bordes ? e.medida.bordes.map(function(b){ return b.slice(); }) : null };
+    }),
+    orden: doc.elementos.map(function(e){ return e.id; }),
+    cero: { dx:doc.ceroAplicado.dx, dy:doc.ceroAplicado.dy },
+    salida: doc.salida,
+    // Los recorridos entran en la foto como todo lo demas, si no deshacer
+    // dejaria el dibujo y los recorridos contando cosas distintas.
+    recorridos: JSON.parse(JSON.stringify(recorridos())),
+    activo: recorridoActivo,
+    params: JSON.parse(JSON.stringify(doc.params))
+  };
+}
+function restaurar(f){
+  if(!f || !doc) return;
+  if(f.raws && doc.items){
+    f.raws.forEach(function(r, i){ if(doc.items[i]){ doc.items[i].raw = r; reTokenizar(doc.items[i]); } });
+    pasarModal(doc.items);
+  }
+  const porId = {};
+  doc.elementos.forEach(function(e){ porId[e.id] = e; });
+  f.elementos.forEach(function(g){
+    const e = porId[g.id];
+    if(!e) return;
+    e.estado = g.estado;
+    e.suelda = g.suelda;
+    e.pos = { x:g.pos.x, y:g.pos.y };
+    e.trazos = g.trazos.map(function(t){ return t.map(function(p){ return {x:p.x,y:p.y}; }); });
+    if(g.bordes && e.medida) e.medida.bordes = g.bordes.map(function(b){ return b.slice(); });
+  });
+  doc.elementos = f.orden.map(function(id){ return porId[id]; }).filter(Boolean);
+  doc.ceroAplicado = { dx:f.cero.dx, dy:f.cero.dy };
+  if(f.salida) doc.salida = f.salida;
+  if(f.recorridos){
+    doc.recorridos = JSON.parse(JSON.stringify(f.recorridos));
+    recorridoActivo = f.activo || null;
+    modoAnadir = false;
+  }
+  doc.params = JSON.parse(JSON.stringify(f.params));
+}
+function pushUndo(){
+  const f = foto();
+  if(!f) return;
+  undoStack.push(f);
+  if(undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = [];
+  actualizarUndo();
+}
+function podarUndo(){
+  if(!undoStack.length) return;
+  if(JSON.stringify(undoStack[undoStack.length-1]) === JSON.stringify(foto())){
+    undoStack.pop(); actualizarUndo();
+  }
+}
+function actualizarUndo(){
+  document.getElementById('deshacerBtn').disabled = !undoStack.length;
+  document.getElementById('rehacerBtn').disabled = !redoStack.length;
+}
+function deshacer(){
+  if(!undoStack.length || !doc){ setStatus('No hay nada que deshacer.', ''); return; }
+  redoStack.push(foto());
+  restaurar(undoStack.pop());
+  seleccionado = -1;
+  refrescar('Deshecho. Quedan ' + undoStack.length + ' paso(s) atrás.');
+}
+function rehacer(){
+  if(!redoStack.length || !doc){ setStatus('No hay nada que rehacer.', ''); return; }
+  undoStack.push(foto());
+  restaurar(redoStack.pop());
+  seleccionado = -1;
+  refrescar('Rehecho.');
+}
+
+// ============================================================== INTERFAZ
+function refrescar(msg){
+  renderDatos(); renderLista(); renderParams(); renderRecalibrar();
+  renderRecorridos(); volcarTexto(); render(); actualizarUndo();
+  if(msg !== undefined) setStatus(msg, 'ok');
+}
+
+function fila(etiqueta, control, titulo){
+  const f = nodo('div', 'fila');
+  const k = nodo('span', 'k', etiqueta);
+  if(titulo) k.title = titulo;
+  f.appendChild(k); f.appendChild(control);
+  return f;
+}
+
+function renderDatos(){
+  const cont = document.getElementById('datos');
+  cont.innerHTML = '';
+  if(!doc){
+    cont.appendChild(nodo('div', 'vacio', 'Abre un archivo: una lista de puntos, un G-code de corte o uno de recorrido.'));
+    return;
+  }
+  const tipos = { gcode:'G-code', puntos:'Lista de puntos', lista:'Lista de coordenadas' };
+  const c = cajaDe();
+  const filas = [
+    ['Origen', tipos[doc.origen] || doc.origen],
+    ['Elementos', doc.elementos.length],
+    ['Coordenadas', doc.modo === 'inc' ? 'G91 incrementales' : 'G90 absolutas'],
+    ['Unidades', doc.unidades === 'in' ? 'G20 pulgadas' : 'G21 mm'],
+    ['Cero de pieza', doc.trabajo || '—'],
+    ['Ocupa en X', c ? (fmt2(c.minX) + ' … ' + fmt2(c.maxX) + ' ' + unidad()) : '—'],
+    ['Ocupa en Y', c ? (fmt2(c.minY) + ' … ' + fmt2(c.maxY) + ' ' + unidad()) : '—'],
+    ['Cero movido', (doc.ceroAplicado.dx || doc.ceroAplicado.dy)
+        ? ('ΔX ' + gnum(doc.ceroAplicado.dx) + ' · ΔY ' + gnum(doc.ceroAplicado.dy)) : 'no']
+  ];
+  filas.forEach(function(p){
+    const d = nodo('div', 'dato');
+    d.appendChild(nodo('span', 'k', p[0]));
+    d.appendChild(nodo('span', 'v', String(p[1])));
+    cont.appendChild(d);
+  });
+  if(doc.modoMixto){
+    cont.appendChild(nodo('div', 'nota', 'El archivo cambia de G90 a G91 por el camino. Se respeta línea a línea.'));
+  }
+}
+
+// ---------------------------------------------------------- medir centro
+function renderMetodo(){
+  const cont = document.getElementById('metodoFila');
+  cont.innerHTML = '';
+  [['6p','6 puntos','cascada A→B→C'],['np','N puntos','mínimos cuadrados']].forEach(function(op){
+    const b = nodo('div', 'opt' + (metodo === op[0] ? ' active' : ''), op[1]);
+    b.appendChild(nodo('small', null, op[2]));
+    b.addEventListener('click', function(){
+      metodo = op[0]; medidos = {}; sobrescritos.clear(); centroMedido = null;
+      renderMetodo(); renderMedicion(); renderResultado();
+    });
+    cont.appendChild(b);
+  });
+}
+
+const IDS6 = [['a1','Par A · 1'],['a2','Par A · 2'],['b1','Par B · 1'],['b2','Par B · 2'],
+              ['c1','Par C · 1'],['c2','Par C · 2']];
+
+function renderMedicion(){
+  const cont = document.getElementById('medicion');
+  cont.innerHTML = '';
+  const campo = function(id, eje){
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any';
+    // Con que campo se corresponde, para poder ponerlo al dia sin rehacerlo.
+    inp.dataset.clave = id + eje;
+    inp.value = medidos[id+eje] !== undefined ? medidos[id+eje] : '';
+    if(sobrescritos.has(id+eje) === false && medidos[id+eje] !== undefined && autoRellenados.has(id+eje)){
+      inp.classList.add('auto');
+    }
+    inp.addEventListener('input', function(){
+      // Un numero a medio escribir ("-", "-3.") se lee como valor vacio. Antes
+      // se tomaba por campo borrado: se tiraba la medida y se rehacia el panel,
+      // que destruia este mismo campo y se llevaba el foco. Resultado: no habia
+      // manera de teclear un negativo, ni de rematar un decimal. Mientras no
+      // sea un numero, se espera.
+      if(inp.validity.badInput) return;
+      if(inp.value === ''){ delete medidos[id+eje]; sobrescritos.delete(id+eje); }
+      else { medidos[id+eje] = parseFloat(inp.value); sobrescritos.add(id+eje); }
+      autoRellenados.delete(id+eje);
+      cascada(); refrescarMedicion(); renderResultado();
+    });
+    return inp;
+  };
+  if(metodo === '6p'){
+    IDS6.forEach(function(par){
+      const f = nodo('div', 'med-fila');
+      f.appendChild(nodo('label', null, par[1]));
+      f.appendChild(campo(par[0], 'x'));
+      f.appendChild(campo(par[0], 'y'));
+      cont.appendChild(f);
+    });
+    cont.appendChild(nodo('div', 'nota',
+      'Par A: dos bordes a la misma Y. Par B: dos a la misma X (sobre el centro de A). Par C: confirma en X.'));
+  } else {
+    for(let i = 0; i < npCount; i++){
+      const f = nodo('div', 'med-fila');
+      f.appendChild(nodo('label', null, 'Borde ' + (i+1)));
+      f.appendChild(campo('n'+i, 'x'));
+      f.appendChild(campo('n'+i, 'y'));
+      cont.appendChild(f);
+    }
+    const acc = nodo('div', 'acciones'); acc.style.marginTop = '6px';
+    const mas = nodo('button', 'btn-tiny', '+ borde');
+    mas.addEventListener('click', function(){ npCount++; renderMedicion(); });
+    const menos = nodo('button', 'btn-tiny', '− borde');
+    menos.disabled = npCount <= 3;
+    menos.addEventListener('click', function(){
+      npCount--; delete medidos['n'+npCount+'x']; delete medidos['n'+npCount+'y'];
+      renderMedicion(); renderResultado();
+    });
+    acc.appendChild(mas); acc.appendChild(menos);
+    cont.appendChild(acc);
+  }
+}
+
+/* Pone al dia lo que ya esta en pantalla, sin rehacerlo.
+
+   renderMedicion() vacia el panel y crea los campos otra vez. Llamarlo en cada
+   tecla destruia el campo que estabas escribiendo y se llevaba el foco con el.
+   Aqui solo se actualizan los valores, y al campo que tiene el foco no se le
+   toca: lo que estas escribiendo es tuyo hasta que salgas de el. */
+function refrescarMedicion(){
+  const cont = document.getElementById('medicion');
+  cont.querySelectorAll('input[data-clave]').forEach(function(inp){
+    if(inp === document.activeElement) return;
+    const k = inp.dataset.clave, v = medidos[k];
+    inp.value = (v !== undefined) ? v : '';
+    inp.classList.toggle('auto',
+      !sobrescritos.has(k) && v !== undefined && autoRellenados.has(k));
+  });
+}
+
+let autoRellenados = new Set();
+
+// La misma cascada del programa de puntos: el primero del par arrastra al
+// segundo, y escribir el segundo a mano lo independiza.
+function cascada(){
+  if(metodo !== '6p') return;
+  const pon = function(id, v){
+    if(sobrescritos.has(id)) return;
+    if(v === undefined || !isFinite(v)) return;
+    medidos[id] = r4(v); autoRellenados.add(id);
+  };
+  if(medidos['a1y'] !== undefined) pon('a2y', medidos['a1y']);
+  if(medidos['a1x'] !== undefined && medidos['a2x'] !== undefined){
+    pon('b1x', (medidos['a1x'] + medidos['a2x'])/2);
+  }
+  if(medidos['b1x'] !== undefined) pon('b2x', medidos['b1x']);
+  if(medidos['b1y'] !== undefined && medidos['b2y'] !== undefined){
+    pon('c1y', (medidos['b1y'] + medidos['b2y'])/2);
+  }
+  if(medidos['c1y'] !== undefined) pon('c2y', medidos['c1y']);
+}
+
+function calcularCentro(){
+  if(metodo === '6p'){
+    const pts = [];
+    for(const par of IDS6){
+      const x = medidos[par[0]+'x'], y = medidos[par[0]+'y'];
+      if(x === undefined || y === undefined) return null;
+      pts.push([x, y]);
+    }
+    return compute6p(pts, 'prom');
+  }
+  const pts = [];
+  for(let i = 0; i < npCount; i++){
+    const x = medidos['n'+i+'x'], y = medidos['n'+i+'y'];
+    if(x === undefined || y === undefined) continue;
+    pts.push([x, y]);
+  }
+  if(pts.length < 3) return null;
+  return fitCircleLeastSquares(pts);
+}
+
+function renderResultado(){
+  centroMedido = calcularCentro();
+  const cont = document.getElementById('resultado');
+  cont.innerHTML = '';
+  cont.className = 'resultado' + (centroMedido ? ' hay' : '');
+  cont.appendChild(nodo('span', 'g', 'Centro medido'));
+  if(!centroMedido){
+    cont.appendChild(document.createTextNode('—'));
+  } else {
+    cont.appendChild(document.createTextNode(
+      'X ' + fmt4(centroMedido.cx) + '   Y ' + fmt4(centroMedido.cy) +
+      '\nR ' + fmt4(centroMedido.r)));
+    cont.style.whiteSpace = 'pre';
+  }
+  document.getElementById('usarComoCeroBtn').disabled = !centroMedido || !doc;
+  const bReal = document.getElementById('usarComoRealBtn');
+  bReal.disabled = !centroMedido || !doc || seleccionado < 0;
+  bReal.title = 'Copia el centro medido a los campos de recalibrar. Después decides si ' +
+                'mueve el cero o si mueve solo ese elemento.';
+  render();
+}
+
+// ------------------------------------------------------------ recalibrar
+function renderRecalibrar(){
+  const cont = document.getElementById('recalibrar');
+  cont.innerHTML = '';
+  if(!doc){
+    cont.appendChild(nodo('div', 'vacio', 'Sin archivo.'));
+    return;
+  }
+  const e = seleccionado >= 0 ? doc.elementos[seleccionado] : null;
+  const ref = nodo('div', 'nota');
+  ref.innerHTML = e
+    ? ('Referencia: <b>' + e.nombre + '</b> · está en X ' + fmt4(e.pos.x) + ' Y ' + fmt4(e.pos.y))
+    : 'Elige un elemento en el dibujo o en la lista.';
+  cont.appendChild(ref);
+
+  // Los campos arrancan en 0,0 porque lo normal es poner ahi el cero de pieza.
+  // Para corregir un punto casi siempre se toca un solo eje, asi que conviene
+  // poder partir de donde esta y cambiar solo lo que haga falta.
+  if(e){
+    const cp = nodo('button', 'btn-tiny', 'Partir de donde está');
+    cp.title = 'Copia su posición actual a los campos, para cambiar solo un eje.';
+    cp.style.marginBottom = '6px';
+    cp.addEventListener('click', function(){
+      const el2 = doc.elementos[seleccionado];
+      if(!el2) return;
+      document.getElementById('realX').value = fmt4(el2.pos.x);
+      document.getElementById('realY').value = fmt4(el2.pos.y);
+    });
+    cont.appendChild(cp);
+  }
+
+  const rx = document.createElement('input'); rx.type = 'number'; rx.step = 'any'; rx.id = 'realX';
+  const ry = document.createElement('input'); ry.type = 'number'; ry.step = 'any'; ry.id = 'realY';
+  rx.value = '0'; ry.value = '0';
+  cont.appendChild(fila('Nueva X', rx,
+    'La coordenada correcta de ese elemento. La usan los dos botones de abajo.'));
+  cont.appendChild(fila('Nueva Y', ry));
+
+  // Los dos botones leen los mismos campos; lo que cambia es a quien mueven.
+  const leer = function(){
+    const el2 = doc.elementos[seleccionado];
+    if(!el2) return null;
+    // Un campo con algo que no es un numero devuelve su valor VACIO, y sin
+    // esto numOr se quedaba con la posicion de ahora y el programa contestaba
+    // "ya esta ahi, no hay nada que mover": ni escribia ni se quejaba.
+    if(rx.validity.badInput || ry.validity.badInput){
+      setStatus('Hay algo en Nueva X o Nueva Y que no es un n\u00famero. Repasa esos dos campos.', 'err');
+      return null;
+    }
+    const nx = numOr(rx.value, el2.pos.x), ny = numOr(ry.value, el2.pos.y);
+    const dx = nx - el2.pos.x, dy = ny - el2.pos.y;
+    if(Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9){
+      setStatus('Ese elemento ya está ahí: no hay nada que mover.', '');
+      return null;
+    }
+    return { el:el2, nx:nx, ny:ny, dx:dx, dy:dy };
+  };
+
+  const acc = nodo('div', 'acciones apiladas'); acc.style.marginTop = '7px';
+
+  const bCero = nodo('button', 'btn-secondary fuerte', '⌖ Mover el cero aquí');
+  bCero.disabled = !e;
+  bCero.title = 'Se desplaza TODO el programa para que este elemento caiga en esa ' +
+                'coordenada. Es lo que se hace cuando se ha perdido el cero de pieza.';
+  bCero.addEventListener('click', function(){
+    const d = leer(); if(!d) return;
+    pushUndo();
+    const n = aplicarDesplazamiento(d.dx, d.dy);
+    refrescar('Cero recalibrado sobre "' + d.el.nombre + '": ΔX ' + gnum(d.dx) +
+              ' · ΔY ' + gnum(d.dy) + ' — se ha movido todo' +
+              (doc.items ? (' (' + n + ' línea(s))') : ''));
+    podarUndo();
+  });
+  acc.appendChild(bCero);
+
+  const bUno = nodo('button', 'btn-secondary', '→ Mover solo este');
+  bUno.disabled = !e;
+  bUno.title = 'Solo se mueve este elemento; los demás se quedan donde están. ' +
+               'También en incremental: se recalculan su salto y el del siguiente.';
+  bUno.addEventListener('click', function(){
+    const d = leer(); if(!d) return;
+    pushUndo();
+    const n = moverElemento(d.el, d.nx, d.ny);
+    if(!n){ podarUndo(); return; }        // no se movio: el aviso ya esta puesto
+    refrescar('"' + d.el.nombre + '" movido a X ' + gnum(d.nx) + ' Y ' + gnum(d.ny) +
+              ' (ΔX ' + gnum(d.dx) + ' · ΔY ' + gnum(d.dy) + '). Los demás siguen donde estaban.' +
+              (doc.items ? (' ' + n + ' línea(s).') : ''));
+    podarUndo();
+  });
+  acc.appendChild(bUno);
+  cont.appendChild(acc);
+
+  const nt = nodo('div', 'nota');
+  nt.innerHTML = doc.origen !== 'gcode'
+    ? 'Lista de coordenadas: mover el cero corre todos los puntos; mover uno solo cambia ese.'
+    : (doc.modo === 'inc'
+        ? 'El archivo es <b>incremental</b>. Mover el cero solo cambia el posicionamiento ' +
+          'inicial. Mover un elemento suelto recalcula su salto <b>y el del siguiente</b>, ' +
+          'para que nadie más se mueva.'
+        : 'El archivo es <b>absoluto</b>: se reescriben las coordenadas que hagan falta, ' +
+          'y solo esas.');
+  cont.appendChild(nt);
+}
+
+// ---------------------------------------------------------- recorridos
+function renderRecorridos(){
+  const cont = document.getElementById('recorridos');
+  // Se ve siempre que haya algo cargado: esconderla detras del modo de salida
+  // fue el error de la v1.5, porque no habia manera de encontrarla.
+  cont.innerHTML = '';
+  document.getElementById('nuevoRecBtn').disabled = !doc;
+  if(!doc){
+    cont.appendChild(nodo('div', 'vacio', 'Abre un archivo y aquí podrás montar sus recorridos.'));
+    return;
+  }
+
+  const lista = recorridos();
+  if(!lista.length){
+    cont.appendChild(nodo('div', 'vacio',
+      'Ninguno todavía. Pulsa «+ Nuevo recorrido» y luego ve marcando los puntos ' +
+      'en el dibujo, en el orden en que quieras soldarlos.'));
+    return;
+  }
+
+  const caja = nodo('div');
+  caja.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  lista.forEach(function(r){
+    const c = nodo('div', 'rec' + (r.id === recorridoActivo ? ' activo' : ''));
+    c.style.setProperty('--tono', r.color);
+
+    // --- cabecera: color, nombre editable, cuantos, borrar
+    const cab = nodo('div', 'rec-cab');
+    cab.appendChild(nodo('span', 'rec-pt'));
+    const nom = document.createElement('input');
+    nom.value = r.nombre;
+    nom.addEventListener('change', function(){
+      pushUndo(); r.nombre = nom.value.trim() || r.nombre; refrescar(); podarUndo();
+    });
+    cab.appendChild(nom);
+    cab.appendChild(nodo('span', 'rec-n', String(r.elementos.length)));
+    const bx = nodo('button', 'btn-tiny', '✕');
+    bx.title = 'Borrar este recorrido';
+    bx.addEventListener('click', function(){
+      pushUndo(); borrarRecorrido(r.id); refrescar('Recorrido borrado.'); podarUndo();
+    });
+    cab.appendChild(bx);
+    c.appendChild(cab);
+
+    // --- anadir puntos
+    const acc = nodo('div', 'acciones');
+    const bAdd = nodo('button', 'btn-secondary' + (modoAnadir && recorridoActivo === r.id ? ' fuerte' : ''),
+      (modoAnadir && recorridoActivo === r.id) ? '✓ Listo' : '+ Añadir puntos');
+    bAdd.title = 'Pulsa los puntos en el dibujo para añadirlos. Volver a pulsar uno lo quita.';
+    bAdd.addEventListener('click', function(){
+      if(modoAnadir && recorridoActivo === r.id){ modoAnadir = false; }
+      else { recorridoActivo = r.id; modoAnadir = true; }
+      refrescar(modoAnadir ? 'Pulsa los puntos del dibujo para "' + r.nombre + '".' : 'Listo.');
+    });
+    acc.appendChild(bAdd);
+    c.appendChild(acc);
+
+    // --- sus puntos, en orden
+    if(!r.elementos.length){
+      c.appendChild(nodo('div', 'rec-vacio', 'Sin puntos.'));
+    } else {
+      const lp = nodo('div', 'rec-puntos');
+      r.elementos.forEach(function(id, i){
+        const e = elementoPorId(id);
+        const f = nodo('div', 'rec-pto');
+        const o = nodo('span', 'orden', String(i + 1));
+        f.appendChild(o);
+        f.appendChild(nodo('span', 'nom', e ? e.nombre : '(no está)'));
+        if(e) f.appendChild(nodo('span', 'xy', fmt2(e.pos.x) + ',' + fmt2(e.pos.y)));
+        const up = nodo('button', null, '▲'); up.disabled = (i === 0);
+        up.addEventListener('click', function(){ moverEnRecorrido(r, i, i - 1); });
+        const dn = nodo('button', null, '▼'); dn.disabled = (i === r.elementos.length - 1);
+        dn.addEventListener('click', function(){ moverEnRecorrido(r, i, i + 1); });
+        const qu = nodo('button', null, '✕');
+        qu.title = 'Quitar de este recorrido';
+        qu.addEventListener('click', function(){
+          pushUndo(); r.elementos.splice(i, 1); refrescar(); podarUndo();
+        });
+        f.appendChild(up); f.appendChild(dn); f.appendChild(qu);
+        lp.appendChild(f);
+      });
+      c.appendChild(lp);
+    }
+
+    // --- sus parametros
+    const par = nodo('div', 'rec-par');
+    const campo = function(etiqueta, valor, alCambiar, titulo){
+      const fl = nodo('div', 'fila');
+      const k = nodo('span', 'k', etiqueta);
+      if(titulo) k.title = titulo;
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.step = 'any'; inp.value = (valor === null || valor === undefined) ? '' : valor;
+      inp.addEventListener('change', function(){ pushUndo(); alCambiar(inp.value); refrescar(); podarUndo(); });
+      fl.appendChild(k); fl.appendChild(inp);
+      return fl;
+    };
+    const flG = nodo('div', 'fila');
+    flG.appendChild(nodo('span', 'k', 'Cero'));
+    const selG = document.createElement('select');
+    ['G54','G55','G56','G57','G58','G59'].forEach(function(g){
+      const o = document.createElement('option'); o.value = g; o.textContent = g;
+      if((r.trabajo || 'G54') === g) o.selected = true;
+      selG.appendChild(o);
+    });
+    selG.addEventListener('change', function(){ pushUndo(); r.trabajo = selG.value; refrescar(); podarUndo(); });
+    flG.appendChild(selG);
+    par.appendChild(flG);
+
+    const flM = nodo('div', 'fila');
+    flM.appendChild(nodo('span', 'k', 'Coord.'));
+    const selM = document.createElement('select');
+    [['abs','G90 abs'],['inc','G91 inc']].forEach(function(o2){
+      const o = document.createElement('option'); o.value = o2[0]; o.textContent = o2[1];
+      if((r.modo || 'abs') === o2[0]) o.selected = true;
+      selM.appendChild(o);
+    });
+    selM.addEventListener('change', function(){ pushUndo(); r.modo = selM.value; refrescar(); podarUndo(); });
+    flM.appendChild(selM);
+    par.appendChild(flM);
+
+    par.appendChild(campo('F traslado', r.fTraslado, function(v){ r.fTraslado = v; }));
+    par.appendChild(campo('G04 soldar', r.pSolda, function(v){ r.pSolda = v; }));
+    par.appendChild(campo('G04 asentar', r.pAsen, function(v){ r.pAsen = v; }));
+    c.appendChild(par);
+
+    // --- su G-code y su exportacion
+    const acc2 = nodo('div', 'acciones');
+    const bVer = nodo('button', 'btn-tiny', r.verGcode ? '▾ G-code' : '▸ G-code');
+    bVer.addEventListener('click', function(){ r.verGcode = !r.verGcode; renderRecorridos(); });
+    acc2.appendChild(bVer);
+    const bExp = nodo('button', 'btn-secondary', '⬇ Exportar');
+    bExp.title = 'Guarda este recorrido como .txt';
+    bExp.addEventListener('click', function(){ exportarRecorrido(r); });
+    acc2.appendChild(bExp);
+    c.appendChild(acc2);
+
+    if(r.verGcode){
+      const ta = document.createElement('textarea');
+      ta.className = 'rec-gc';
+      ta.readOnly = true;
+      ta.spellcheck = false;
+      ta.value = escribirRecorrido(r);
+      c.appendChild(ta);
+      setTimeout(function(){ ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; }, 0);
+    }
+
+    // pulsar la tarjeta lo pone en foco: es el que sale en el G-code de abajo
+    c.addEventListener('click', function(ev){
+      if(ev.target.closest('button, input, select, textarea')) return;
+      recorridoActivo = (recorridoActivo === r.id) ? null : r.id;
+      refrescar();
+    });
+    caja.appendChild(c);
+  });
+  cont.appendChild(caja);
+}
+
+function exportarRecorrido(r){
+  const texto = escribirRecorrido(r);
+  const base = sanitizeFilename(document.getElementById('nombreArchivo').value) || 'recorrido';
+  descargar(texto, base + '_' + (sanitizeFilename(r.nombre) || 'recorrido') + '.txt');
+  setStatus('"' + r.nombre + '" exportado.', 'ok');
+}
+
+// ---------------------------------------------------------------- lista
+function renderLista(){
+  const cont = document.getElementById('lista');
+  cont.innerHTML = '';
+  const cc = document.getElementById('contadores');
+  cc.innerHTML = '';
+  if(!doc || !doc.elementos.length){
+    cont.appendChild(nodo('div', 'vacio', 'Nada cargado.'));
+    return;
+  }
+  const cuenta = { sin:0, ok:0, mal:0 };
+  doc.elementos.forEach(function(e){ cuenta[e.estado]++; });
+  [['sin','sin comprobar'],['ok','correctas'],['mal','incorrectas']].forEach(function(p){
+    const d = nodo('div', 'cont ' + p[0]);
+    d.appendChild(nodo('b', null, String(cuenta[p[0]])));
+    d.appendChild(document.createTextNode(p[1]));
+    cc.appendChild(d);
+  });
+
+  // Se puede reordenar siempre que se vaya a generar un recorrido nuevo: si se
+  // devuelve el archivo tal cual, el orden es el suyo.
+  const puedeOrdenar = doc.salida === 'recorrido';
+  doc.elementos.forEach(function(e, i){
+    const f = nodo('div', 'elem' + (i === seleccionado ? ' sel' : ''));
+    f.style.borderLeftColor = COLORES[e.estado];
+
+    if(!e.suelda) f.classList.add('nosuelda');
+
+    if(e.tipo === 'punto'){
+      const sw = document.createElement('input');
+      sw.type = 'checkbox'; sw.className = 'interruptor'; sw.checked = e.suelda;
+      sw.title = e.suelda
+        ? 'Quitar la soldadura de este punto: el cabezal sigue pasando, pero no enciende ni espera.'
+        : 'Sin soldadura: el cabezal pasa de largo. Marca para volver a soldarlo.';
+      sw.addEventListener('click', function(ev){ ev.stopPropagation(); });
+      sw.addEventListener('change', function(){ alternarSoldadura(e); });
+      f.appendChild(sw);
+    }
+
+    const luz = nodo('div', 'luz');
+    luz.style.background = COLORES[e.estado];
+    luz.style.color = COLORES[e.estado];
+    luz.title = 'Estado: ' + ETIQUETAS[e.estado] + '. Clic para cambiarlo.';
+    luz.addEventListener('click', function(ev){ ev.stopPropagation(); girarEstado(e); });
+    f.appendChild(luz);
+
+    const cu = nodo('div', 'cuerpo');
+    cu.appendChild(nodo('div', 'tit', e.nombre));
+    cu.appendChild(nodo('div', 'sub', 'X ' + fmt4(e.pos.x) + ' · Y ' + fmt4(e.pos.y)));
+    f.appendChild(cu);
+
+    if(!e.suelda){
+      f.appendChild(nodo('span', 'etq-nos', 'sin soldar'));
+    }
+
+    if(puedeOrdenar){
+      const acc = nodo('div', 'acc');
+      const up = nodo('button', null, '▲'); up.disabled = (i === 0); up.title = 'Subir';
+      up.addEventListener('click', function(ev){ ev.stopPropagation(); mover(i, i-1); });
+      const dn = nodo('button', null, '▼'); dn.disabled = (i === doc.elementos.length-1); dn.title = 'Bajar';
+      dn.addEventListener('click', function(ev){ ev.stopPropagation(); mover(i, i+1); });
+      acc.appendChild(up); acc.appendChild(dn);
+      f.appendChild(acc);
+    }
+
+    f.addEventListener('click', function(){
+      seleccionado = (seleccionado === i) ? -1 : i;
+      renderLista(); renderRecalibrar(); renderResultado(); render();
+    });
+    cont.appendChild(f);
+  });
+}
+
+// Quitar la soldadura NO le quita las coordenadas: el movimiento se queda, asi
+// que en un programa incremental los puntos que vienen detras no se mueven.
+function alternarSoldadura(e){
+  pushUndo();
+  e.suelda = !e.suelda;
+  refrescar(e.nombre + (e.suelda ? ': vuelve a soldarse.'
+                                 : ': el cabezal pasa, pero ya no suelda.'));
+  podarUndo();
+}
+
+function girarEstado(e){
+  pushUndo();
+  e.estado = e.estado === 'sin' ? 'ok' : (e.estado === 'ok' ? 'mal' : 'sin');
+  renderLista(); render();
+  setStatus(e.nombre + ': ' + ETIQUETAS[e.estado] + '.', e.estado === 'mal' ? 'err' : 'ok');
+}
+
+function mover(desde, hasta){
+  if(!doc || hasta < 0 || hasta >= doc.elementos.length) return;
+  pushUndo();
+  const e = doc.elementos.splice(desde, 1)[0];
+  doc.elementos.splice(hasta, 0, e);
+  if(seleccionado === desde) seleccionado = hasta;
+  refrescar(e.nombre + ' → puesto ' + (hasta + 1) + '.');
+}
+
+// ------------------------------------------------------------- parametros
+function renderParams(){
+  const cont = document.getElementById('params');
+  cont.innerHTML = '';
+  if(!doc){ cont.appendChild(nodo('div', 'vacio', 'Sin archivo.')); return; }
+  const p = doc.params;
+
+  // Con un archivo de solo puntos se puede devolver el que entro o construir
+  // uno nuevo desde cero con estos parametros y este orden.
+  if(soloPuntos()){
+    const fs = nodo('div', 'opciones');
+    // Lo que se puede devolver depende de lo que entro: un G-code devuelve el
+    // G-code, una lamina devuelve la lamina.
+    const devolver = doc.textoOriginal ? ['lamina','La l\u00e1mina','recalibrada']
+                                       : ['archivo','El archivo','recalibrado'];
+    [devolver, ['recorrido','Recorrido nuevo','desde los puntos']].forEach(function(op){
+      const b = nodo('div', 'opt' + (doc.salida === op[0] ? ' active' : ''), op[1]);
+      b.appendChild(nodo('small', null, op[2]));
+      if(op[0] === 'archivo' && doc.origen !== 'gcode'){
+        b.classList.add('opt'); b.style.opacity = '.4'; b.style.cursor = 'not-allowed';
+        b.title = 'No hay archivo de G-code que devolver: esto vino de una lista de puntos.';
+      } else {
+        b.addEventListener('click', function(){
+          if(doc.salida === op[0]) return;
+          pushUndo(); doc.salida = op[0];
+          // Antes esto generaba un recorrido con todos los puntos. Se mantiene:
+          // la primera vez se crea ese mismo, y a partir de ahi se retoca o se
+          // anaden mas.
+          if(op[0] === 'recorrido' && !recorridos().length && soloPuntos()) nuevoRecorrido(true);
+          refrescar(op[0] === 'recorrido' ? 'Se genera un recorrido nuevo desde los puntos.'
+                                          : 'Se devuelve el archivo que entró, recalibrado.');
+        });
+      }
+      fs.appendChild(b);
+    });
+    cont.appendChild(fs);
+  }
+
+  const caja = nodo('div', 'conG');
+  caja.appendChild(nodo('span', 'g', 'G'));
+  const gi = document.createElement('input');
+  gi.type = 'number'; gi.step = '1'; gi.min = '54'; gi.max = '59';
+  gi.value = (p.trabajo || 'G54').slice(1);
+  gi.title = 'Solo el número: la G se da por puesta. De 54 a 59.';
+  gi.addEventListener('change', function(){
+    const n = parseInt(gi.value, 10);
+    if(!(n >= 54 && n <= 59)){ setStatus('Las coordenadas de trabajo van de 54 a 59.', 'err'); renderParams(); return; }
+    pushUndo();
+    p.trabajo = 'G' + n;
+    if(doc.items) cambiarEnGcode(/([Gg])\s*5[4-9]/, function(){ return 'G' + n; }, function(it){
+      return it.palabras.some(function(w){ return w.letra==='G' && w.valor>=54 && w.valor<=59; });
+    });
+    refrescar('Coordenadas de trabajo: G' + n + '.');
+  });
+  caja.appendChild(gi);
+  cont.appendChild(fila('Coordenadas', caja, 'El cero de pieza que usa el programa'));
+
+  const fm = nodo('div', 'opciones');
+  [['abs','Absolutas','G90'],['inc','Incrementales','G91']].forEach(function(op){
+    const b = nodo('div', 'opt' + (p.modo === op[0] ? ' active' : ''), op[1]);
+    b.appendChild(nodo('small', null, op[2]));
+    b.addEventListener('click', function(){
+      if(p.modo === op[0]) return;
+      if(doc.salida === 'archivo'){
+        setStatus('Para convertir el modo del archivo, usa Path. Aquí cambia el del recorrido que se genere.', 'err');
+        return;
+      }
+      pushUndo(); p.modo = op[0];
+      refrescar('Se escribe en coordenadas ' + (op[0]==='inc' ? 'incrementales (G91)' : 'absolutas (G90)') + '.');
+    });
+    fm.appendChild(b);
+  });
+  cont.appendChild(fm);
+
+  const num = function(clave, etiqueta, titulo, aplicar){
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any';
+    inp.value = p[clave] === null || p[clave] === undefined ? '' : p[clave];
+    inp.placeholder = '—';
+    inp.title = titulo;
+    inp.addEventListener('change', function(){
+      const v = parseFloat(inp.value);
+      if(!isFinite(v) || v < 0){ setStatus('Ese valor no vale.', 'err'); renderParams(); return; }
+      pushUndo(); p[clave] = v;
+      if(doc.items && aplicar) aplicar(v);
+      refrescar(etiqueta + ' = ' + gnum(v) + '.');
+    });
+    cont.appendChild(fila(etiqueta, inp, titulo));
+  };
+
+  if(p.fCorte !== null){
+    num('fCorte', 'F de corte', 'Avance con el láser encendido', function(v){
+      cambiarEnGcode(/([Ff])\s*-?\d*\.?\d+/, function(){ return 'F' + gnum(v); }, function(it){
+        return palabra(it,'F') && it.mov && it.mov.corte;
+      });
+    });
+  }
+  num('fTraslado', 'F de traslado', 'Avance de posicionamiento', function(v){
+    cambiarEnGcode(/([Ff])\s*-?\d*\.?\d+/, function(){ return 'F' + gnum(v); }, function(it){
+      return palabra(it,'F') && !(it.mov && it.mov.corte);
+    });
+  });
+  if(p.pSolda !== null || doc.origen !== 'gcode'){
+    num('pSolda', 'G04 P soldar', 'Tiempo con el láser encendido en cada punto', function(v){
+      cambiarEnGcode(/([Pp])\s*-?\d*\.?\d+/, function(){ return 'P' + gnum(v); }, function(it){
+        return it.espera !== undefined && it.laser;
+      });
+    });
+    num('pAsen', 'G04 P asentar', 'Esperas con el láser apagado', function(v){
+      cambiarEnGcode(/([Pp])\s*-?\d*\.?\d+/, function(){ return 'P' + gnum(v); }, function(it){
+        return it.espera !== undefined && !it.laser;
+      });
+    });
+  }
+}
+
+function cambiarEnGcode(re, reemplazo, filtro){
+  if(!doc.items) return 0;
+  let n = 0;
+  doc.items.forEach(function(it){
+    if(!filtro(it)) return;
+    it.raw = it.raw.replace(re, reemplazo());
+    reTokenizar(it); n++;
+  });
+  pasarModal(doc.items);
+  return n;
+}
+
+// ------------------------------------------------------------------ texto
+function volcarTexto(){
+  const ta = document.getElementById('gcodeTexto');
+  ta.value = doc ? escribirPrograma() : '';
+  ta.style.height = 'auto';
+  ta.style.height = (ta.scrollHeight + 2) + 'px';
+  const n = document.getElementById('gcNota');
+  const sinSoldar = doc ? doc.elementos.filter(function(e){ return !e.suelda; }).length : 0;
+  n.textContent = doc ? (ta.value.split('\n').length + ' líneas · ' +
+    (doc.salida === 'recorrido'
+       ? ('recorrido: ' + (recorridoEnFoco() ? recorridoEnFoco().nombre : '—'))
+       : (doc.salida === 'lamina' ? 'la lámina, recalibrada'
+                                  : 'el archivo, recalibrado')) +
+    (sinSoldar ? (' · ' + sinSoldar + ' sin soldar') : '')) : '—';
+}
+
+// ============================================================== DIBUJO
+function camaraInicial(){ return { cx:0, cy:0, scale:20 }; }
+
+function cajaDe(){
+  if(!doc) return null;
+  const xs = [], ys = [];
+  doc.elementos.forEach(function(e){
+    xs.push(e.pos.x); ys.push(e.pos.y);
+    e.trazos.forEach(function(t){ t.forEach(function(p){ xs.push(p.x); ys.push(p.y); }); });
+  });
+  if(centroMedido){ xs.push(centroMedido.cx); ys.push(centroMedido.cy); }
+  if(!xs.length) return null;
+  return { minX:Math.min.apply(null,xs), maxX:Math.max.apply(null,xs),
+           minY:Math.min.apply(null,ys), maxY:Math.max.apply(null,ys) };
+}
+
+function limites(){
+  const c = cajaDe();
+  if(!c) return null;
+  // El cero SIEMPRE entra en el encuadre: es lo que se está mirando.
+  const minX = Math.min(c.minX, 0), maxX = Math.max(c.maxX, 0);
+  const minY = Math.min(c.minY, 0), maxY = Math.max(c.maxY, 0);
+  if((maxX-minX) < 1e-6 && (maxY-minY) < 1e-6) return null;
+  const span = Math.max(Math.max(maxX-minX, 0.5), Math.max(maxY-minY, 0.5));
+  return { cx:(minX+maxX)/2, cy:(minY+maxY)/2,
+           scale: Math.min((Math.min(W,H) - PAD*2) / span, 400) };
+}
+
+function ajustarVista(){
+  const b = limites();
+  if(!b){ setStatus('No hay nada que encuadrar.', ''); return; }
+  camera = b; render();
+}
+
+function render(){
+  limpiarSvg();
+  if(!camera) camera = camaraInicial();
+  const scale = camera.scale, cxMid = camera.cx, cyMid = camera.cy;
+  const aP = function(x, y){ return [W/2 + (x-cxMid)*scale, H/2 - (y-cyMid)*scale]; };
+
+  dibujarRejilla(scale, cxMid, cyMid);
+
+  if(doc){
+    // trazos de corte
+    doc.elementos.forEach(function(e, i){
+      const at = (seleccionado >= 0 && i !== seleccionado);
+      e.trazos.forEach(function(t){
+        if(t.length < 2) return;
+        const d = t.map(function(p, k){
+          const s = aP(p.x, p.y);
+          return (k ? 'L' : 'M') + s[0].toFixed(2) + ' ' + s[1].toFixed(2);
+        }).join(' ');
+        svg.appendChild(el('path', { d:d, fill:'none', stroke:COLORES[e.estado],
+          'stroke-width': i === seleccionado ? 3 : 2, 'stroke-linecap':'round',
+          'stroke-linejoin':'round', opacity: at ? 0.28 : 0.95 }));
+      });
+    });
+    // marcas de posicion
+    doc.elementos.forEach(function(e, i){
+      const s = aP(e.pos.x, e.pos.y);
+      const at = (seleccionado >= 0 && i !== seleccionado);
+      const g = el('g', { opacity: at ? 0.3 : 1 });
+      g.style.cursor = 'pointer';
+      const aro = el('circle', { cx:s[0], cy:s[1], r: i === seleccionado ? 9 : 7,
+        fill:'#ffffff', stroke:COLORES[e.estado], 'stroke-width': i === seleccionado ? 3 : 2.2 });
+      // Un punto que no se suelda se dibuja a trazos: sigue estando y el
+      // cabezal sigue pasando, pero no deja soldadura.
+      if(!e.suelda) aro.setAttribute('stroke-dasharray', '3 3');
+      g.appendChild(aro);
+      if(e.suelda) g.appendChild(el('circle', { cx:s[0], cy:s[1], r:2.2, fill:COLORES[e.estado] }));
+      const t = el('text', { x:s[0], y:s[1]-13, 'text-anchor':'middle', 'font-size':10,
+        'font-family':'IBM Plex Mono, monospace', 'font-weight':600, fill:COLORES[e.estado] });
+      t.textContent = e.nombre;
+      g.appendChild(t);
+      g.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        // Mientras se esta montando un recorrido, el clic lo alimenta a el en
+        // vez de cambiar la seleccion: es lo que se espera al estar en ese modo.
+        if(modoAnadir && anadirAlRecorrido(e.id)) return;
+        seleccionado = (seleccionado === i) ? -1 : i;
+        renderLista(); renderRecalibrar(); renderResultado(); render();
+      });
+      svg.appendChild(g);
+    });
+    // los recorridos, por encima de los puntos: se ve el orden de un vistazo
+    {
+      recorridos().forEach(function(r){
+        const pts = r.elementos.map(elementoPorId).filter(Boolean);
+        if(pts.length < 1) return;
+        const foco = (r.id === recorridoActivo) || !recorridoActivo;
+        if(pts.length > 1){
+          const d = pts.map(function(e, k){
+            const p = aP(e.pos.x, e.pos.y);
+            return (k ? 'L' : 'M') + p[0].toFixed(2) + ' ' + p[1].toFixed(2);
+          }).join(' ');
+          svg.appendChild(el('path', { d:d, fill:'none', stroke:r.color,
+            'stroke-width': foco ? 2 : 1.4, 'stroke-linecap':'round',
+            'stroke-linejoin':'round', 'stroke-dasharray':'6 4',
+            opacity: foco ? 0.9 : 0.35 }));
+        }
+        pts.forEach(function(e, k){
+          const p = aP(e.pos.x, e.pos.y);
+          const g = el('g', { opacity: foco ? 1 : 0.4 });
+          g.appendChild(el('circle', { cx:p[0]+11, cy:p[1]+11, r:7, fill:r.color }));
+          const t = el('text', { x:p[0]+11, y:p[1]+14.5, 'text-anchor':'middle',
+            'font-size':9, 'font-family':'IBM Plex Mono, monospace',
+            'font-weight':700, fill:'#ffffff' });
+          t.textContent = String(k + 1);
+          g.appendChild(t);
+          svg.appendChild(g);
+        });
+      });
+    }
+
+    // el centro que se acaba de medir, para verlo respecto al resto
+    if(centroMedido){
+      const s = aP(centroMedido.cx, centroMedido.cy);
+      const rpx = Math.max(4, centroMedido.r * scale);
+      svg.appendChild(el('circle', { cx:s[0], cy:s[1], r:rpx, fill:'none',
+        stroke:'#2563eb', 'stroke-width':1.6, 'stroke-dasharray':'5 4', opacity:0.9 }));
+      svg.appendChild(el('circle', { cx:s[0], cy:s[1], r:3, fill:'#2563eb' }));
+      const t = el('text', { x:s[0], y:s[1]+rpx+13, 'text-anchor':'middle', 'font-size':10,
+        'font-family':'IBM Plex Mono, monospace', 'font-weight':600, fill:'#2563eb' });
+      t.textContent = 'medido';
+      svg.appendChild(t);
+    }
+  }
+
+  dibujarCero(aP);
+  dibujarReglas(scale, cxMid, cyMid);
+
+  document.getElementById('escala').textContent = '1 ' + unidad() + ' = ' + scale.toFixed(2) + ' px';
+  document.getElementById('badge').textContent = !doc ? 'sin archivo'
+    : (doc.elementos.length + ' elemento(s)');
+}
+
+// El 0,0 se marca a lo grande: es el protagonista de este programa.
+function dibujarCero(aP){
+  const s = aP(0, 0);
+  if(s[0] < -40 || s[0] > W+40 || s[1] < -40 || s[1] > H+40) return;
+  const g = el('g', {});
+  g.appendChild(el('circle', { cx:s[0], cy:s[1], r:13, fill:'none', stroke:'#20221f',
+    'stroke-width':1.6, opacity:0.75 }));
+  g.appendChild(el('line', { x1:s[0]-19, y1:s[1], x2:s[0]+19, y2:s[1], stroke:'#20221f', 'stroke-width':1.6, opacity:0.75 }));
+  g.appendChild(el('line', { x1:s[0], y1:s[1]-19, x2:s[0], y2:s[1]+19, stroke:'#20221f', 'stroke-width':1.6, opacity:0.75 }));
+  const t = el('text', { x:s[0]+23, y:s[1]-8, 'font-size':11, 'font-weight':700,
+    'font-family':'IBM Plex Mono, monospace', fill:'#20221f' });
+  t.textContent = '0,0';
+  g.appendChild(t);
+  svg.appendChild(g);
+}
+
+function valorBonito(bruto){
+  if(!isFinite(bruto) || bruto <= 0) return 1;
+  const exp = Math.floor(Math.log10(bruto));
+  const base = bruto / Math.pow(10, exp);
+  let b;
+  if(base < 1.5) b = 1; else if(base < 3.5) b = 2; else if(base < 7.5) b = 5; else b = 10;
+  return b * Math.pow(10, exp);
+}
+
+function dibujarRejilla(scale, cxMid, cyMid){
+  const mx = function(sx){ return cxMid + (sx-W/2)/scale; };
+  const my = function(sy){ return cyMid - (sy-H/2)/scale; };
+  const xMin = mx(0), xMax = mx(W), yMin = my(H), yMax = my(0);
+  let paso = 1; const cadaMayor = 5;
+  if(scale < 4) paso = valorBonito(6/scale);
+  const g = el('g', {});
+  for(let k = Math.floor(xMin/paso); k <= Math.ceil(xMax/paso); k++){
+    const xw = k*paso, sx = W/2 + (xw-cxMid)*scale;
+    const mayor = (Math.round(xw/paso) % cadaMayor === 0);
+    g.appendChild(el('line', { x1:sx, y1:0, x2:sx, y2:H, stroke: mayor?'#cbc7b9':'#e3e0d6', 'stroke-width':1 }));
+  }
+  for(let k = Math.floor(yMin/paso); k <= Math.ceil(yMax/paso); k++){
+    const yw = k*paso, sy = H/2 - (yw-cyMid)*scale;
+    const mayor = (Math.round(yw/paso) % cadaMayor === 0);
+    g.appendChild(el('line', { x1:0, y1:sy, x2:W, y2:sy, stroke: mayor?'#cbc7b9':'#e3e0d6', 'stroke-width':1 }));
+  }
+  const sx0 = W/2 + (0-cxMid)*scale, sy0 = H/2 - (0-cyMid)*scale;
+  if(sx0 >= 0 && sx0 <= W) g.appendChild(el('line', { x1:sx0, y1:0, x2:sx0, y2:H, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  if(sy0 >= 0 && sy0 <= H) g.appendChild(el('line', { x1:0, y1:sy0, x2:W, y2:sy0, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  svg.appendChild(g);
+}
+
+const RULER_H = 26;
+function dibujarReglas(scale, cxMid, cyMid){
+  const paso = valorBonito(70/scale);
+  const dec = paso < 1 ? 2 : (paso < 10 ? 1 : 0);
+  const fs = 12;
+  const mx = function(sx){ return cxMid + (sx-W/2)/scale; };
+  const my = function(sy){ return cyMid - (sy-H/2)/scale; };
+  const yMin0 = my(H-RULER_H), yMax0 = my(0);
+  const kyIni = Math.ceil(yMin0/paso), kyFin = Math.floor(yMax0/paso);
+  let maxLen = 0;
+  for(let k = kyIni; k <= kyFin; k++) maxLen = Math.max(maxLen, (k*paso).toFixed(dec).length);
+  const RULER_W = Math.max(26, maxLen*fs*0.62 + 14);
+  const xMin = mx(RULER_W), xMax = mx(W);
+
+  const FUERA = 4000;
+  [ { x:W, y:-FUERA, width:FUERA, height:H+2*FUERA },
+    { x:-FUERA, y:-FUERA, width:W+2*FUERA, height:FUERA }
+  ].forEach(function(a){
+    const m = el('rect', Object.assign({ fill:'#ffffff' }, a));
+    m.style.pointerEvents = 'none';
+    svg.appendChild(m);
+  });
+  const bandaH = el('rect', { x:-FUERA, y:H-RULER_H, width:W+2*FUERA, height:RULER_H+FUERA, fill:'#ffffff' });
+  const bandaV = el('rect', { x:-FUERA, y:-FUERA, width:RULER_W+FUERA, height:H+2*FUERA, fill:'#ffffff' });
+  bandaH.style.pointerEvents = 'none'; bandaV.style.pointerEvents = 'none';
+  svg.appendChild(bandaH); svg.appendChild(bandaV);
+  svg.appendChild(el('line', { x1:-FUERA, y1:H-RULER_H, x2:W+FUERA, y2:H-RULER_H, stroke:'#20221f', 'stroke-width':1.5 }));
+  svg.appendChild(el('line', { x1:RULER_W, y1:-FUERA, x2:RULER_W, y2:H+FUERA, stroke:'#20221f', 'stroke-width':1.5 }));
+
+  for(let k = Math.ceil(xMin/paso); k <= Math.floor(xMax/paso); k++){
+    const xw = k*paso, sx = W/2 + (xw-cxMid)*scale;
+    if(sx < RULER_W) continue;
+    svg.appendChild(el('line', { x1:sx, y1:H-RULER_H, x2:sx, y2:H-RULER_H+6, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:sx, y:H-6, 'text-anchor':'middle', 'font-size':fs,
+      'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = xw.toFixed(dec); svg.appendChild(t);
+  }
+  for(let k = kyIni; k <= kyFin; k++){
+    const yw = k*paso, sy = H/2 - (yw-cyMid)*scale;
+    if(sy > H-RULER_H) continue;
+    svg.appendChild(el('line', { x1:RULER_W-6, y1:sy, x2:RULER_W, y2:sy, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:RULER_W-9, y:sy+3, 'text-anchor':'end', 'font-size':fs,
+      'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = yw.toFixed(dec); svg.appendChild(t);
+  }
+  const esq = el('text', { x:7, y:H-6, 'font-size':18, 'font-family':'IBM Plex Mono, monospace',
+    'font-weight':700, fill:'#111111' });
+  esq.textContent = unidad(); svg.appendChild(esq);
+}
+
+// ---------------------------------------------------------- zoom y paneo
+function clientAsvg(cx, cy){
+  const pt = svg.createSVGPoint();
+  pt.x = cx; pt.y = cy;
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return { x:0, y:0 };
+  const p = pt.matrixTransform(ctm.inverse());
+  return { x:p.x, y:p.y };
+}
+function zoomBy(f){
+  if(!camera) return;
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*f));
+  render();
+}
+function iniciarPan(e){
+  if(!camera) return;
+  isPanning = true; panMoved = false;
+  svg.classList.add('panning');
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  panStartPt = clientAsvg(cx, cy);
+  panStartCamera = { cx:camera.cx, cy:camera.cy };
+  window.addEventListener('mousemove', moverPan);
+  window.addEventListener('mouseup', terminarPan);
+  window.addEventListener('touchmove', moverPan, { passive:false });
+  window.addEventListener('touchend', terminarPan);
+}
+function moverPan(e){
+  if(!isPanning) return;
+  e.preventDefault();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  const cur = clientAsvg(cx, cy);
+  if(Math.hypot(cur.x-panStartPt.x, cur.y-panStartPt.y) > 3) panMoved = true;
+  camera.cx = panStartCamera.cx - (cur.x - panStartPt.x)/camera.scale;
+  camera.cy = panStartCamera.cy + (cur.y - panStartPt.y)/camera.scale;
+  render();
+}
+function terminarPan(){
+  isPanning = false;
+  svg.classList.remove('panning');
+  window.removeEventListener('mousemove', moverPan);
+  window.removeEventListener('mouseup', terminarPan);
+  window.removeEventListener('touchmove', moverPan);
+  window.removeEventListener('touchend', terminarPan);
+}
+function ruedaZoom(e){
+  if(!camera) return;
+  e.preventDefault();
+  const pt = clientAsvg(e.clientX, e.clientY);
+  const mx = camera.cx + (pt.x-W/2)/camera.scale;
+  const my = camera.cy - (pt.y-H/2)/camera.scale;
+  const f = e.deltaY < 0 ? 1.12 : (1/1.12);
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*f));
+  camera.cx = mx - (pt.x-W/2)/camera.scale;
+  camera.cy = my + (pt.y-H/2)/camera.scale;
+  render();
+}
+
+// ============================================================== ARCHIVO
+function cargar(texto, nombre){
+  let d = null;
+  try{ d = leerArchivo(texto, nombre); }
+  catch(err){ setStatus('No se pudo interpretar el archivo.', 'err'); return; }
+  if(!d || !d.elementos.length){
+    setStatus('No se ha reconocido ningún punto ni corte en ese archivo.', 'err');
+    return;
+  }
+  doc = d;
+  seleccionado = -1;
+  undoStack = []; redoStack = [];
+  // La medicion era del archivo anterior: en el nuevo marco no significa nada.
+  medidos = {}; sobrescritos.clear(); autoRellenados.clear(); centroMedido = null;
+  renderMedicion(); renderResultado();
+  if(nombre) document.getElementById('nombreArchivo').value =
+    nombre.replace(/\.(txt|nc|gcode|tap|cnc)$/i, '') + '_recal';
+  const b = limites();
+  camera = b || camaraInicial();
+  refrescar('Leído: ' + doc.elementos.length + ' elemento(s) · ' +
+            (doc.modo === 'inc' ? 'G91 incrementales' : 'G90 absolutas') + '.');
+  document.getElementById('hint').innerHTML =
+    'Elige un elemento: <b>Mover el cero aquí</b> desplaza todo el programa; <b>Mover solo este</b> corrige uno que esté mal. La cruz marca el 0,0.';
+}
+
+function guardar(){
+  if(!doc){ setStatus('No hay nada que guardar.', 'err'); return; }
+  const nombre = sanitizeFilename(document.getElementById('nombreArchivo').value) || 'recalibrado';
+  descargar(escribirPrograma(), nombre + '.txt');
+  setStatus('Guardado como "' + nombre + '.txt".', 'ok');
+}
+
+// ============================================================== ARRANQUE
+document.getElementById('abrirBtn').addEventListener('click', function(){
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = function(ev){ cargar(ev.target.result, f.name); };
+  r.onerror = function(){ setStatus('No se pudo leer el archivo.', 'err'); };
+  r.readAsText(f);
+  e.target.value = '';
+});
+document.getElementById('guardarBtn').addEventListener('click', guardar);
+document.getElementById('nuevoRecBtn').addEventListener('click', function(){
+  if(!doc){ setStatus('Abre antes un archivo.', 'err'); return; }
+  pushUndo();
+  const r = nuevoRecorrido(false);
+  modoAnadir = true;
+  // Si el archivo es de solo puntos, lo que se quiere exportar pasa a ser el
+  // recorrido; con un archivo de cortes la salida se queda como estaba, porque
+  // ahi lo que se devuelve es el propio archivo recalibrado.
+  if(soloPuntos()) doc.salida = 'recorrido';
+  refrescar('"' + r.nombre + '" creado. Ahora pulsa en el dibujo los puntos que quieras, en orden.');
+  podarUndo();
+});
+
+document.getElementById('exportarBtn').addEventListener('click', guardar);
+document.getElementById('deshacerBtn').addEventListener('click', deshacer);
+document.getElementById('rehacerBtn').addEventListener('click', rehacer);
+
+document.getElementById('usarComoCeroBtn').addEventListener('click', function(){
+  if(!centroMedido || !doc) return;
+  pushUndo();
+  const n = aplicarDesplazamiento(-centroMedido.cx, -centroMedido.cy);
+  const c = { cx:centroMedido.cx, cy:centroMedido.cy };
+  refrescar('El centro medido pasa a ser el 0,0: ΔX ' + gnum(-c.cx) + ' · ΔY ' + gnum(-c.cy) +
+            (doc.origen === 'gcode' ? (' (' + n + ' línea(s))') : ''));
+  podarUndo();
+});
+document.getElementById('usarComoRealBtn').addEventListener('click', function(){
+  if(!centroMedido || !doc || seleccionado < 0) return;
+  const e = doc.elementos[seleccionado];
+  document.getElementById('realX').value = fmt4(centroMedido.cx);
+  document.getElementById('realY').value = fmt4(centroMedido.cy);
+  setStatus('Centro medido copiado. Ahora elige: mover el cero, o mover solo "' + e.nombre + '".', '');
+});
+
+document.getElementById('zoomInBtn').addEventListener('click', function(){ zoomBy(1.25); });
+document.getElementById('zoomOutBtn').addEventListener('click', function(){ zoomBy(1/1.25); });
+document.getElementById('zoomFitBtn').addEventListener('click', ajustarVista);
+svg.addEventListener('mousedown', iniciarPan);
+svg.addEventListener('touchstart', iniciarPan, { passive:false });
+svg.addEventListener('wheel', ruedaZoom, { passive:false });
+
+window.addEventListener('keydown', function(e){
+  if(!(e.ctrlKey || e.metaKey)) return;
+  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase();
+  if(k === 'z' && !e.shiftKey){ e.preventDefault(); deshacer(); }
+  else if(k === 'y' || (k === 'z' && e.shiftKey)){ e.preventDefault(); rehacer(); }
+});
+
+renderMetodo();
+renderMedicion();
+renderResultado();
+renderDatos();
+renderLista();
+renderParams();
+renderRecalibrar();
+renderRecorridos();
+render();
+setStatus('Listo. Abre una lista de puntos o un G-code.', '');
+
+/* ================================================================
+   Puerta de GCoder. El hub llama aqui al abrir un archivo de un
+   proyecto; el guardado va por el puente, asi que no hace falta nada mas.
+   Si el programa se abre suelto, esto no lo llama nadie y no estorba.
+   ================================================================ */
+window.GCODER_ABRIR = function(nombre, texto){
+  cargar(texto, nombre);
+};
+
+/* Un campo numerico que ya trae un numero no deja teclear un negativo.
+
+   Pinchas, el cursor cae detras de lo que hay, tecleas "-5" y quedaria "0-5",
+   que no es un numero: el navegador descarta la tecla sin decir nada y parece
+   que el guion este roto. Por eso los campos vacios si lo aceptaban y los
+   rellenos no.
+
+   Seleccionando el contenido al entrar, lo que tecleas sustituye a lo que
+   habia, que es lo que uno espera de un campo de dos cifras. Para corregir un
+   digito suelto, un segundo clic coloca el cursor como siempre. */
+document.addEventListener('focusin', function(ev){
+  const el = ev.target;
+  if(el && el.tagName === 'INPUT' && el.type === 'number'){
+    /* En un type=number solo vale select(): setSelectionRange revienta. */
+    try { el.select(); } catch(err) {}
+  }
+});
+
+</script>
+
+</body>
+</html>
+<!-- Diseñado por Rolando Ordoñez Rodriguez A01177301 -->

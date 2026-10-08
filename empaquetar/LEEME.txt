@@ -1,0 +1,70 @@
+=====================================================================
+ RECONSTRUIR GCoder.exe
+=====================================================================
+
+Doble clic en reconstruir.bat. Tarda un par de minutos y deja el
+GCoder.exe actualizado en la carpeta de arriba.
+
+Solo hace falta reconstruir si cambias app.py, servidor.py o hub.html.
+Si solo editas programas.json o los programas HTML, NO hace falta: se
+leen del disco cada vez que abres GCoder.
+
+
+REQUISITOS
+----------
+  - Python 3.10 (el que ya tienes instalado)
+  - pip install pywebview pyinstaller
+
+Para SOLO USAR el .exe no hace falta nada de esto: lleva Python dentro.
+
+
+QUE HAY AQUI
+------------
+  construir.py       Ejecuta el empaquetado. Incluye un parche
+                     necesario (ver NOTA TECNICA).
+  GCoder.spec        Receta: que archivos entran en el .exe.
+  reconstruir.bat    Doble clic para reconstruir.
+  build/             Temporales de PyInstaller. Se puede borrar; solo
+                     hace que la siguiente reconstruccion tarde algo
+                     mas. Son unos 15 MB.
+  build.log          Registro de la ultima construccion.
+
+
+SI FALLA CON "ACCESO DENEGADO"
+------------------------------
+PyInstaller no puede sustituir GCoder.exe si el programa esta abierto.
+Cierra GCoder y vuelve a intentarlo.
+
+Ojo: a veces quedan procesos colgados que no se ven en el Administrador
+de tareas a simple vista. Desde PowerShell:
+
+     Get-Process -Name GCoder
+     Stop-Process -Name GCoder -Force
+
+
+NOTA TECNICA (por que existe construir.py)
+------------------------------------------
+Tu Python es la version 3.10.0, la primera de esa serie. Trae un bug
+en el modulo 'dis': en dis._unpack_opargs, la rama 'else' no reinicia
+la variable extended_arg, asi que un EXTENDED_ARG seguido de una
+instruccion sin argumento contamina la instruccion siguiente.
+
+PyInstaller tropieza con esto al analizar bottle.py (una dependencia
+de pywebview) y aborta con "IndexError: tuple index out of range",
+sin decir siquiera que modulo le molesto.
+
+construir.py aplica la correccion oficial (la misma que CPython
+incluyo en 3.10.1) solo durante el empaquetado y solo en memoria: tu
+instalacion de Python no se toca.
+
+Si algun dia actualizas a Python 3.10.1 o superior, el parche se
+desactiva solo y todo sigue funcionando igual.
+
+
+NOTA SOBRE EL GUARDADO
+----------------------
+Abiertos en un navegador normal, los programas descargan sus
+exportaciones (.txt de G-code, .zip) a la carpeta de Descargas sin
+preguntar. Dentro dGCoder se abre el dialogo "Guardar como" de
+Windows y ademas recuerda la ultima carpeta usada. El puente que lo
+hace posible esta en hub.html (funcion instalarPuente).

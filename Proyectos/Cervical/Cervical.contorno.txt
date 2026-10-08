@@ -1,0 +1,579 @@
+# GCODER v1 tipo=contorno proyecto=Cervical origen=Cervical_reconstruida.txt fecha=2026-09-04
+# Diseñador de Contornos — Lamina Cervical
+# Reconstruida a partir de ContornosLaminas/Cervical.txt
+# No editar a mano salvo que sepas lo que haces (es JSON).
+{
+  "partName": "Lamina Cervical",
+  "points": [
+    {
+      "id": "pt0",
+      "x": 4.36,
+      "y": 4.6
+    },
+    {
+      "id": "pt1",
+      "x": 4.36,
+      "y": -11.4
+    },
+    {
+      "id": "pt2",
+      "x": 0.3,
+      "y": 1.32
+    },
+    {
+      "id": "pt3",
+      "x": 8.4,
+      "y": 1.32
+    },
+    {
+      "id": "pt4",
+      "x": 2.4,
+      "y": 0.98
+    },
+    {
+      "id": "pt5",
+      "x": 6.8,
+      "y": 0.98
+    },
+    {
+      "id": "pt6",
+      "x": 0.6,
+      "y": -3.35
+    },
+    {
+      "id": "pt7",
+      "x": 8.1,
+      "y": -3.35
+    },
+    {
+      "id": "pt8",
+      "x": 0.2,
+      "y": -8.21
+    },
+    {
+      "id": "pt9",
+      "x": 8.9,
+      "y": -8.21
+    },
+    {
+      "id": "pt10",
+      "x": 2.4,
+      "y": -8.12
+    },
+    {
+      "id": "pt11",
+      "x": 6.8,
+      "y": -8.12
+    },
+    {
+      "id": "pt12",
+      "x": 4.36,
+      "y": 0.98
+    },
+    {
+      "id": "pt13",
+      "x": 5.235,
+      "y": 0.98
+    },
+    {
+      "id": "pt14",
+      "x": 2.195,
+      "y": 1.32
+    },
+    {
+      "id": "pt15",
+      "x": 3.07,
+      "y": 1.32
+    },
+    {
+      "id": "pt16",
+      "x": 6.525,
+      "y": 1.32
+    },
+    {
+      "id": "pt17",
+      "x": 7.4,
+      "y": 1.32
+    },
+    {
+      "id": "pt18",
+      "x": 1.865,
+      "y": -3.35
+    },
+    {
+      "id": "pt19",
+      "x": 2.74,
+      "y": -3.35
+    },
+    {
+      "id": "pt20",
+      "x": 6.855,
+      "y": -3.35
+    },
+    {
+      "id": "pt21",
+      "x": 7.73,
+      "y": -3.35
+    },
+    {
+      "id": "pt22",
+      "x": 1.085,
+      "y": -8.21
+    },
+    {
+      "id": "pt23",
+      "x": 1.96,
+      "y": -8.21
+    },
+    {
+      "id": "pt24",
+      "x": 4.36,
+      "y": -8.12
+    },
+    {
+      "id": "pt25",
+      "x": 5.235,
+      "y": -8.12
+    },
+    {
+      "id": "pt26",
+      "x": 7.635,
+      "y": -8.21
+    },
+    {
+      "id": "pt27",
+      "x": 8.51,
+      "y": -8.21
+    },
+    {
+      "id": "pt28",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "id": "pt29",
+      "x": 3.83,
+      "y": 3.33
+    },
+    {
+      "id": "pt30",
+      "x": 4.89,
+      "y": 3.33
+    },
+    {
+      "id": "pt31",
+      "x": 8.72,
+      "y": 0.0
+    },
+    {
+      "id": "pt32",
+      "x": 9.58,
+      "y": -5.99
+    },
+    {
+      "id": "pt33",
+      "x": 5.74,
+      "y": -10.413
+    },
+    {
+      "id": "pt34",
+      "x": 2.98,
+      "y": -10.413
+    },
+    {
+      "id": "pt35",
+      "x": -0.86,
+      "y": -5.99
+    },
+    {
+      "id": "pt36",
+      "x": 3.9438,
+      "y": -0.6684
+    },
+    {
+      "id": "pt37",
+      "x": 4.7762,
+      "y": -0.6684
+    },
+    {
+      "id": "pt38",
+      "x": 5.6027,
+      "y": -6.4154
+    },
+    {
+      "id": "pt39",
+      "x": 3.1173,
+      "y": -6.4154
+    }
+  ],
+  "entities": [
+    {
+      "id": "e0",
+      "type": "line",
+      "layer": "constr",
+      "p1": "pt0",
+      "p2": "pt1"
+    },
+    {
+      "id": "e1",
+      "type": "line",
+      "layer": "constr",
+      "p1": "pt2",
+      "p2": "pt3"
+    },
+    {
+      "id": "e2",
+      "type": "line",
+      "layer": "constr",
+      "p1": "pt4",
+      "p2": "pt5"
+    },
+    {
+      "id": "e3",
+      "type": "line",
+      "layer": "constr",
+      "p1": "pt6",
+      "p2": "pt7"
+    },
+    {
+      "id": "e4",
+      "type": "line",
+      "layer": "constr",
+      "p1": "pt8",
+      "p2": "pt9"
+    },
+    {
+      "id": "e5",
+      "type": "line",
+      "layer": "constr",
+      "p1": "pt10",
+      "p2": "pt11"
+    },
+    {
+      "id": "e6",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt12",
+      "radiusPt": "pt13"
+    },
+    {
+      "id": "e7",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt14",
+      "radiusPt": "pt15"
+    },
+    {
+      "id": "e8",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt16",
+      "radiusPt": "pt17"
+    },
+    {
+      "id": "e9",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt18",
+      "radiusPt": "pt19"
+    },
+    {
+      "id": "e10",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt20",
+      "radiusPt": "pt21"
+    },
+    {
+      "id": "e11",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt22",
+      "radiusPt": "pt23"
+    },
+    {
+      "id": "e12",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt24",
+      "radiusPt": "pt25"
+    },
+    {
+      "id": "e13",
+      "type": "circle",
+      "method": "cr",
+      "layer": "laser",
+      "center": "pt26",
+      "radiusPt": "pt27"
+    },
+    {
+      "id": "e14",
+      "type": "arc",
+      "layer": "laser",
+      "center": "pt36",
+      "startPt": "pt28",
+      "endPt": "pt29"
+    },
+    {
+      "id": "e15",
+      "type": "arc",
+      "layer": "laser",
+      "center": "pt37",
+      "startPt": "pt30",
+      "endPt": "pt31"
+    },
+    {
+      "id": "e16",
+      "type": "arc",
+      "layer": "laser",
+      "center": "pt38",
+      "startPt": "pt32",
+      "endPt": "pt33"
+    },
+    {
+      "id": "e17",
+      "type": "arc",
+      "layer": "laser",
+      "center": "pt39",
+      "startPt": "pt34",
+      "endPt": "pt35"
+    },
+    {
+      "id": "e18",
+      "type": "line",
+      "layer": "laser",
+      "p1": "pt29",
+      "p2": "pt30"
+    },
+    {
+      "id": "e19",
+      "type": "line",
+      "layer": "laser",
+      "p1": "pt31",
+      "p2": "pt32"
+    },
+    {
+      "id": "e20",
+      "type": "line",
+      "layer": "laser",
+      "p1": "pt33",
+      "p2": "pt34"
+    },
+    {
+      "id": "e21",
+      "type": "line",
+      "layer": "laser",
+      "p1": "pt35",
+      "p2": "pt28"
+    }
+  ],
+  "dimensions": [],
+  "constraints": [
+    {
+      "id": "c0",
+      "type": "fijo",
+      "entities": [],
+      "points": [
+        "pt28"
+      ]
+    },
+    {
+      "id": "c1",
+      "type": "vertical",
+      "entities": [
+        "e0"
+      ],
+      "points": []
+    },
+    {
+      "id": "c2",
+      "type": "horizontal",
+      "entities": [
+        "e1"
+      ],
+      "points": []
+    },
+    {
+      "id": "c3",
+      "type": "horizontal",
+      "entities": [
+        "e2"
+      ],
+      "points": []
+    },
+    {
+      "id": "c4",
+      "type": "horizontal",
+      "entities": [
+        "e3"
+      ],
+      "points": []
+    },
+    {
+      "id": "c5",
+      "type": "horizontal",
+      "entities": [
+        "e4"
+      ],
+      "points": []
+    },
+    {
+      "id": "c6",
+      "type": "horizontal",
+      "entities": [
+        "e5"
+      ],
+      "points": []
+    },
+    {
+      "id": "c7",
+      "type": "horizontal",
+      "entities": [
+        "e18"
+      ],
+      "points": []
+    },
+    {
+      "id": "c8",
+      "type": "horizontal",
+      "entities": [
+        "e20"
+      ],
+      "points": []
+    },
+    {
+      "id": "c9",
+      "type": "igual",
+      "entities": [
+        "e6",
+        "e7"
+      ],
+      "points": []
+    },
+    {
+      "id": "c10",
+      "type": "igual",
+      "entities": [
+        "e6",
+        "e8"
+      ],
+      "points": []
+    },
+    {
+      "id": "c11",
+      "type": "igual",
+      "entities": [
+        "e6",
+        "e9"
+      ],
+      "points": []
+    },
+    {
+      "id": "c12",
+      "type": "igual",
+      "entities": [
+        "e6",
+        "e10"
+      ],
+      "points": []
+    },
+    {
+      "id": "c13",
+      "type": "igual",
+      "entities": [
+        "e6",
+        "e11"
+      ],
+      "points": []
+    },
+    {
+      "id": "c14",
+      "type": "igual",
+      "entities": [
+        "e6",
+        "e12"
+      ],
+      "points": []
+    },
+    {
+      "id": "c15",
+      "type": "igual",
+      "entities": [
+        "e6",
+        "e13"
+      ],
+      "points": []
+    },
+    {
+      "id": "c16",
+      "type": "igual",
+      "entities": [
+        "e14",
+        "e15"
+      ],
+      "points": []
+    },
+    {
+      "id": "c17",
+      "type": "igual",
+      "entities": [
+        "e14",
+        "e16"
+      ],
+      "points": []
+    },
+    {
+      "id": "c18",
+      "type": "igual",
+      "entities": [
+        "e14",
+        "e17"
+      ],
+      "points": []
+    }
+  ],
+  "moveOrder": [
+    "circ-e6",
+    "circ-e7",
+    "circ-e8",
+    "circ-e9",
+    "circ-e10",
+    "circ-e11",
+    "circ-e12",
+    "circ-e13",
+    "grp-e14_e15_e16_e17_e18_e19_e20_e21"
+  ],
+  "layers": {
+    "laser": {
+      "name": "Láser",
+      "color": "#d9541f",
+      "visible": true
+    },
+    "move": {
+      "name": "Traslado",
+      "color": "#1f8f84",
+      "visible": true
+    },
+    "dim": {
+      "name": "Cotas",
+      "color": "#a16207",
+      "visible": true
+    },
+    "constr": {
+      "name": "Construcción",
+      "color": "#8b8f86",
+      "visible": true
+    }
+  },
+  "pointCounter": 40,
+  "entityCounter": 22,
+  "dimCounter": 0,
+  "constraintCounter": 19
+}

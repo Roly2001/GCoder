@@ -1,0 +1,3519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Localizador de Centro · Lámina y Puntos de Soldadura (v1.29)</title>
+<!-- VERSION: 1.27 — incrementar en cada cambio, aquí y en <h1>/<title> -->
+
+<style>
+  :root{
+    --bg:#f4f2ee; --panel:#ffffff; --panel-2:#f0ede7;
+    --line:#dcd8d0; --line-soft:#e9e5dd; --text:#1e2320; --muted:#7d817a;
+    --laser:#d9541f; --laser-dim:#d9541f33;
+    --cyan:#1f8f84; --cyan-dim:#1f8f8422;
+    --ok:#2e8f4f; --warn:#b3790c; --gcode:#9a988f;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: radial-gradient(1200px 600px at 80% -10%, rgba(217,84,31,.055) 0%, transparent 62%), linear-gradient(180deg, var(--bg) 0%, #eeebe4 100%);
+    color:var(--text); font-family:'IBM Plex Sans', -apple-system, Segoe UI, sans-serif;
+  }
+  .mono{ font-family:'IBM Plex Mono', 'Consolas', monospace; }
+
+  /* ===== SHELL: topbar + 3 columnas ===== */
+  .app-shell{ display:grid; grid-template-rows:auto 1fr; height:100vh; }
+
+  .topbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--panel); border-bottom:1px solid var(--line);
+    padding:10px 20px;
+  }
+  .brand{ display:flex; align-items:baseline; gap:9px; margin-right:8px; }
+  .brand .dot{
+    width:8px; height:8px; border-radius:50%; background:var(--laser);
+    box-shadow:0 0 10px 2px var(--laser-dim); flex-shrink:0;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.5; transform:scale(.8);} }
+  .brand h1{ font-size:13px; margin:0; letter-spacing:.05em; text-transform:uppercase; font-weight:700; white-space:nowrap; }
+  .version-tag{
+    font-size:9.5px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:4px; padding:1px 6px; letter-spacing:.03em; margin-left:2px; align-self:center;
+  }
+
+  .topbar-field{ display:flex; flex-direction:column; gap:2px; }
+  .topbar-field label{ font-size:9px; color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
+  .topbar-field input{
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; color:var(--text);
+    padding:6px 9px; font-size:12.5px; outline:none; width:180px;
+  }
+  .topbar-field input:focus{ border-color:var(--laser); }
+  .topbar-spacer{ flex:1; }
+  .topbar-actions{ display:flex; gap:8px; }
+
+  .btn-secondary{
+    background:#ffffff; color:var(--text); border:1px solid var(--line); border-radius:7px;
+    padding:8px 12px; font-size:11.5px; font-weight:600; letter-spacing:.02em;
+    cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center;
+    gap:6px; text-align:center; white-space:nowrap;
+  }
+  .btn-secondary:hover{ border-color:#c7c4bb; background:var(--panel-2); }
+  .btn-secondary.active{ background:#1f8f8412; border-color:var(--cyan); color:var(--cyan); }
+  .btn-tiny{
+    background:#ffffff; color:var(--muted); border:1px solid var(--line); border-radius:6px;
+    padding:5px 9px; font-size:10.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .btn-tiny:hover{ border-color:var(--laser); color:var(--laser); }
+  .btn-tiny:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn{
+    background:var(--laser); color:#fffaf5; border:none; border-radius:7px;
+    padding:12px 14px; font-size:12.5px; font-weight:700; letter-spacing:.03em;
+    cursor:pointer; transition:filter .15s, transform .1s; width:100%;
+  }
+  .btn:hover{ filter:brightness(1.08); }
+  .btn:active{ transform:scale(.98); }
+  .link-btn{
+    background:none; border:none; color:var(--muted); font-size:11px;
+    text-decoration:underline; cursor:pointer; padding:0; letter-spacing:.02em;
+  }
+  .link-btn:hover{ color:var(--laser); }
+
+  .app-body{ display:grid; grid-template-columns: 320px 1fr 320px; min-height:0; }
+
+  .col{
+    background:var(--panel); overflow-y:auto; padding:18px 18px 24px;
+    display:flex; flex-direction:column; gap:14px; min-height:0;
+  }
+  .col-left{ border-right:1px solid var(--line); }
+  .col-right{ border-left:1px solid var(--line); }
+  .col::-webkit-scrollbar{ width:7px; }
+  .col::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{ content:''; flex:1; height:1px; background:var(--line); }
+
+  /* ===== gcode colapsable ===== */
+  .gcode-block{ background:var(--panel-2); border:1px solid var(--line); border-radius:8px; overflow:hidden; flex-shrink:0; }
+  .gcode-header{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:10px 12px; cursor:pointer; user-select:none;
+  }
+  .gcode-header:hover{ background:#eeece6; }
+  .gcode-header .title{ font-size:11.5px; font-weight:700; letter-spacing:.03em; color:var(--text); }
+  .gcode-header .chevron{ font-size:11px; color:var(--muted); transition:transform .15s; }
+  .gcode-header .chevron.expanded{ transform:rotate(90deg); }
+  .gcode-content{ padding:0 12px 12px; display:flex; flex-direction:column; gap:10px; }
+  .gcode-content.collapsed{ display:none; }
+
+  textarea#gcodeInput{
+    width:100%; min-height:64px; resize:vertical;
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; color:var(--text);
+    padding:8px 10px; font-size:11px; outline:none;
+  }
+  textarea#gcodeInput:focus{ border-color:var(--laser); }
+  .gcode-status{ font-size:10.5px; color:var(--muted); }
+  .gcode-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+
+  .name-field{ display:flex; flex-direction:column; gap:4px; }
+  .name-field label{ font-size:10px; color:var(--muted); letter-spacing:.05em; text-transform:uppercase;}
+  .name-field input{
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; color:var(--text);
+    padding:8px 10px; font-size:13px; width:100%; outline:none; transition:border-color .15s;
+  }
+  .name-field input:focus{ border-color:var(--laser); }
+
+  /* ===== editor nav ===== */
+  .editor-nav{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:7px 8px;
+  }
+  .nav-btn{
+    background:#fff; border:1px solid var(--line); border-radius:6px;
+    width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; font-size:14px; color:var(--text); flex-shrink:0;
+  }
+  .nav-btn:hover{ border-color:var(--laser); color:var(--laser); }
+  .editor-label{ font-size:11.5px; color:var(--text); flex:1; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+
+  /* ===== points ===== */
+  .points{ display:flex; flex-direction:column; gap:12px; }
+  .point-card, .pair-card{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:11px 14px; position:relative;
+  }
+  .point-card .label, .pair-card .label{
+    display:flex; align-items:center; gap:8px;
+    font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;
+  }
+  .swatch{ width:8px;height:8px;border-radius:2px;transform:rotate(45deg); flex-shrink:0; }
+
+  .field-row{ display:flex; gap:8px; }
+  .field-row + .field-row{ margin-top:7px; }
+  .field{ flex:1; display:flex; flex-direction:column; gap:4px; }
+  .field label{ font-size:9.5px; color:var(--muted); letter-spacing:.03em;}
+  .field input{
+    background:#ffffff; border:1px solid var(--line); border-radius:5px; color:var(--text);
+    padding:7px 8px; font-size:13px; width:100%; outline:none; transition:border-color .15s;
+  }
+  .field input:focus{ border-color:var(--cyan); }
+  .field input.auto-filled{ color:#9a988f; font-style:italic; }
+  .pair-sub{ font-size:9.5px; color:#a6a89f; letter-spacing:.04em; margin:6px 0 2px; text-transform:uppercase; }
+
+  .np-remove{ position:absolute; top:9px; right:10px; background:none; border:none; color:#c7c4bb; cursor:pointer; font-size:14px; line-height:1; }
+  .np-remove:hover{ color:#c1462f; }
+
+  .cx-selector{ display:flex; flex-direction:column; gap:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:11px 14px; flex-shrink:0; }
+  .cx-selector .label{ font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .cx-options{ display:flex; gap:6px; }
+  .cx-opt{ flex:1; background:#fff; border:1px solid var(--line); border-radius:6px; padding:7px 4px; font-size:11px; text-align:center; cursor:pointer; font-weight:600; }
+  .cx-opt:hover{ border-color:#c7c4bb; }
+  .cx-opt.active{ background:#d9541f14; border-color:var(--laser); color:var(--laser); }
+  .cx-readout{ font-size:10.5px; color:var(--muted); }
+  .cx-readout .delta-warn{ color:#c1462f; font-weight:700; }
+
+  .status{ font-size:11.5px; color:var(--muted); line-height:1.5; min-height:16px; flex-shrink:0; }
+  .status.err{ color:#c1462f; }
+  .status.ok{ color:var(--ok); }
+
+  .divider{ height:1px; background:var(--line); margin:2px 0; flex-shrink:0; }
+
+  /* ===== resultados (columna derecha) ===== */
+  .results{ display:flex; flex-direction:column; gap:6px; }
+  .result-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding:8px 12px; background:var(--panel-2); border:1px solid var(--line); border-radius:7px;
+  }
+  .result-row .k{ font-size:11px; color:var(--muted); }
+  .result-row .v{ font-size:14px; font-weight:600; color:var(--text); }
+  .result-row .v.accent{ color:var(--laser); }
+  .result-row .v.cyan{ color:var(--cyan); }
+
+  .file-controls{ display:flex; flex-direction:column; gap:8px; }
+
+  .piece-list{ display:flex; flex-direction:column; gap:8px; }
+  .piece-empty{ font-size:11.5px; color:#a6a89f; padding:10px 4px; font-style:italic; }
+  .piece-row{
+    background:var(--panel-2); border:1px solid var(--line); border-left:4px solid var(--laser);
+    border-radius:6px; padding:8px 10px; cursor:pointer; transition:border-color .12s;
+  }
+  .piece-row:hover{ border-color:#c7c4bb; }
+  .piece-row.editing{ outline:2px solid var(--laser); outline-offset:1px; }
+  .piece-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:3px; gap:6px; }
+  .piece-name-wrap{ display:flex; align-items:center; gap:6px; min-width:0; }
+  .piece-name{
+    font-size:12.5px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; border:none; background:transparent; outline:none; padding:1px 0;
+    font-family:inherit; min-width:0; flex:1;
+  }
+  .piece-name:focus{ border-bottom:1px solid var(--laser); }
+  .method-badge{
+    font-size:8.5px; padding:1px 5px; border-radius:4px; background:#ffffff;
+    border:1px solid var(--line); color:var(--muted); letter-spacing:.03em; flex-shrink:0;
+  }
+  .piece-del{ background:none; border:none; color:#a6a89f; cursor:pointer; font-size:14px; line-height:1; padding:0 2px; flex-shrink:0; }
+  .piece-del:hover{ color:#c1462f; }
+  .piece-stats{ font-size:10.2px; color:var(--muted); letter-spacing:.01em; }
+
+  .footer-note{ font-size:10.3px; color:#5b6167; line-height:1.5; padding-top:10px; border-top:1px solid var(--line-soft); margin-top:auto; flex-shrink:0; }
+
+  /* ===== recorridos de soldadura ===== */
+  .route-banner{
+    background:#fff3ea; border:1px solid var(--laser); border-radius:7px; padding:8px 10px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-size:11px; color:var(--laser); font-weight:600; flex-shrink:0;
+  }
+  .route-list{ display:flex; flex-direction:column; gap:10px; }
+  .route-card{
+    background:var(--panel-2); border:1px solid var(--line); border-left:4px solid var(--laser);
+    border-radius:8px; padding:10px 12px; cursor:pointer;
+  }
+  .route-card.active{ outline:2px solid var(--laser); outline-offset:1px; }
+  .route-head{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .route-name-input{
+    border:none; background:transparent; font-size:12.5px; font-weight:700; color:var(--text);
+    outline:none; width:100%; padding:2px 0; font-family:inherit;
+  }
+  .route-name-input:focus{ border-bottom:1px solid var(--laser); }
+  .route-actions{ display:flex; gap:2px; align-items:center; flex-shrink:0; }
+  .route-mini-btn{ background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 5px; }
+  .route-mini-btn:hover{ color:#c1462f; }
+  .route-meta{ font-size:10.2px; color:var(--muted); margin-top:3px; }
+  .route-mode-row{ display:flex; gap:6px; margin-top:8px; }
+  .route-params{ display:flex; gap:6px; margin-top:8px; }
+  .route-params .field{ flex:1; }
+  .route-params .field label{ font-size:8.5px; color:var(--muted); letter-spacing:.02em; }
+  .route-params .field input{
+    width:100%; font-size:10.5px; padding:4px 6px; border:1px solid var(--line); border-radius:5px;
+    background:#fff; color:var(--text); outline:none; font-family:'IBM Plex Mono', monospace;
+  }
+  .route-params .field input:focus{ border-color:var(--laser); }
+
+  /* ===== materiales de soldadura ===== */
+  .material-list{ display:flex; flex-direction:column; gap:10px; }
+  .material-card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px 11px; }
+  .material-card-head{ display:flex; align-items:center; gap:6px; }
+  .material-name-input{
+    flex:1; border:none; background:transparent; font-size:12px; font-weight:700; color:var(--text);
+    outline:none; padding:1px 0; font-family:inherit; min-width:0;
+  }
+  .material-name-input:focus{ border-bottom:1px solid var(--laser); }
+  .material-var-row{ display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .material-var-row input[type="text"]{
+    flex:1.4; font-size:10.5px; padding:4px 6px; border:1px solid var(--line); border-radius:5px;
+    background:var(--panel-2); color:var(--text); outline:none; min-width:0;
+  }
+  .material-var-row input[type="number"]{
+    flex:0.7; font-size:10.5px; padding:4px 6px; border:1px solid var(--line); border-radius:5px;
+    background:var(--panel-2); color:var(--text); outline:none; font-family:'IBM Plex Mono', monospace;
+  }
+  .material-var-row input:focus{ border-color:var(--laser); }
+  .material-add-var-btn{ margin-top:6px; }
+
+  .route-material-select{
+    width:100%; font-size:11px; padding:6px 8px; border:1px solid var(--line); border-radius:6px;
+    background:#fff; color:var(--text); outline:none; margin-top:8px;
+  }
+  .route-material-select:focus{ border-color:var(--laser); }
+  .material-var-pills{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .material-var-pill{
+    font-size:9.5px; padding:4px 8px; border:1px solid var(--line); border-radius:12px;
+    background:#fff; cursor:pointer; color:var(--muted); font-weight:600;
+  }
+  .material-var-pill:hover{ border-color:#c7c4bb; }
+  .material-var-pill.active{ color:#fff; border-color:transparent; }
+  .weld-derived{ font-size:10.5px; color:var(--muted); padding:4px 6px; font-style:italic; }
+  .route-mode-opt{
+    flex:1; font-size:10px; text-align:center; padding:5px 4px; border:1px solid var(--line);
+    border-radius:5px; cursor:pointer; background:#fff; color:var(--muted); font-weight:600;
+  }
+  .route-mode-opt.active{ background:#00000006; }
+  .route-steps{ display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+  .route-step{
+    display:flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--line);
+    border-radius:6px; padding:5px 7px; font-size:10.2px;
+  }
+  .route-step .seq{
+    width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:9px; font-weight:700; color:#fff; flex-shrink:0;
+  }
+  .route-step .info{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+  .route-step .delta{ font-family:'IBM Plex Mono', monospace; color:var(--muted); flex-shrink:0; font-size:9.5px; }
+  .route-step-actions{ display:flex; gap:1px; flex-shrink:0; }
+  .route-step-btn{ background:none; border:none; color:#c7c4bb; cursor:pointer; font-size:11px; padding:0 3px; }
+  .route-step-btn:hover{ color:var(--laser); }
+  .route-step-btn:disabled{ opacity:.3; cursor:not-allowed; }
+  .route-gcode{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  .route-gcode textarea{
+    width:100%; min-height:80px; font-size:9.5px; font-family:'IBM Plex Mono', monospace;
+    background:#fff; border:1px solid var(--line); border-radius:6px; padding:6px 8px; resize:vertical; outline:none;
+  }
+  .route-empty-hint{ font-size:10.5px; color:#a6a89f; font-style:italic; margin-top:6px; }
+
+  /* ===== centro: lienzo ===== */
+  .col-center{ position:relative; padding:20px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .stage-frame{
+    position:relative; width:100%; height:100%; max-width:1100px;
+    background:#ffffff; border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow: inset 0 0 40px #00000008;
+  }
+  .stage-badge{
+    position:absolute; top:14px; left:16px; font-size:10.5px; color:var(--muted);
+    letter-spacing:.08em; text-transform:uppercase; z-index:5; display:flex; gap:6px; align-items:center;
+    pointer-events:none;
+  }
+  .stage-badge b{ color:var(--text); font-weight:600; }
+  .stage-scale{ position:absolute; top:14px; right:16px; font-size:10px; color:#a6a89f; z-index:5; pointer-events:none; }
+  svg{
+    width:100%; height:100%; display:block;
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='26'%20height='26'%3E%3Cline%20x1='13'%20y1='2'%20x2='13'%20y2='24'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3E%3Cline%20x1='2'%20y1='13'%20x2='24'%20y2='13'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3E%3Cline%20x1='13'%20y1='2'%20x2='13'%20y2='24'%20stroke='%232a2a26'%20stroke-width='1.6'%20stroke-linecap='round'/%3E%3Cline%20x1='2'%20y1='13'%20x2='24'%20y2='13'%20stroke='%232a2a26'%20stroke-width='1.6'%20stroke-linecap='round'/%3E%3Ccircle%20cx='13'%20cy='13'%20r='3'%20fill='%23d9541f'%20stroke='white'%20stroke-width='1.2'/%3E%3C/svg%3E") 13 13, auto;
+  }
+  svg.panning{
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='26'%20height='26'%3E%3Ccircle%20cx='13'%20cy='13'%20r='8'%20fill='%23d9541f'%20stroke='white'%20stroke-width='3'/%3E%3Ccircle%20cx='13'%20cy='13'%20r='8'%20fill='none'%20stroke='%232a2a26'%20stroke-width='1'/%3E%3C/svg%3E") 13 13, auto;
+  }
+  .gcode-move-cursor{
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='26'%20height='26'%3E%3Cg%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'%20fill='none'%3E%3Cpath%20d='M13%202%20L13%2024%20M2%2013%20L24%2013'/%3E%3C/g%3E%3Cg%20stroke='%232a2a26'%20stroke-width='1.6'%20stroke-linecap='round'%20fill='none'%3E%3Cpath%20d='M13%202%20L13%2024%20M2%2013%20L24%2013'/%3E%3Cpath%20d='M13%202%20L9%207%20M13%202%20L17%207%20M13%2024%20L9%2019%20M13%2024%20L17%2019%20M2%2013%20L7%209%20M2%2013%20L7%2017%20M24%2013%20L19%209%20M24%2013%20L19%2017'/%3E%3C/g%3E%3Ccircle%20cx='13'%20cy='13'%20r='2.2'%20fill='%231f8f84'%20stroke='white'%20stroke-width='1'/%3E%3C/svg%3E") 13 13, auto;
+  }
+
+  .zoom-controls{
+    position:absolute; bottom:16px; right:16px; z-index:6;
+    display:flex; flex-direction:column; gap:4px; background:#ffffff;
+    border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 2px 8px #00000012;
+  }
+  .zoom-btn{
+    width:30px; height:30px; border:none; background:#ffffff; color:var(--text);
+    font-size:16px; font-weight:700; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-btn:hover{ background:var(--panel-2); }
+  .zoom-fit-btn{
+    width:30px; height:24px; border:none; background:#ffffff; color:var(--muted);
+    font-size:13px; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-fit-btn:hover{ background:var(--panel-2); color:var(--laser); }
+
+  @media (max-width: 1100px){
+    .app-body{ grid-template-columns: 280px 1fr 280px; }
+  }
+  @media (max-width: 860px){
+    .app-body{ grid-template-columns: 1fr; grid-auto-rows:auto; overflow-y:auto; }
+    .col{ overflow-y:visible; }
+    .col-center{ min-height:60vh; }
+  }
+
+  /* ===================================================================
+     Retoque visual de GCoder. Solo color y relieve: ni un cambio de
+     maquetacion, y ningun color con significado (--accent, --laser,
+     --move, --ok, --warn) se toca, porque aqui un color dice algo.
+
+     --ident es el tono de este programa, el mismo de su pestana en el
+     hub: asi se sabe donde se esta sin leer el titulo.
+     =================================================================== */
+  :root{
+    --ident:#d9541f;
+    --sombra:0 1px 2px rgba(31,28,22,.05), 0 2px 5px rgba(31,28,22,.045);
+  }
+
+  /* Las columnas eran blanco puro, que es de donde venia la sensacion de
+     plano. Un hueso muy claro las separa del lienzo, que sigue blanco. */
+  .col-left, .col-right{
+    background:linear-gradient(180deg,#fbf9f6 0%,#f7f4ef 100%);
+  }
+
+  .topbar{
+    position:relative;
+    background:linear-gradient(180deg,#ffffff 0%,#faf8f5 100%);
+  }
+  /* Hilo de identidad, igual que en el hub. */
+  .topbar::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--ident),
+               color-mix(in srgb, var(--ident) 40%, #ffffff));
+  }
+  .brand .dot{
+    background:var(--ident);
+    box-shadow:0 0 10px 2px color-mix(in srgb, var(--ident) 34%, transparent);
+  }
+
+  /* Los rotulos de seccion llevan el tono: ordenan la columna de un vistazo. */
+  .section-title{ color:color-mix(in srgb, var(--ident) 62%, #6b6f68); }
+
+  .btn-secondary, .btn-tiny{ box-shadow:var(--sombra); }
+  .btn-secondary:hover, .btn-tiny:hover{
+    border-color:var(--ident);
+    color:color-mix(in srgb, var(--ident) 80%, #000000);
+  }
+
+  /* El simbolo del programa, el mismo que lleva su pestana en el hub. */
+  .brand{ align-items:center; }
+  .marca-svg{
+    width:19px; height:19px; color:var(--ident); flex-shrink:0;
+    filter:drop-shadow(0 0 5px color-mix(in srgb, var(--ident) 30%, transparent));
+  }
+</style>
+
+</head>
+<body>
+
+<div class="app-shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <svg class="marca-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.4 7.2 12.6h9.6z" fill="currentColor" stroke="none" opacity=".2"/><path d="M12 2.4 7.2 12.6M12 2.4 16.8 12.6"/><path d="M4.2 18.4h15.6"/><circle cx="12" cy="15.5" r="2.7" fill="currentColor" stroke="none"/></svg>
+      <h1>Puntos de Soldadura</h1>
+      <span class="version-tag mono" id="versionTag">v1.29</span>
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de la lámina</label>
+      <input type="text" id="laminaName" placeholder="Lamina_1">
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de archivo</label>
+      <input type="text" id="fileName" class="mono" value="lamina_1">
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-secondary" id="saveBtn">💾 Guardar .txt</button>
+      <button class="btn-secondary" id="loadBtn">📂 Cargar .txt</button>
+      <input type="file" id="fileInput" accept=".txt" style="display:none">
+    </div>
+    <div class="topbar-spacer"></div>
+    <button class="link-btn" id="clearAllBtn">Limpiar todo</button>
+  </div>
+
+  <div class="app-body">
+
+    <!-- ===================== COLUMNA IZQUIERDA: PARÁMETROS ===================== -->
+    <div class="col col-left">
+
+      <div class="gcode-block">
+        <div class="gcode-header" id="gcodeHeader">
+          <span class="title">G-code (contorno de referencia)</span>
+          <span class="chevron" id="gcodeChevron">▸</span>
+        </div>
+        <div class="gcode-content collapsed" id="gcodeContent">
+          <textarea id="gcodeInput" class="mono" placeholder="Pega aquí el G-code, o sube un archivo…"></textarea>
+          <div class="gcode-actions">
+            <button class="btn-tiny" id="gcodeUploadBtn">📄 Subir archivo</button>
+            <button class="btn-tiny" id="gcodeClearBtn">Borrar G-code</button>
+            <button class="btn-tiny" id="gcodeToggleBtn">Ocultar contorno</button>
+            <button class="btn-tiny" id="gcodeMoveToggleBtn">Ocultar movimiento</button>
+            <input type="file" id="gcodeFileInput" accept=".txt,.nc,.gcode,.tap,.ngc" style="display:none">
+          </div>
+          <div class="gcode-status mono" id="gcodeStatus">Sin G-code cargado.</div>
+          <div class="name-field">
+            <label>Posición del contorno (mm) · también se puede arrastrar en el lienzo</label>
+            <div class="field-row">
+              <div class="field"><label>Offset X</label><input type="number" step="any" id="gcodeOffsetX" value="0"></div>
+              <div class="field"><label>Offset Y</label><input type="number" step="any" id="gcodeOffsetY" value="0"></div>
+            </div>
+          </div>
+          <button class="btn-tiny" id="gcodeResetOffsetBtn" style="align-self:flex-start;">Reiniciar posición</button>
+        </div>
+      </div>
+
+      <div class="editor-nav">
+        <button class="nav-btn" id="prevPieceBtn" title="Anterior">‹</button>
+        <div class="editor-label mono" id="editorLabel">Nuevo punto</div>
+        <button class="nav-btn" id="nextPieceBtn" title="Siguiente">›</button>
+      </div>
+      <button class="link-btn" id="cancelEditBtn" style="display:none; align-self:flex-start;">Cancelar edición</button>
+
+      <div class="section-title">Método</div>
+      <div class="btn-row">
+        <button class="btn-secondary active" id="methodNpBtn" style="flex:1;">N puntos</button>
+        <button class="btn-secondary" id="method6pBtn" style="flex:1;">6 puntos</button>
+        <button class="btn-secondary" id="methodDirectBtn" style="flex:1;">Directo</button>
+      </div>
+
+      <div class="name-field">
+        <label>Nombre del punto</label>
+        <input type="text" id="pieceName" placeholder="Punto 1">
+      </div>
+
+      <!-- N-point input (dynamic) -->
+      <div class="points" id="pointsNP"></div>
+      <div class="btn-row" id="npControls">
+        <button class="btn-tiny" id="npAddBtn" style="flex:1;">+ Agregar punto</button>
+        <button class="btn-tiny" id="npRemoveBtn" style="flex:1;">− Quitar último</button>
+      </div>
+
+      <!-- 6-point (3 pairs, chained) input -->
+      <div class="points" id="points6p" style="display:none;">
+        <div class="pair-card">
+          <div class="label"><span class="swatch" style="background:#d9541f"></span>Par A · bordes en X (altura libre)</div>
+          <div class="pair-sub">Borde 1</div>
+          <div class="field-row">
+            <div class="field"><label>X</label><input type="number" step="any" id="xa1" placeholder="—"></div>
+            <div class="field"><label>Y</label><input type="number" step="any" id="ya1" placeholder="—"></div>
+          </div>
+          <div class="pair-sub">Borde 2 (Y se autocompleta)</div>
+          <div class="field-row">
+            <div class="field"><label>X</label><input type="number" step="any" id="xa2" placeholder="—"></div>
+            <div class="field"><label>Y</label><input type="number" step="any" id="ya2" placeholder="auto"></div>
+          </div>
+        </div>
+        <div class="pair-card">
+          <div class="label"><span class="swatch" style="background:#1f8f84"></span>Par B · bordes en Y (sobre Cx1)</div>
+          <div class="pair-sub">Borde 1 (X se autocompleta)</div>
+          <div class="field-row">
+            <div class="field"><label>X</label><input type="number" step="any" id="xb1" placeholder="auto"></div>
+            <div class="field"><label>Y</label><input type="number" step="any" id="yb1" placeholder="—"></div>
+          </div>
+          <div class="pair-sub">Borde 2 (X se autocompleta)</div>
+          <div class="field-row">
+            <div class="field"><label>X</label><input type="number" step="any" id="xb2" placeholder="auto" title="Sigue al Borde 1 de este par. Escríbelo para separarlo; bórralo para volver a engancharlo."></div>
+            <div class="field"><label>Y</label><input type="number" step="any" id="yb2" placeholder="—"></div>
+          </div>
+        </div>
+        <div class="pair-card">
+          <div class="label"><span class="swatch" style="background:#b3790c"></span>Par C · confirmación en X (sobre Cy)</div>
+          <div class="pair-sub">Borde 1</div>
+          <div class="field-row">
+            <div class="field"><label>X</label><input type="number" step="any" id="xc1" placeholder="—"></div>
+            <div class="field"><label>Y</label><input type="number" step="any" id="yc1" placeholder="auto"></div>
+          </div>
+          <div class="pair-sub">Borde 2</div>
+          <div class="field-row">
+            <div class="field"><label>X</label><input type="number" step="any" id="xc2" placeholder="—"></div>
+            <div class="field"><label>Y</label><input type="number" step="any" id="yc2" placeholder="auto"></div>
+          </div>
+        </div>
+
+        <div class="cx-selector">
+          <div class="label">Centro X final</div>
+          <div class="cx-options">
+            <div class="cx-opt active" data-cx="cx1" id="cxOptCx1">Cx1</div>
+            <div class="cx-opt" data-cx="cx2" id="cxOptCx2">Cx2</div>
+            <div class="cx-opt" data-cx="avg" id="cxOptAvg">Promedio</div>
+          </div>
+          <div class="cx-readout mono" id="cxReadout">Cx1 —  Cx2 —  ΔX —</div>
+        </div>
+      </div>
+
+      <!-- Direct circle input -->
+      <div class="points" id="pointsDirect" style="display:none;">
+        <div class="pair-card">
+          <div class="label"><span class="swatch" style="background:#5b62c4"></span>Círculo directo</div>
+          <div class="field-row">
+            <div class="field"><label>Centro X</label><input type="number" step="any" id="dCx" placeholder="—"></div>
+            <div class="field"><label>Centro Y</label><input type="number" step="any" id="dCy" placeholder="—"></div>
+          </div>
+        </div>
+        <div class="cx-selector">
+          <div class="label">Definir tamaño por</div>
+          <div class="cx-options">
+            <div class="cx-opt active" data-type="r" id="directTypeR">Radio</div>
+            <div class="cx-opt" data-type="d" id="directTypeD">Diámetro</div>
+          </div>
+          <div class="field-row" style="margin-top:2px;">
+            <div class="field"><label id="dValueLabel">Radio</label><input type="number" step="any" id="dValue" placeholder="—"></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn" id="calcBtn">CALCULAR Y AGREGAR PUNTO</button>
+      <div class="status mono" id="status">Ingresa las coordenadas sobre el borde del punto.</div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Construcción</div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="bisectorBtn" style="flex:1;">Mostrar construcción</button>
+      </div>
+
+      <div class="footer-note mono">
+        N puntos: mínimos cuadrados (Kåsa), exacto para N=3. 6 puntos: cadena Par A→B→C.
+        Directo: das el centro y radio/diámetro tú mismo. El G-code es solo apoyo visual.
+      </div>
+    </div>
+
+    <!-- ===================== COLUMNA CENTRO: LIENZO ===================== -->
+    <div class="col-center">
+      <div class="stage-frame">
+        <div class="stage-badge">Vista · <b id="badgeState">en espera</b></div>
+        <div class="stage-scale mono" id="scaleLabel"></div>
+        <svg id="canvas" viewBox="0 0 900 820" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomInBtn" title="Acercar">+</button>
+          <button class="zoom-fit-btn" id="zoomFitBtn" title="Ajustar vista">⤢</button>
+          <button class="zoom-btn" id="zoomOutBtn" title="Alejar">−</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== COLUMNA DERECHA: RESULTADOS ===================== -->
+    <div class="col col-right">
+      <div class="section-title">Resultado actual</div>
+      <div class="results">
+        <div class="result-row"><span class="k">Centro X</span><span class="v accent mono" id="outCx">—</span></div>
+        <div class="result-row"><span class="k">Centro Y</span><span class="v accent mono" id="outCy">—</span></div>
+        <div class="result-row"><span class="k">Radio</span><span class="v cyan mono" id="outR">—</span></div>
+        <div class="result-row"><span class="k">Diámetro</span><span class="v cyan mono" id="outD">—</span></div>
+        <div class="result-row"><span class="k">Área</span><span class="v cyan mono" id="outArea">—</span></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title" id="pieceListTitle">Puntos en la lámina (0)</div>
+      <div class="piece-list" id="pieceList">
+        <div class="piece-empty">Aún no has agregado ningún punto.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="gcode-block" id="materialsBlock">
+        <div class="gcode-header" id="materialsHeader">
+          <span class="title">Materiales de soldadura</span>
+          <span class="chevron" id="materialsChevron">▸</span>
+        </div>
+        <div class="gcode-content collapsed" id="materialsContent">
+          <button class="btn-secondary" id="newMaterialBtn" style="width:100%;">+ Nuevo material</button>
+          <div class="material-list" id="materialList">
+            <div class="piece-empty">Aún no has creado ningún material.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="gcode-block" id="routesBlock">
+        <div class="gcode-header" id="routesHeader">
+          <span class="title">Recorridos de soldadura</span>
+          <span class="chevron" id="routesChevron">▸</span>
+        </div>
+        <div class="gcode-content collapsed" id="routesContent">
+
+          <div class="route-banner" id="routeAddBanner" style="display:none;">
+            <span id="routeAddBannerText"></span>
+            <button class="btn-tiny" id="routeAddDoneBtn">Listo</button>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn-secondary" id="newRouteBtn" style="flex:1;">+ Nuevo recorrido</button>
+            <button class="btn-secondary" id="toggleRoutesVisibilityBtn" style="flex:1;">Ocultar en lienzo</button>
+          </div>
+
+          <div class="route-list" id="routeList">
+            <div class="piece-empty">Aún no has creado ningún recorrido.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="gcode-block" id="exportAllBlock">
+        <div class="gcode-header" id="exportAllHeader">
+          <span class="title">Exportar todos los puntos (individual)</span>
+          <span class="chevron" id="exportAllChevron">▸</span>
+        </div>
+        <div class="gcode-content collapsed" id="exportAllContent">
+          <div class="route-empty-hint" style="margin-top:0;">
+            Configura estos parámetros como en un recorrido normal — se aplican a
+            <b>todos</b> los puntos de la lámina, cada uno exportado por separado
+            (no se conectan entre sí, no importa a qué recorrido pertenezcan).
+          </div>
+          <div class="route-params" style="margin-top:8px;">
+            <div class="field">
+              <label>Asent. (G04 P)</label>
+              <input type="number" id="exportAllSettle" value="100">
+            </div>
+            <div class="field">
+              <label>Suelda (G04 P)</label>
+              <input type="number" id="exportAllWeld" value="18">
+            </div>
+            <div class="field">
+              <label>Sist. coord.</label>
+              <input type="text" id="exportAllCoord" value="G58">
+            </div>
+          </div>
+          <select class="route-material-select" id="exportAllMaterialSelect">
+            <option value="">Manual (sin material)</option>
+          </select>
+          <div class="material-var-pills" id="exportAllVarPills"></div>
+          <button class="btn" id="exportAllBtn" style="margin-top:10px;">⬇ EXPORTAR TODOS LOS PUNTOS POR SEPARADO</button>
+          <div class="status mono" id="exportAllStatus"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const svg = document.getElementById('canvas');
+const NS = 'http://www.w3.org/2000/svg';
+const W = 900, H = 820;
+const PAD = 90;
+
+const PALETTE = ['#d9541f', '#1f8f84', '#b3790c', '#5b62c4', '#c2185b', '#2e7d32', '#0277bd', '#8d4e25'];
+const CURRENT_COLORS = ['#d9541f', '#1f8f84', '#b3790c'];
+const CASCADE_TARGETS = ['ya2','xb1','xb2','yc1','yc2'];
+const NP_MIN = 3, NP_MAX = 14;
+
+let lamina = { name: '', gcode: '', showGcode: true, showGcodeMove: true, gcodePaths: [], gcodeLaserPaths: [], gcodeMovePaths: [], gcodeOffset: { dx: 0, dy: 0 } };
+let holes = [];            // {id, name, method:'np'|'6p'|'direct', pts, cxChoice, directType, result, color}
+let holeCounter = 0;
+let showConstruction = false;
+let currentMethod = 'np';
+let currentEditId = null;  // null = creando punto nuevo
+let npCount = 0;
+let overriddenFields = new Set();
+let cxChoice = 'cx1';
+let directType = 'r';
+
+// ---------- RECORRIDOS DE SOLDADURA ----------
+const ROUTE_PALETTE = ['#7c3aed','#0891b2','#be123c','#4d7c0f','#a16207','#0f766e','#9333ea','#155e75'];
+let routes = [];          // {id, name, color, holeIds:[...], coordMode:'chained'|'fixed'}
+let routeCounter = 0;
+let activeRouteId = null; // recorrido que recibe los clics mientras routeAddMode esté activo
+let routeAddMode = false;
+let showRoutes = true;
+let panMoved = false;     // distingue un clic real de un arrastre de cámara
+
+// ---------- MATERIALES DE SOLDADURA ----------
+let materials = [];       // {id, name, variables:[{id, name, value}, ...]}
+let materialCounter = 0;
+let materialsPanelExpanded = false;
+
+// Configuración independiente para "Exportar todos los puntos": se comporta
+// como los campos de un recorrido (asentamiento, soldadura, coordenadas,
+// material/variable) pero se aplica a TODOS los puntos de la lámina, cada
+// uno exportado por separado, sin importar a qué recorrido pertenezcan.
+let exportAllConfig = { name: 'lámina completa', settleP: 100, weldP: 18, workCoord: 'G58', materialId: null, selectedVariableId: null };
+
+// ---------- CÁMARA (zoom/pan persistente, NO se recalcula solo) ----------
+let camera = null;            // {cx, cy, scale} en mm; null hasta el primer contenido
+let cameraInitialized = false;
+let currentRenderScale = 1;
+let isDraggingGcode = false;
+let dragStartSvgPt = null;
+let dragStartOffset = null;
+let isPanning = false;
+let panStartPt = null;
+let panStartCamera = null;
+
+// ---------- SVG HELPERS ----------
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function clearSvg(){ svg.innerHTML = ''; }
+function fmt(n){ return n.toFixed(4); }
+
+// Vista de arranque: origen a la vista y rejilla real, sin carteles de espera.
+function camaraInicial(){ return { cx:0, cy:0, scale:20 }; }
+
+
+// Todo el programa trabaja a 4 decimales. Sin esto, una media tan inocente como
+// (0.1+0.2)/2 acaba escribiendo 0.15000000000000002 en un campo de la interfaz.
+const DECIMALES = 4;
+function r4(n){
+  if(n === null || n === undefined || !isFinite(n)) return n;
+  const f = Math.pow(10, DECIMALES);
+  return (n < 0 ? -1 : 1) * Math.round(Math.abs(n) * f) / f;
+}
+// Redondea de una vez todos los numeros de un objeto de resultado.
+function r4obj(o){
+  const s = {};
+  for(const k in o) s[k] = (typeof o[k] === 'number') ? r4(o[k]) : o[k];
+  return s;
+}
+
+function drawGridMm(scale, cxMid, cyMid){
+  const worldXatScreen = sx => cxMid + (sx - W/2) / scale;
+  const worldYatScreen = sy => cyMid - (sy - H/2) / scale;
+  const xMinV = worldXatScreen(0), xMaxV = worldXatScreen(W);
+  const yMinV = worldYatScreen(H), yMaxV = worldYatScreen(0);
+
+  let minorStep = 1;
+  let majorEvery = 5;
+  if(scale < 4){
+    minorStep = niceScaleValue(6 / scale);
+    majorEvery = 5;
+  }
+
+  const g = el('g', {});
+  const startKx = Math.floor(xMinV / minorStep), endKx = Math.ceil(xMaxV / minorStep);
+  for(let k=startKx; k<=endKx; k++){
+    const xw = k * minorStep;
+    const sx = W/2 + (xw - cxMid) * scale;
+    const isMajor = (Math.round(xw / minorStep) % majorEvery === 0);
+    g.appendChild(el('line', { x1:sx, y1:0, x2:sx, y2:H, stroke: isMajor ? '#cbc7b9' : '#e3e0d6', 'stroke-width':1 }));
+  }
+  const startKy = Math.floor(yMinV / minorStep), endKy = Math.ceil(yMaxV / minorStep);
+  for(let k=startKy; k<=endKy; k++){
+    const yw = k * minorStep;
+    const sy = H/2 - (yw - cyMid) * scale;
+    const isMajor = (Math.round(yw / minorStep) % majorEvery === 0);
+    g.appendChild(el('line', { x1:0, y1:sy, x2:W, y2:sy, stroke: isMajor ? '#cbc7b9' : '#e3e0d6', 'stroke-width':1 }));
+  }
+
+  // Ejes X=0 e Y=0 remarcados: dan referencia inmediata de donde esta el origen.
+  const sx0 = W/2 + (0-cxMid)*scale;
+  const sy0 = H/2 - (0-cyMid)*scale;
+  if(sx0 >= 0 && sx0 <= W)
+    g.appendChild(el('line', { x1:sx0, y1:0, x2:sx0, y2:H, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  if(sy0 >= 0 && sy0 <= H)
+    g.appendChild(el('line', { x1:0, y1:sy0, x2:W, y2:sy0, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  svg.appendChild(g);
+}
+
+// ---------- MATH: circle fitting ----------
+function det3(m){
+  return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+       - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+       + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+}
+function solve3x3(M, b){
+  const D = det3(M);
+  if(Math.abs(D) < 1e-9) return null;
+  function replaceCol(col, vec){
+    return M.map((row,i) => row.map((v,j) => j===col ? vec[i] : v));
+  }
+  const Dx = det3(replaceCol(0,b));
+  const Dy = det3(replaceCol(1,b));
+  const Dz = det3(replaceCol(2,b));
+  return [Dx/D, Dy/D, Dz/D];
+}
+
+function fitCircleLeastSquares(pts){
+  const n = pts.length;
+  let Sx=0,Sy=0,Sxx=0,Syy=0,Sxy=0,Sxz=0,Syz=0,Sz=0;
+  pts.forEach(([x,y])=>{
+    const z = x*x+y*y;
+    Sx+=x; Sy+=y; Sxx+=x*x; Syy+=y*y; Sxy+=x*y; Sxz+=x*z; Syz+=y*z; Sz+=z;
+  });
+  const M = [[Sxx,Sxy,Sx],[Sxy,Syy,Sy],[Sx,Sy,n]];
+  const b = [Sxz,Syz,Sz];
+  const sol = solve3x3(M,b);
+  if(!sol) return null;
+  const [A,B,C] = sol;
+  const cx = A/2, cy = B/2;
+  const rr = C + cx*cx + cy*cy;
+  if(rr < 0) return null;
+  return { cx, cy, r: Math.sqrt(rr) };
+}
+
+function compute6p(pts, choice){
+  const [A1,A2,B1,B2,C1,C2] = pts;
+  const cx1 = (A1[0]+A2[0])/2;
+  const cy  = (B1[1]+B2[1])/2;
+  const cx2 = (C1[0]+C2[0])/2;
+  const deltaX = Math.abs(cx2-cx1);
+  let cx;
+  if(choice === 'cx1') cx = cx1;
+  else if(choice === 'cx2') cx = cx2;
+  else cx = (cx1+cx2)/2;
+  const r = pts.reduce((s,p)=> s + Math.hypot(p[0]-cx, p[1]-cy), 0) / pts.length;
+  return { cx, cy, r, cx1, cx2, deltaX };
+}
+
+function midpoint(p1, p2){ return [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2]; }
+function normalizeVec(dx, dy){ const len = Math.hypot(dx, dy) || 1e-9; return [dx/len, dy/len]; }
+
+function rightAngleMarker(midScreen, chordDirUnit, perpDirUnit, size){
+  const [mx, my] = midScreen;
+  const [cx, cy] = chordDirUnit;
+  const [px, py] = perpDirUnit;
+  const p1 = [mx, my];
+  const p2 = [mx + cx*size, my + cy*size];
+  const p3 = [mx + cx*size + px*size, my + cy*size + py*size];
+  const p4 = [mx + px*size, my + py*size];
+  return `M ${p1[0]},${p1[1]} L ${p2[0]},${p2[1]} L ${p3[0]},${p3[1]} L ${p4[0]},${p4[1]}`;
+}
+
+// Pequeña flecha (chevron) en el punto medio de un segmento, indicando dirección de recorrido.
+function drawArrowHead(from, to, color){
+  const angle = Math.atan2(to[1]-from[1], to[0]-from[0]);
+  const midX = (from[0]+to[0])/2, midY = (from[1]+to[1])/2;
+  const size = 6;
+  const p1 = [midX - size*Math.cos(angle-Math.PI/7), midY - size*Math.sin(angle-Math.PI/7)];
+  const p2 = [midX - size*Math.cos(angle+Math.PI/7), midY - size*Math.sin(angle+Math.PI/7)];
+  const d = `M ${midX},${midY} L ${p1[0]},${p1[1]} M ${midX},${midY} L ${p2[0]},${p2[1]}`;
+  const arrow = el('path', { d, stroke:color, 'stroke-width':1.8, fill:'none', 'stroke-linecap':'round' });
+  arrow.style.pointerEvents = 'none';
+  svg.appendChild(arrow);
+}
+
+// ---------- G-CODE PARSING ----------
+function sampleArc(from, to, center, cw, steps){
+  steps = steps || 32;
+  const startAngle = Math.atan2(from[1]-center[1], from[0]-center[0]);
+  let endAngle = Math.atan2(to[1]-center[1], to[0]-center[0]);
+  const r = Math.hypot(from[0]-center[0], from[1]-center[1]);
+  let delta = endAngle - startAngle;
+  if(cw){ while(delta > 0) delta -= 2*Math.PI; }
+  else { while(delta < 0) delta += 2*Math.PI; }
+  if(Math.abs(delta) < 1e-6) delta = cw ? -2*Math.PI : 2*Math.PI;
+  const pts = [];
+  for(let s=0; s<=steps; s++){
+    const a = startAngle + delta*(s/steps);
+    pts.push([center[0]+r*Math.cos(a), center[1]+r*Math.sin(a)]);
+  }
+  return pts;
+}
+
+// Analiza el G-code y separa los movimientos en dos grupos, según el estado
+// del láser (M07 = encendido, M09 = apagado). Los rápidos G0 SIEMPRE cuentan
+// como movimiento (traslado), sin importar el estado del láser en ese momento.
+function parseGcode(text){
+  const lines = text.split('\n');
+  let x=0, y=0;
+  let lastMotionG = null;
+  let laserOn = false;
+  const laserPaths = [];
+  const movePaths = [];
+  let currentPath = null;
+  let currentMode = null; // 'laser' | 'move'
+  const cmdRe = /([GXYIJ])\s*(-?\d*\.?\d+)/gi;
+
+  function ensurePath(mode, startPoint){
+    if(currentMode !== mode || !currentPath){
+      currentPath = [startPoint];
+      (mode === 'laser' ? laserPaths : movePaths).push(currentPath);
+      currentMode = mode;
+    }
+  }
+
+  lines.forEach(raw=>{
+    let line = raw.split(';')[0].split('(')[0].trim();
+    if(!line) return;
+
+    // Detectar M07 (láser ON) / M09 (láser OFF). M08 (gas) no cambia el haz.
+    const mMatch = line.match(/\bM0?(\d+)\b/i);
+    if(mMatch){
+      const mCode = parseInt(mMatch[1], 10);
+      if(mCode === 7) laserOn = true;
+      else if(mCode === 9) laserOn = false;
+    }
+
+    const tokens = {};
+    let m; cmdRe.lastIndex = 0;
+    while((m = cmdRe.exec(line))) tokens[m[1].toUpperCase()] = parseFloat(m[2]);
+
+    let g = tokens.G;
+    if(g === undefined && (tokens.X !== undefined || tokens.Y !== undefined)) g = lastMotionG;
+
+    if(g === undefined || g === null || ![0,1,2,3].includes(g)){
+      if(tokens.X !== undefined) x = tokens.X;
+      if(tokens.Y !== undefined) y = tokens.Y;
+      return;
+    }
+    lastMotionG = g;
+
+    const nx = tokens.X !== undefined ? tokens.X : x;
+    const ny = tokens.Y !== undefined ? tokens.Y : y;
+
+    if(g === 0){
+      // rápido: siempre traslado, sin importar el estado del láser
+      ensurePath('move', [x,y]);
+      currentPath.push([nx,ny]);
+      x = nx; y = ny;
+    } else if(g === 1){
+      const mode = laserOn ? 'laser' : 'move';
+      ensurePath(mode, [x,y]);
+      currentPath.push([nx,ny]);
+      x = nx; y = ny;
+    } else {
+      const i = tokens.I || 0, j = tokens.J || 0;
+      const center = [x+i, y+j];
+      const cw = (g === 2);
+      const arcPts = sampleArc([x,y],[nx,ny],center,cw,32);
+      const mode = laserOn ? 'laser' : 'move';
+      ensurePath(mode, [x,y]);
+      for(let k=1;k<arcPts.length;k++) currentPath.push(arcPts[k]);
+      x = nx; y = ny;
+    }
+  });
+
+  return {
+    laserPaths: laserPaths.filter(p => p.length > 1),
+    movePaths: movePaths.filter(p => p.length > 1)
+  };
+}
+
+function applyGcode(text){
+  // El desplazamiento vive en lamina.gcodeOffset, no en el texto. Si ademas se
+  // quedara dentro, cada guardado anadiria otra linea ;OFFSET y el bloque
+  // [GCODE] se iria llenando de historia: el archivo de la Cervical ya llevaba
+  // cinco, cuatro de ellas repetidas. Se lee primero y se limpia despues.
+  const offsetPrevio = text.match(/^\s*;\s*OFFSET\s+(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*$/im);
+  if(offsetPrevio){
+    lamina.gcodeOffset = { dx: parseFloat(offsetPrevio[1]), dy: parseFloat(offsetPrevio[2]) };
+    syncOffsetInputs();
+  }
+  text = text.replace(/^[ \t]*;[ \t]*OFFSET[ \t]+-?[\d.]+[ \t]*,[ \t]*-?[\d.]+[ \t]*\r?\n?/gim, '');
+
+  lamina.gcode = text;
+  const parsed = text.trim() ? parseGcode(text) : { laserPaths:[], movePaths:[] };
+  lamina.gcodeLaserPaths = parsed.laserPaths;
+  lamina.gcodeMovePaths = parsed.movePaths;
+  lamina.gcodePaths = [...parsed.laserPaths, ...parsed.movePaths]; // combinado, para encuadre de cámara
+
+  const statusEl = document.getElementById('gcodeStatus');
+  if(!text.trim()){
+    statusEl.textContent = 'Sin G-code cargado.';
+  } else if(lamina.gcodePaths.length === 0){
+    statusEl.textContent = 'G-code cargado, pero no se encontraron movimientos G0/G1/G2/G3 reconocibles.';
+  } else {
+    const laserPts = lamina.gcodeLaserPaths.reduce((s,p)=>s+p.length,0);
+    const movePts = lamina.gcodeMovePaths.reduce((s,p)=>s+p.length,0);
+    statusEl.textContent = lamina.gcodeLaserPaths.length + ' trazo(s) láser (' + laserPts + ' pts) · ' +
+                            lamina.gcodeMovePaths.length + ' trazo(s) de movimiento (' + movePts + ' pts).';
+  }
+  updateLiveView();
+}
+
+// ---------- GCODE DRAG (mover el contorno como referencia) ----------
+function clientToSvgPoint(clientX, clientY){
+  const pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return { x:0, y:0 };
+  const p = pt.matrixTransform(ctm.inverse());
+  return { x:p.x, y:p.y };
+}
+
+function syncOffsetInputs(){
+  document.getElementById('gcodeOffsetX').value = Number(lamina.gcodeOffset.dx.toFixed(4));
+  document.getElementById('gcodeOffsetY').value = Number(lamina.gcodeOffset.dy.toFixed(4));
+}
+
+function startGcodeDrag(e){
+  e.preventDefault();
+  e.stopPropagation(); // no debe además disparar el paneo del lienzo
+  isDraggingGcode = true;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  dragStartSvgPt = clientToSvgPoint(clientX, clientY);
+  dragStartOffset = { dx: lamina.gcodeOffset.dx, dy: lamina.gcodeOffset.dy };
+  window.addEventListener('mousemove', onGcodeDragMove);
+  window.addEventListener('mouseup', endGcodeDrag);
+  window.addEventListener('touchmove', onGcodeDragMove, { passive:false });
+  window.addEventListener('touchend', endGcodeDrag);
+}
+
+function onGcodeDragMove(e){
+  if(!isDraggingGcode) return;
+  e.preventDefault();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const cur = clientToSvgPoint(clientX, clientY);
+  const dScreenX = cur.x - dragStartSvgPt.x;
+  const dScreenY = cur.y - dragStartSvgPt.y;
+  const dWorldX = dScreenX / currentRenderScale;
+  const dWorldY = -dScreenY / currentRenderScale;
+  lamina.gcodeOffset.dx = dragStartOffset.dx + dWorldX;
+  lamina.gcodeOffset.dy = dragStartOffset.dy + dWorldY;
+  syncOffsetInputs();
+  updateLiveView();
+}
+
+function endGcodeDrag(){
+  isDraggingGcode = false;
+  window.removeEventListener('mousemove', onGcodeDragMove);
+  window.removeEventListener('mouseup', endGcodeDrag);
+  window.removeEventListener('touchmove', onGcodeDragMove);
+  window.removeEventListener('touchend', endGcodeDrag);
+}
+
+// ---------- PANEO Y ZOOM DEL LIENZO (cámara manual) ----------
+function startPan(e){
+  if(!camera) return;
+  if(isDraggingGcode) return; // el arrastre del gcode tiene prioridad
+  isPanning = true;
+  panMoved = false;
+  svg.classList.add('panning');
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  panStartPt = clientToSvgPoint(clientX, clientY);
+  panStartCamera = { cx: camera.cx, cy: camera.cy };
+  window.addEventListener('mousemove', onPanMove);
+  window.addEventListener('mouseup', endPan);
+  window.addEventListener('touchmove', onPanMove, { passive:false });
+  window.addEventListener('touchend', endPan);
+}
+
+function onPanMove(e){
+  if(!isPanning) return;
+  e.preventDefault();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const cur = clientToSvgPoint(clientX, clientY);
+  const dScreenX = cur.x - panStartPt.x;
+  const dScreenY = cur.y - panStartPt.y;
+  if(Math.hypot(dScreenX, dScreenY) > 3) panMoved = true;
+  camera.cx = panStartCamera.cx - dScreenX / camera.scale;
+  camera.cy = panStartCamera.cy + dScreenY / camera.scale;
+  updateLiveView();
+}
+
+function endPan(){
+  isPanning = false;
+  svg.classList.remove('panning');
+  window.removeEventListener('mousemove', onPanMove);
+  window.removeEventListener('mouseup', endPan);
+  window.removeEventListener('touchmove', onPanMove);
+  window.removeEventListener('touchend', endPan);
+}
+
+function onWheelZoom(e){
+  if(!camera) return;
+  e.preventDefault();
+  const pt = clientToSvgPoint(e.clientX, e.clientY);
+  const worldX = camera.cx + (pt.x - W/2) / camera.scale;
+  const worldY = camera.cy - (pt.y - H/2) / camera.scale;
+  const factor = e.deltaY < 0 ? 1.12 : (1/1.12);
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale * factor));
+  camera.cx = worldX - (pt.x - W/2) / camera.scale;
+  camera.cy = worldY + (pt.y - H/2) / camera.scale;
+  updateLiveView();
+}
+
+function zoomBy(factor){
+  if(!camera) return;
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale * factor));
+  updateLiveView();
+}
+
+// Calcula los límites de todo el contenido (para inicializar la cámara o "Ajustar vista").
+function computeContentBounds(currentPts, previewResult){
+  let xs = [], ys = [];
+  let hasExtent = false; // true si hay algo con tamaño/distancia real, no solo un punto suelto
+
+  const ox = lamina.gcodeOffset.dx, oy = lamina.gcodeOffset.dy;
+  lamina.gcodePaths.forEach(path => {
+    if(path.length > 0) hasExtent = true;
+    path.forEach(pt => { xs.push(pt[0]+ox); ys.push(pt[1]+oy); });
+  });
+
+  holes.forEach(h=>{
+    h.pts.forEach(pt => { xs.push(pt[0]); ys.push(pt[1]); });
+    if(h.result){
+      hasExtent = true;
+      xs.push(h.result.cx - h.result.r, h.result.cx + h.result.r);
+      ys.push(h.result.cy - h.result.r, h.result.cy + h.result.r);
+    }
+  });
+
+  (currentPts || []).forEach(pt => { xs.push(pt[0]); ys.push(pt[1]); });
+  if((currentPts || []).length >= 2) hasExtent = true;
+
+  if(previewResult){
+    hasExtent = true;
+    xs.push(previewResult.cx - previewResult.r, previewResult.cx + previewResult.r);
+    ys.push(previewResult.cy - previewResult.r, previewResult.cy + previewResult.r);
+  }
+
+  if(xs.length === 0) return null;
+  if(!hasExtent) return null; // solo hay un punto suelto (sin radio ni segundo punto): esperar a tener más info
+
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const spanX = Math.max(maxX - minX, 0.5);
+  const spanY = Math.max(maxY - minY, 0.5);
+  const span = Math.max(spanX, spanY);
+  // Tope de zoom, por si dos puntos quedan casi pegados.
+  const scale = Math.min((Math.min(W,H) - PAD*2) / span, 400);
+  return { cx: (minX+maxX)/2, cy: (minY+maxY)/2, scale };
+}
+
+function fitView(){
+  const pts = getCurrentPoints ? (getCurrentPoints(false) || []) : [];
+  const bounds = computeContentBounds(pts, null);
+  if(!bounds){ setStatus('No hay nada que ajustar todavía.', ''); return; }
+  camera = { cx: bounds.cx, cy: bounds.cy, scale: bounds.scale };
+  cameraInitialized = true;
+  updateLiveView();
+}
+
+// ---------- REGLAS (mm) ----------
+let placedLabels = [];
+const RULER_H = 26;
+
+function niceScaleValue(raw){
+  if(!isFinite(raw) || raw <= 0) return 1;
+  const exponent = Math.floor(Math.log10(raw));
+  const base = raw / Math.pow(10, exponent);
+  let niceBase;
+  if(base < 1.5) niceBase = 1;
+  else if(base < 3.5) niceBase = 2;
+  else if(base < 7.5) niceBase = 5;
+  else niceBase = 10;
+  return niceBase * Math.pow(10, exponent);
+}
+
+// Reglas con ancho DINÁMICO en el eje Y para que los números largos no se
+// corten contra el borde (se mide el texto más largo antes de dibujar).
+function drawRulers(scale, cxMid, cyMid){
+  const step = niceScaleValue(70 / scale);
+  const decimals = step < 1 ? 2 : (step < 10 ? 1 : 0);
+  const fontSize = 12;
+
+  const worldXatScreen = sx => cxMid + (sx - W/2) / scale;
+  const worldYatScreen = sy => cyMid - (sy - H/2) / scale;
+
+  // Paso 1: estimar rango visible en Y con un ancho base, generar etiquetas
+  const baseGuess = 26;
+  const yMinV0 = worldYatScreen(H - RULER_H), yMaxV0 = worldYatScreen(0);
+  const startKy = Math.ceil(yMinV0 / step), endKy = Math.floor(yMaxV0 / step);
+  const yLabels = [];
+  for(let k=startKy; k<=endKy; k++) yLabels.push((k*step).toFixed(decimals));
+  const maxLen = yLabels.reduce((m,s) => Math.max(m, s.length), 0);
+  const RULER_W = Math.max(baseGuess, maxLen * fontSize * 0.62 + 14);
+
+  const xMinV = worldXatScreen(RULER_W), xMaxV = worldXatScreen(W);
+
+  // Fuera del lienzo: con preserveAspectRatio "meet" el elemento SVG puede ser
+  // mas ancho que el viewBox, y overflow:hidden recorta a la CAJA, no al
+  // viewBox. En ese margen se seguia viendo el dibujo. Se tapa, y las reglas
+  // se extienden hasta el borde real para quedar pegadas al lado.
+  const FUERA = 4000;
+  [ { x:W, y:-FUERA, width:FUERA, height:H+2*FUERA },        // margen derecho
+    { x:-FUERA, y:-FUERA, width:W+2*FUERA, height:FUERA }    // margen superior
+  ].forEach(function(a){
+    const m = el('rect', Object.assign({ fill:'#ffffff' }, a));
+    m.style.pointerEvents = 'none';
+    svg.appendChild(m);
+  });
+
+  const bandH = el('rect', { x:-FUERA, y:H-RULER_H, width:W+2*FUERA, height:RULER_H+FUERA, fill:'#ffffff' });
+  bandH.style.pointerEvents = 'none';
+  const bandV = el('rect', { x:-FUERA, y:-FUERA, width:RULER_W+FUERA, height:H+2*FUERA, fill:'#ffffff' });
+  bandV.style.pointerEvents = 'none';
+  svg.appendChild(bandH);
+  svg.appendChild(bandV);
+  svg.appendChild(el('line', { x1:-FUERA, y1:H-RULER_H, x2:W+FUERA, y2:H-RULER_H, stroke:'#20221f', 'stroke-width':1.5 }));
+  svg.appendChild(el('line', { x1:RULER_W, y1:-FUERA, x2:RULER_W, y2:H+FUERA, stroke:'#20221f', 'stroke-width':1.5 }));
+
+  const startKx = Math.ceil(xMinV / step), endKx = Math.floor(xMaxV / step);
+  for(let k=startKx; k<=endKx; k++){
+    const xw = k*step;
+    const sx = W/2 + (xw - cxMid) * scale;
+    if(sx < RULER_W) continue;
+    svg.appendChild(el('line', { x1:sx, y1:H-RULER_H, x2:sx, y2:H-RULER_H+6, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:sx, y:H-6, 'text-anchor':'middle', 'font-size':fontSize, 'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = xw.toFixed(decimals);
+    svg.appendChild(t);
+  }
+
+  for(let k=startKy; k<=endKy; k++){
+    const yw = k*step;
+    const sy = H/2 - (yw - cyMid) * scale;
+    if(sy > H-RULER_H) continue;
+    svg.appendChild(el('line', { x1:RULER_W-6, y1:sy, x2:RULER_W, y2:sy, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:RULER_W-9, y:sy+3, 'text-anchor':'end', 'font-size':fontSize, 'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = yw.toFixed(decimals);
+    svg.appendChild(t);
+  }
+
+  const corner = el('text', { x:7, y:H-6, 'font-size':18, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:'#111111' });
+  corner.textContent = 'mm';
+  svg.appendChild(corner);
+}
+
+function placeLabel(cxScreen, topY, lines, color){
+  const fs1 = 11, fs2 = 9.5;
+  const w1 = lines[0].length * fs1 * 0.62;
+  const w2 = (lines[1] ? lines[1].length * fs2 * 0.62 : 0);
+  const width = Math.max(w1, w2) + 10;
+  const lineHeight = 13;
+  const height = lines.length * lineHeight + 6;
+
+  let y = topY - height - 6;
+  let x0 = cxScreen - width/2, x1 = cxScreen + width/2;
+  let attempts = 0;
+  while(attempts < 10){
+    const y0 = y, y1 = y + height;
+    const collision = placedLabels.some(b => !(x1 < b.x0 || x0 > b.x1 || y1 < b.y0 || y0 > b.y1));
+    if(!collision) break;
+    y -= (height + 4);
+    attempts++;
+  }
+  placedLabels.push({ x0, x1, y0:y, y1:y+height });
+
+  svg.appendChild(el('rect', { x:x0, y:y, width:width, height:height, rx:4, fill:'#ffffff', opacity:'0.9', stroke:color, 'stroke-width':0.6 }));
+  lines.forEach((line,i)=>{
+    const fs = i===0 ? fs1 : fs2;
+    const ty = y + 12 + i*lineHeight;
+    const t = el('text', { x:cxScreen, y:ty, 'text-anchor':'middle', 'font-size':fs, 'font-family':'IBM Plex Mono, monospace', 'font-weight':i===0?700:500, fill:color });
+    t.textContent = line;
+    svg.appendChild(t);
+  });
+}
+
+// ---------- INPUT GATHERING ----------
+function readPair(xid, yid){
+  const xv = document.getElementById(xid).value;
+  const yv = document.getElementById(yid).value;
+  if(xv === '' || yv === '') return null;
+  const x = r4(parseFloat(xv)), y = r4(parseFloat(yv));
+  if(Number.isNaN(x) || Number.isNaN(y)) return null;
+  return [x,y];
+}
+
+function getPointsNP(requireAll){
+  const pts = [];
+  for(let i=0;i<npCount;i++){
+    const p = readPair('x_np_'+i, 'y_np_'+i);
+    if(!p){ if(requireAll) return null; continue; }
+    pts.push(p);
+  }
+  return pts;
+}
+
+function getPoints6p(requireAll){
+  const ids = [['xa1','ya1'],['xa2','ya2'],['xb1','yb1'],['xb2','yb2'],['xc1','yc1'],['xc2','yc2']];
+  const pts = [];
+  for(const [xi,yi] of ids){
+    const p = readPair(xi,yi);
+    if(!p){ if(requireAll) return null; continue; }
+    pts.push(p);
+  }
+  return pts;
+}
+
+function getDirectValues(requireAll){
+  const xv = document.getElementById('dCx').value;
+  const yv = document.getElementById('dCy').value;
+  const vv = document.getElementById('dValue').value;
+  if(xv === '' || yv === '' || vv === ''){
+    if(requireAll) return null;
+    return { cx: xv===''?null:r4(parseFloat(xv)), cy: yv===''?null:r4(parseFloat(yv)), value: vv===''?null:r4(parseFloat(vv)) };
+  }
+  const cx = r4(parseFloat(xv)), cy = r4(parseFloat(yv)), value = r4(parseFloat(vv));
+  if(Number.isNaN(cx) || Number.isNaN(cy) || Number.isNaN(value) || value <= 0) return requireAll ? null : { cx:null, cy:null, value:null };
+  return { cx, cy, value };
+}
+
+function getCurrentPoints(requireAll){
+  if(currentMethod === 'np') return getPointsNP(requireAll);
+  if(currentMethod === '6p') return getPoints6p(requireAll);
+  return null; // 'direct' no usa esta función (ver getDirectValues)
+}
+
+function clearCurrentFields(){
+  for(let i=0;i<npCount;i++){
+    const xEl = document.getElementById('x_np_'+i), yEl = document.getElementById('y_np_'+i);
+    if(xEl) xEl.value = '';
+    if(yEl) yEl.value = '';
+  }
+  ['xa1','ya1','xa2','ya2','xb1','yb1','xb2','yb2','xc1','yc1','xc2','yc2'].forEach(id=>{
+    const node = document.getElementById(id);
+    if(node){ node.value = ''; node.classList.remove('auto-filled'); }
+  });
+  ['dCx','dCy','dValue'].forEach(id=>{ document.getElementById(id).value = ''; });
+  overriddenFields.clear();
+  updateCxReadout();
+  resetCurrentResults();
+}
+
+function resetCurrentResults(){
+  document.getElementById('outCx').textContent = '—';
+  document.getElementById('outCy').textContent = '—';
+  document.getElementById('outR').textContent = '—';
+  document.getElementById('outD').textContent = '—';
+  document.getElementById('outArea').textContent = '—';
+}
+
+function setStatus(msg, type){
+  const s = document.getElementById('status');
+  s.textContent = msg;
+  s.className = 'status mono' + (type ? ' ' + type : '');
+}
+
+function nextDefaultName(){ return 'Punto ' + (holeCounter + 1); }
+function holeIndexById(id){ return holes.findIndex(h => h.id === id); }
+
+// ---------- N-POINT DYNAMIC ROWS ----------
+function buildNpCard(idx){
+  const color = CURRENT_COLORS[idx % CURRENT_COLORS.length];
+  const wrapper = document.createElement('div');
+  wrapper.className = 'point-card';
+  wrapper.id = 'npCard_' + idx;
+  wrapper.innerHTML =
+    '<div class="label"><span class="swatch" style="background:'+color+'"></span>Borde ' + (idx+1) + '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>X</label><input type="number" step="any" id="x_np_'+idx+'" placeholder="—"></div>' +
+      '<div class="field"><label>Y</label><input type="number" step="any" id="y_np_'+idx+'" placeholder="—"></div>' +
+    '</div>';
+  if(idx >= NP_MIN){
+    const rm = document.createElement('button');
+    rm.className = 'np-remove';
+    rm.innerHTML = '&times;';
+    rm.title = 'Quitar este punto';
+    rm.addEventListener('click', () => removeNpCardAt(idx));
+    wrapper.appendChild(rm);
+  }
+  return wrapper;
+}
+
+function attachNpListeners(idx){
+  ['x_np_'+idx, 'y_np_'+idx].forEach(id=>{
+    const node = document.getElementById(id);
+    node.addEventListener('input', updateLiveView);
+    node.addEventListener('keydown', e => { if(e.key === 'Enter') calculate(); });
+  });
+}
+
+function addNpRow(){
+  if(npCount >= NP_MAX) return;
+  const container = document.getElementById('pointsNP');
+  const idx = npCount;
+  container.appendChild(buildNpCard(idx));
+  npCount++;
+  attachNpListeners(idx);
+  updateNpButtons();
+}
+
+function removeLastNpRow(){
+  if(npCount <= NP_MIN) return;
+  const container = document.getElementById('pointsNP');
+  container.removeChild(container.lastElementChild);
+  npCount--;
+  updateNpButtons();
+  updateLiveView();
+}
+
+function removeNpCardAt(idx){
+  if(idx === npCount - 1) removeLastNpRow();
+}
+
+function updateNpButtons(){
+  document.getElementById('npAddBtn').disabled = npCount >= NP_MAX;
+  document.getElementById('npRemoveBtn').disabled = npCount <= NP_MIN;
+}
+
+function rebuildNpRows(count){
+  const container = document.getElementById('pointsNP');
+  container.innerHTML = '';
+  npCount = 0;
+  for(let i=0;i<count;i++) addNpRow();
+}
+
+// ---------- 6-POINT CASCADE ----------
+function runCascade(){
+  const val = id => { const v = document.getElementById(id).value; return v === '' ? null : r4(parseFloat(v)); };
+  const setIfFree = (id, num) => {
+    if(overriddenFields.has(id)) return;
+    if(num === null || Number.isNaN(num)) return;
+    const node = document.getElementById(id);
+    node.value = r4(num);
+    node.classList.add('auto-filled');
+  };
+
+  const yA1 = val('ya1');
+  if(yA1 !== null) setIfFree('ya2', yA1);
+
+  const xA1 = val('xa1'), xA2 = val('xa2');
+  let cx1 = null;
+  if(xA1 !== null && xA2 !== null) cx1 = (xA1+xA2)/2;
+  // El primero del par toma la media; el SEGUNDO sigue al primero, no a la
+  // media. Asi escribir xb1 a mano arrastra a xb2 (comparten la linea), pero
+  // escribir xb2 lo independiza y ya no lo arrastra nadie.
+  if(cx1 !== null) setIfFree('xb1', cx1);
+  const xB1 = val('xb1');
+  if(xB1 !== null) setIfFree('xb2', xB1);
+
+  const yB1 = val('yb1'), yB2 = val('yb2');
+  let cy = null;
+  if(yB1 !== null && yB2 !== null) cy = (yB1+yB2)/2;
+  if(cy !== null) setIfFree('yc1', cy);
+  const yC1 = val('yc1');
+  if(yC1 !== null) setIfFree('yc2', yC1);
+}
+
+function updateCxReadout(){
+  const readout = document.getElementById('cxReadout');
+  const pts = getPoints6p(false);
+  if(pts.length < 6){ readout.textContent = 'Cx1 —   Cx2 —   ΔX —'; return; }
+  const r = compute6p(pts, cxChoice);
+  const deltaClass = r.deltaX > Math.max(0.02*r.r, 0.02) ? 'delta-warn' : '';
+  readout.innerHTML =
+    'Cx1 ' + fmt(r.cx1) + '   Cx2 ' + fmt(r.cx2) + '   <span class="'+deltaClass+'">ΔX ' + fmt(r.deltaX) + '</span>';
+}
+
+// ---------- METHOD SWITCH ----------
+function setMethod(method, skipClear){
+  currentMethod = method;
+  document.getElementById('methodNpBtn').classList.toggle('active', method === 'np');
+  document.getElementById('method6pBtn').classList.toggle('active', method === '6p');
+  document.getElementById('methodDirectBtn').classList.toggle('active', method === 'direct');
+  document.getElementById('pointsNP').style.display = method === 'np' ? 'flex' : 'none';
+  document.getElementById('npControls').style.display = method === 'np' ? 'flex' : 'none';
+  document.getElementById('points6p').style.display = method === '6p' ? 'flex' : 'none';
+  document.getElementById('pointsDirect').style.display = method === 'direct' ? 'flex' : 'none';
+  if(method === 'np' && npCount === 0) rebuildNpRows(NP_MIN);
+  if(!skipClear) clearCurrentFields();
+  updateLiveView();
+}
+
+function setCxChoice(choice){
+  cxChoice = choice;
+  ['cx1','cx2','avg'].forEach(c=>{
+    document.getElementById('cxOpt' + c[0].toUpperCase() + c.slice(1)).classList.toggle('active', c === choice);
+  });
+  updateLiveView();
+}
+
+function setDirectType(type){
+  directType = type;
+  document.getElementById('directTypeR').classList.toggle('active', type === 'r');
+  document.getElementById('directTypeD').classList.toggle('active', type === 'd');
+  document.getElementById('dValueLabel').textContent = type === 'r' ? 'Radio' : 'Diámetro';
+  updateLiveView();
+}
+
+// ---------- EDITOR NAV ----------
+function loadPieceIntoEditor(hole){
+  document.getElementById('pieceName').value = hole.name;
+  overriddenFields.clear();
+  if(hole.method === 'np'){
+    setMethod('np', true);
+    rebuildNpRows(hole.pts.length);
+    const flat = hole.pts.flat();
+    for(let i=0;i<hole.pts.length;i++){
+      document.getElementById('x_np_'+i).value = flat[i*2];
+      document.getElementById('y_np_'+i).value = flat[i*2+1];
+    }
+  } else if(hole.method === '6p'){
+    setMethod('6p', true);
+    const ids = ['xa1','ya1','xa2','ya2','xb1','yb1','xb2','yb2','xc1','yc1','xc2','yc2'];
+    const flat = hole.pts.flat();
+    ids.forEach((id,i) => document.getElementById(id).value = flat[i]);
+    cxChoice = hole.cxChoice || 'cx1';
+    setCxChoice(cxChoice);
+  } else {
+    setMethod('direct', true);
+    setDirectType(hole.directType || 'r');
+    document.getElementById('dCx').value = hole.result.cx;
+    document.getElementById('dCy').value = hole.result.cy;
+    document.getElementById('dValue').value = (hole.directType === 'd') ? hole.result.r*2 : hole.result.r;
+  }
+}
+
+function updateEditorUI(){
+  const label = document.getElementById('editorLabel');
+  const btn = document.getElementById('calcBtn');
+  const cancelBtn = document.getElementById('cancelEditBtn');
+  if(currentEditId === null){
+    label.textContent = 'Nuevo punto';
+    btn.textContent = 'CALCULAR Y AGREGAR PUNTO';
+    cancelBtn.style.display = 'none';
+  } else {
+    const idx = holeIndexById(currentEditId);
+    const hole = holes[idx];
+    label.textContent = hole ? (hole.name + '  ·  ' + (idx+1) + '/' + holes.length) : 'Nuevo punto';
+    btn.textContent = 'ACTUALIZAR PUNTO';
+    cancelBtn.style.display = 'inline-block';
+  }
+}
+
+function selectForEdit(id){
+  const hole = holes.find(h => h.id === id);
+  if(!hole) return;
+  currentEditId = id;
+  loadPieceIntoEditor(hole);
+  updateEditorUI();
+  renderPieceList();
+  updateLiveView();
+}
+
+function selectNew(){
+  currentEditId = null;
+  clearCurrentFields();
+  const nameInput = document.getElementById('pieceName');
+  nameInput.value = '';
+  nameInput.placeholder = nextDefaultName();
+  updateEditorUI();
+  renderPieceList();
+  updateLiveView();
+}
+
+function navStep(dir){
+  const list = [null, ...holes.map(h => h.id)];
+  let idx = list.indexOf(currentEditId);
+  if(idx === -1) idx = 0;
+  idx = (idx + dir + list.length) % list.length;
+  const target = list[idx];
+  if(target === null) selectNew(); else selectForEdit(target);
+}
+
+// ---------- LIVE PREVIEW ----------
+function updateLiveView(){
+  let pts = [];
+  let previewResult = null;
+
+  if(currentMethod === '6p') runCascade();
+
+  if(currentMethod === 'direct'){
+    const d = getDirectValues(false);
+    if(d.cx !== null && d.cy !== null) pts = [[d.cx, d.cy]];
+    if(d.cx !== null && d.cy !== null && d.value !== null && d.value > 0){
+      const r = directType === 'r' ? d.value : d.value/2;
+      previewResult = { cx:d.cx, cy:d.cy, r };
+    }
+    const need = 3;
+    const have = [d.cx, d.cy, d.value].filter(v => v !== null).length;
+    if(have === 0) setStatus('Ingresa el centro y el tamaño del punto.', '');
+    else if(have < need) setStatus(have + ' de ' + need + ' campos completados…', '');
+    else setStatus('Listo. Presiona el botón para ' + (currentEditId===null ? 'agregar' : 'actualizar') + '.', '');
+  } else {
+    pts = getCurrentPoints(false);
+    if(currentMethod === '6p') updateCxReadout();
+    const need = currentMethod === 'np' ? npCount : 6;
+    if(pts.length === 0) setStatus('Ingresa las coordenadas sobre el borde del punto.', '');
+    else if(pts.length < need) setStatus(pts.length + ' de ' + need + ' puntos ingresados…', '');
+    else setStatus(need + ' puntos listos. Presiona el botón para ' + (currentEditId===null ? 'agregar' : 'actualizar') + '.', '');
+
+    if(pts.length === need){
+      if(currentMethod === 'np') previewResult = fitCircleLeastSquares(pts);
+      else { const r = compute6p(pts, cxChoice); previewResult = { cx:r.cx, cy:r.cy, r:r.r }; }
+    }
+  }
+
+  if(!cameraInitialized){
+    const bounds = computeContentBounds(pts, previewResult);
+    if(bounds){ camera = { cx:bounds.cx, cy:bounds.cy, scale:bounds.scale }; cameraInitialized = true; }
+  }
+
+  renderScene({ pts, method: currentMethod, previewResult });
+
+  if(previewResult){
+    document.getElementById('outCx').textContent = fmt(previewResult.cx);
+    document.getElementById('outCy').textContent = fmt(previewResult.cy);
+    document.getElementById('outR').textContent = fmt(previewResult.r);
+    document.getElementById('outD').textContent = fmt(previewResult.r*2);
+    document.getElementById('outArea').textContent = fmt(Math.PI*previewResult.r*previewResult.r);
+  } else {
+    resetCurrentResults();
+  }
+}
+
+// ---------- CALCULATE / ADD / UPDATE ----------
+function calculate(){
+  let result, pts, extra = {};
+
+  if(currentMethod === 'direct'){
+    const d = getDirectValues(true);
+    if(!d){ setStatus('Faltan datos: centro X, centro Y y radio/diámetro.', 'err'); return; }
+    const r = directType === 'r' ? d.value : d.value/2;
+    if(r <= 0){ setStatus('El radio/diámetro debe ser mayor a 0.', 'err'); return; }
+    result = r4obj({ cx:d.cx, cy:d.cy, r });
+    pts = [];
+    extra.directType = directType;
+  } else {
+    pts = getCurrentPoints(true);
+    const need = currentMethod === 'np' ? npCount : 6;
+    if(!pts || pts.length !== need){
+      setStatus('Faltan coordenadas. Completa los ' + need + ' puntos.', 'err');
+      return;
+    }
+    if(currentMethod === 'np'){
+      result = fitCircleLeastSquares(pts);
+      if(result) result = r4obj(result);
+      if(!result){
+        setStatus('Los puntos no definen un círculo válido (colineales o degenerados). Ajusta alguno.', 'err');
+        renderScene({ pts, method: currentMethod, previewResult:null });
+        return;
+      }
+    } else {
+      const r = compute6p(pts, cxChoice);
+      result = r4obj({ cx: r.cx, cy: r.cy, r: r.r, cx1: r.cx1, cx2: r.cx2, deltaX: r.deltaX });
+      extra.cxChoice = cxChoice;
+    }
+  }
+
+  const nameInput = document.getElementById('pieceName');
+  const existing = currentEditId !== null ? holes.find(h => h.id === currentEditId) : null;
+  const name = nameInput.value.trim() || (existing ? existing.name : nextDefaultName());
+
+  if(currentEditId === null){
+    const color = PALETTE[holeCounter % PALETTE.length];
+    holes.push({ id: 'ag-' + Date.now() + '-' + holeCounter, name, method: currentMethod, pts, result, color, ...extra });
+    holeCounter++;
+    setStatus('“' + name + '” agregado a la lámina. Ingresa el siguiente punto.', 'ok');
+  } else {
+    const idx = holeIndexById(currentEditId);
+    if(idx >= 0){
+      holes[idx] = { ...holes[idx], name, method: currentMethod, pts, result, ...extra };
+      setStatus('“' + name + '” actualizado correctamente.', 'ok');
+    }
+  }
+
+  selectNew();
+}
+
+// ---------- PIECE LIST ----------
+function renderPieceList(){
+  const listEl = document.getElementById('pieceList');
+  document.getElementById('pieceListTitle').textContent = 'Puntos en la lámina (' + holes.length + ')';
+
+  if(holes.length === 0){
+    listEl.innerHTML = '<div class="piece-empty">Aún no has agregado ningún punto.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  holes.forEach(hole=>{
+    const row = document.createElement('div');
+    row.className = 'piece-row' + (hole.id === currentEditId ? ' editing' : '');
+    row.style.borderLeftColor = hole.color;
+    row.addEventListener('click', () => {
+      if(routeAddMode && activeRouteId) addHoleToActiveRoute(hole.id);
+      else selectForEdit(hole.id);
+    });
+
+    const head = document.createElement('div');
+    head.className = 'piece-head';
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'piece-name-wrap';
+    const nameInput = document.createElement('input');
+    nameInput.className = 'piece-name';
+    nameInput.value = hole.name;
+    nameInput.title = 'Clic para renombrar';
+    nameInput.addEventListener('click', e => e.stopPropagation());
+    nameInput.addEventListener('input', e => { renameHole(hole.id, e.target.value); updateLiveView(); });
+    const badge = document.createElement('span');
+    badge.className = 'method-badge';
+    badge.textContent = hole.method === 'np' ? ('N' + hole.pts.length)
+                        : hole.method === '6p' ? ('6P·' + (hole.cxChoice||'cx1').toUpperCase())
+                        : 'DIRECTO';
+    nameWrap.appendChild(nameInput);
+    nameWrap.appendChild(badge);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'piece-del';
+    delBtn.innerHTML = '&times;';
+    delBtn.title = 'Eliminar punto';
+    delBtn.addEventListener('click', (e) => { e.stopPropagation(); removePiece(hole.id); });
+
+    head.appendChild(nameWrap);
+    head.appendChild(delBtn);
+
+    const stats = document.createElement('div');
+    stats.className = 'piece-stats mono';
+    if(hole.result){
+      let txt = 'C(' + fmt(hole.result.cx) + ', ' + fmt(hole.result.cy) + ')  R ' + fmt(hole.result.r) +
+                 '  D ' + fmt(hole.result.r*2) + '  A ' + fmt(Math.PI*hole.result.r*hole.result.r);
+      if(hole.method === '6p' && typeof hole.result.deltaX === 'number'){
+        txt += '  ΔX ' + fmt(hole.result.deltaX);
+      }
+      stats.textContent = txt;
+    } else {
+      stats.textContent = 'Sin círculo válido';
+    }
+
+    row.appendChild(head);
+    row.appendChild(stats);
+    listEl.appendChild(row);
+  });
+}
+
+function renameHole(id, name){
+  const hole = holes.find(h => h.id === id);
+  if(hole) hole.name = name.trim() || hole.name;
+}
+
+function removePiece(id){
+  holes = holes.filter(h => h.id !== id);
+  if(currentEditId === id) currentEditId = null;
+  updateEditorUI();
+  renderPieceList();
+  updateLiveView();
+}
+
+function clearAll(){
+  holes = [];
+  holeCounter = 0;
+  currentEditId = null;
+  // Los recorridos se van con los puntos: sin ellos son cascarones que apuntan
+  // a lo que ya no existe. Los materiales NO: son una biblioteca de ajustes,
+  // no parte de esta lamina.
+  routes = [];
+  routeCounter = 0;
+  activeRouteId = null;
+  routeAddMode = false;
+  overriddenFields.clear();
+  updateEditorUI();
+  renderPieceList();
+  renderRoutesList();
+  updateLiveView();
+  setStatus('Lámina limpia: puntos y recorridos. Los materiales se conservan.', '');
+}
+
+// ---------- MATERIALES DE SOLDADURA (funciones) ----------
+function toggleMaterialsPanel(){
+  document.getElementById('materialsContent').classList.toggle('collapsed');
+  document.getElementById('materialsChevron').classList.toggle('expanded');
+}
+
+function createMaterial(){
+  const material = { id: 'mat-' + Date.now() + '-' + materialCounter, name: 'Material ' + (materialCounter+1), variables: [] };
+  materials.push(material);
+  materialCounter++;
+  renderMaterialsList();
+}
+
+function renameMaterial(id, name){
+  const m = materials.find(x => x.id === id);
+  if(m) m.name = name.trim() || m.name;
+}
+
+function deleteMaterial(id){
+  materials = materials.filter(m => m.id !== id);
+  // limpiar referencias colgantes en recorridos que usaban este material
+  routes.forEach(r=>{ if(r.materialId === id){ r.materialId = null; r.selectedVariableId = null; } });
+  if(exportAllConfig.materialId === id){ exportAllConfig.materialId = null; exportAllConfig.selectedVariableId = null; }
+  renderMaterialsList();
+  renderRoutesList();
+  updateLiveView();
+}
+
+function addMaterialVariable(materialId){
+  const m = materials.find(x => x.id === materialId);
+  if(!m) return;
+  m.variables.push({ id: 'mv-' + Date.now() + '-' + m.variables.length, name: 'Capas ' + (m.variables.length+1), value: 18 });
+  renderMaterialsList();
+}
+
+function removeMaterialVariable(materialId, varId){
+  const m = materials.find(x => x.id === materialId);
+  if(!m) return;
+  m.variables = m.variables.filter(v => v.id !== varId);
+  // si algún recorrido tenía esta variable seleccionada, la deseleccionamos
+  routes.forEach(r=>{ if(r.materialId === materialId && r.selectedVariableId === varId) r.selectedVariableId = null; });
+  renderMaterialsList();
+  renderRoutesList();
+  updateLiveView();
+}
+
+function renameMaterialVariable(materialId, varId, name){
+  const m = materials.find(x => x.id === materialId);
+  const v = m ? m.variables.find(x => x.id === varId) : null;
+  if(v) v.name = name.trim() || v.name;
+}
+
+function setMaterialVariableValue(materialId, varId, value){
+  const m = materials.find(x => x.id === materialId);
+  const v = m ? m.variables.find(x => x.id === varId) : null;
+  if(v){
+    v.value = value;
+    // si algún recorrido tiene esta variable activa, refrescar su G-code visible
+    routes.forEach(r=>{
+      if(r.materialId === materialId && r.selectedVariableId === varId && r.gcodeVisible) refreshRouteGcode(r);
+    });
+  }
+}
+
+function renderMaterialsList(){
+  const listEl = document.getElementById('materialList');
+  if(materials.length === 0){
+    listEl.innerHTML = '<div class="piece-empty">Aún no has creado ningún material.</div>';
+    renderExportAllMaterialUI();
+    return;
+  }
+  listEl.innerHTML = '';
+  materials.forEach(material=>{
+    const card = document.createElement('div');
+    card.className = 'material-card';
+
+    const head = document.createElement('div');
+    head.className = 'material-card-head';
+    const nameInput = document.createElement('input');
+    nameInput.className = 'material-name-input';
+    nameInput.value = material.name;
+    nameInput.addEventListener('input', e => { renameMaterial(material.id, e.target.value); renderRoutesList(); });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'route-mini-btn';
+    delBtn.innerHTML = '&times;';
+    delBtn.title = 'Eliminar material';
+    delBtn.addEventListener('click', () => deleteMaterial(material.id));
+    head.appendChild(nameInput);
+    head.appendChild(delBtn);
+    card.appendChild(head);
+
+    material.variables.forEach(v=>{
+      const row = document.createElement('div');
+      row.className = 'material-var-row';
+      const vName = document.createElement('input');
+      vName.type = 'text'; vName.value = v.name;
+      vName.addEventListener('input', e => { renameMaterialVariable(material.id, v.id, e.target.value); renderRoutesList(); });
+      const vVal = document.createElement('input');
+      vVal.type = 'number'; vVal.value = v.value;
+      vVal.addEventListener('input', e => setMaterialVariableValue(material.id, v.id, e.target.value));
+      const vDel = document.createElement('button');
+      vDel.className = 'route-step-btn'; vDel.innerHTML = '&times;';
+      vDel.addEventListener('click', () => removeMaterialVariable(material.id, v.id));
+      row.appendChild(vName); row.appendChild(vVal); row.appendChild(vDel);
+      card.appendChild(row);
+    });
+
+    const addVarBtn = document.createElement('button');
+    addVarBtn.className = 'btn-tiny material-add-var-btn';
+    addVarBtn.textContent = '+ Variable';
+    addVarBtn.addEventListener('click', () => addMaterialVariable(material.id));
+    card.appendChild(addVarBtn);
+
+    listEl.appendChild(card);
+  });
+  renderExportAllMaterialUI();
+}
+
+// ---------- RECORRIDOS DE SOLDADURA ----------
+function toggleRoutesPanel(){
+  document.getElementById('routesContent').classList.toggle('collapsed');
+  document.getElementById('routesChevron').classList.toggle('expanded');
+}
+
+function nextRouteName(){ return 'Recorrido ' + (routeCounter + 1); }
+
+function createRoute(){
+  const color = ROUTE_PALETTE[routeCounter % ROUTE_PALETTE.length];
+  const route = { id: 'rt-' + Date.now() + '-' + routeCounter, name: nextRouteName(), color, holeIds: [], coordMode: 'fixed', visible: true, gcodeVisible: false, settleP: 100, weldP: 18, workCoord: 'G58', materialId: null, selectedVariableId: null };
+  routes.push(route);
+  routeCounter++;
+  activeRouteId = route.id;
+  routeAddMode = true;
+  renderRoutesList();
+  updateRouteBanner();
+  updateLiveView();
+}
+
+function selectRouteCard(id){
+  // clic en la tarjeta activa/desactiva el modo "agregar puntos" para ese recorrido
+  if(activeRouteId === id && routeAddMode){
+    exitRouteAddMode();
+  } else {
+    activeRouteId = id;
+    routeAddMode = true;
+  }
+  renderRoutesList();
+  updateRouteBanner();
+}
+
+function exitRouteAddMode(){
+  routeAddMode = false;
+  activeRouteId = null;
+  renderRoutesList();
+  updateRouteBanner();
+}
+
+function updateRouteBanner(){
+  const banner = document.getElementById('routeAddBanner');
+  if(routeAddMode && activeRouteId){
+    const route = routes.find(r => r.id === activeRouteId);
+    banner.style.display = 'flex';
+    document.getElementById('routeAddBannerText').textContent =
+      'Agregando puntos a "' + (route ? route.name : '') + '" — clic en un punto (lista o lienzo).';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function deleteRoute(id){
+  routes = routes.filter(r => r.id !== id);
+  if(activeRouteId === id){ activeRouteId = null; routeAddMode = false; }
+  renderRoutesList();
+  updateRouteBanner();
+  updateLiveView();
+}
+
+function renameRoute(id, name){
+  const route = routes.find(r => r.id === id);
+  if(route) route.name = name.trim() || route.name;
+  updateRouteBanner();
+}
+
+function setRouteMode(id, mode){
+  const route = routes.find(r => r.id === id);
+  if(route) route.coordMode = mode;
+  renderRoutesList();
+}
+
+function toggleRouteVisibility(id){
+  const route = routes.find(r => r.id === id);
+  if(!route) return;
+  route.visible = !route.visible;
+  renderRoutesList();
+  updateLiveView();
+}
+
+// Actualiza el textarea de vista previa de un recorrido en el DOM sin
+// reconstruir toda la lista (así no se pierde el foco de otros campos).
+function computeRouteGcodeText(route){
+  if(route.materialId && route.selectedVariableId === 'all'){
+    const material = materials.find(m => m.id === route.materialId);
+    const label = material ? (material.name + ' · todas las variables: ' + material.variables.map(v=>v.name).join(', ')) : 'todas las variables';
+    return buildRouteGcodePreview(route, '(variable)', label) +
+      '\n\n; ↑ Plantilla de referencia — "P(variable)" se reemplaza por el valor real de\n' +
+      '; cada variable al exportar. Con "Todos" seleccionado se genera un archivo .txt\n' +
+      '; por cada una (' + (material ? material.variables.length : 0) + ' en total).';
+  }
+  const override = getRouteWeldOverride(route);
+  return buildRouteGcodePreview(route, override ? override.value : null, override ? override.label : null);
+}
+
+function refreshRouteGcode(route){
+  const card = document.querySelector('.route-card[data-route-id="' + route.id + '"]');
+  if(!card) return;
+  const ta = card.querySelector('.route-gcode textarea');
+  
+  if(ta) {
+    ta.value = computeRouteGcodeText(route);
+    
+    // Solo ajustamos el tamaño si el textarea está visible
+    if(ta.style.display !== 'none') {
+      ta.style.height = 'auto';
+      ta.style.height = (ta.scrollHeight + 2) + 'px'; 
+    }
+  }
+}
+
+// Devuelve {value, label} de la variable de material actualmente elegida en el
+// recorrido, o null si está en modo manual o en modo "Todos".
+function getRouteWeldOverride(route){
+  if(!route.materialId || !route.selectedVariableId || route.selectedVariableId === 'all') return null;
+  const m = materials.find(x => x.id === route.materialId);
+  const v = m ? m.variables.find(x => x.id === route.selectedVariableId) : null;
+  return v ? { value: v.value, label: m.name + ' · ' + v.name, name: v.name, materialName: m.name } : null;
+}
+
+function downloadTextFile(text, filename){
+  const blob = new Blob([text], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- ZIP mínimo (sin compresión), sin dependencias externas ----------
+function crc32(str){
+  const bytes = new TextEncoder().encode(str);
+  let crc = ~0;
+  for(let i=0; i<bytes.length; i++){
+    crc ^= bytes[i];
+    for(let j=0; j<8; j++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+  }
+  return (~crc) >>> 0;
+}
+
+// files: [{name:'carpeta/archivo.txt', content:'texto'}] -> Blob de un .zip válido
+function createZipBlob(files){
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  files.forEach(f=>{
+    const nameBytes = encoder.encode(f.name);
+    const contentBytes = encoder.encode(f.content);
+    const crc = crc32(f.content);
+    const size = contentBytes.length;
+
+    const localHeader = new DataView(new ArrayBuffer(30));
+    localHeader.setUint32(0, 0x04034b50, true);
+    localHeader.setUint16(4, 20, true);
+    localHeader.setUint16(6, 0, true);
+    localHeader.setUint16(8, 0, true);
+    localHeader.setUint16(10, 0, true);
+    localHeader.setUint16(12, 0, true);
+    localHeader.setUint32(14, crc, true);
+    localHeader.setUint32(18, size, true);
+    localHeader.setUint32(22, size, true);
+    localHeader.setUint16(26, nameBytes.length, true);
+    localHeader.setUint16(28, 0, true);
+    localParts.push(new Uint8Array(localHeader.buffer), nameBytes, contentBytes);
+
+    const centralHeader = new DataView(new ArrayBuffer(46));
+    centralHeader.setUint32(0, 0x02014b50, true);
+    centralHeader.setUint16(4, 20, true);
+    centralHeader.setUint16(6, 20, true);
+    centralHeader.setUint16(8, 0, true);
+    centralHeader.setUint16(10, 0, true);
+    centralHeader.setUint16(12, 0, true);
+    centralHeader.setUint16(14, 0, true);
+    centralHeader.setUint32(16, crc, true);
+    centralHeader.setUint32(20, size, true);
+    centralHeader.setUint32(24, size, true);
+    centralHeader.setUint16(28, nameBytes.length, true);
+    centralHeader.setUint16(30, 0, true);
+    centralHeader.setUint16(32, 0, true);
+    centralHeader.setUint16(34, 0, true);
+    centralHeader.setUint16(36, 0, true);
+    centralHeader.setUint32(38, 0, true);
+    centralHeader.setUint32(42, offset, true);
+    centralParts.push(new Uint8Array(centralHeader.buffer), nameBytes);
+
+    offset += 30 + nameBytes.length + contentBytes.length;
+  });
+
+  const centralDirSize = centralParts.reduce((s,p) => s + p.length, 0);
+  const centralDirOffset = offset;
+
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true);
+  eocd.setUint16(4, 0, true);
+  eocd.setUint16(6, 0, true);
+  eocd.setUint16(8, files.length, true);
+  eocd.setUint16(10, files.length, true);
+  eocd.setUint32(12, centralDirSize, true);
+  eocd.setUint32(16, centralDirOffset, true);
+  eocd.setUint16(20, 0, true);
+
+  return new Blob([...localParts, ...centralParts, new Uint8Array(eocd.buffer)], { type:'application/zip' });
+}
+
+function exportRouteGcode(route){
+  const laminaPart = sanitizeFilename(lamina.name || document.getElementById('fileName').value) || 'lamina';
+  const routePart = sanitizeFilename(route.name) || 'recorrido';
+
+  if(route.materialId && route.selectedVariableId === 'all'){
+    const material = materials.find(m => m.id === route.materialId);
+    if(!material || material.variables.length === 0){
+      setStatus('El material seleccionado no tiene variables para exportar.', 'err');
+      return;
+    }
+    const materialPart = sanitizeFilename(material.name);
+    material.variables.forEach(v=>{
+      const gcode = conMedidasDeOrigen(buildRouteGcodePreview(route, v.value, material.name + ' · ' + v.name));
+      const fname = laminaPart + '_' + routePart + '_' + materialPart + '_' + sanitizeFilename(v.name);
+      downloadTextFile(gcode, fname + '.txt');
+    });
+    setStatus('Se exportaron ' + material.variables.length + ' archivo(s) de "' + route.name + '" (' + material.name + ').', 'ok');
+    return;
+  }
+
+  const override = getRouteWeldOverride(route);
+  const gcode = conMedidasDeOrigen(buildRouteGcodePreview(route, override ? override.value : null, override ? override.label : null));
+  const fname = laminaPart + '_' + routePart + (override ? '_' + sanitizeFilename(override.materialName) + '_' + sanitizeFilename(override.name) : '');
+
+  downloadTextFile(gcode, fname + '.txt');
+  setStatus('G-code de "' + route.name + '" exportado como "' + fname + '.txt".', 'ok');
+}
+
+// G-code de un solo punto: programa completo e independiente (G21...M30) que va
+// directo a la posición ABSOLUTA real de ese punto — no depende del modo
+// Incremental/Absoluto del recorrido, porque al ser un punto suelto no hay
+// "punto anterior" del cual partir.
+function buildSinglePointGcode(route, holeId, weldOverride, variableLabel, contextLabel){
+  const hole = holes.find(h => h.id === holeId);
+  if(!hole || !hole.result) return '; Punto no encontrado.';
+
+  const settleP = (route.settleP !== undefined && route.settleP !== null && route.settleP !== '') ? route.settleP : 100;
+  const weldP = (weldOverride !== undefined && weldOverride !== null && weldOverride !== '')
+    ? weldOverride
+    : ((route.weldP !== undefined && route.weldP !== null && route.weldP !== '') ? route.weldP : 18);
+  const workCoord = route.workCoord || 'G58';
+  const context = contextLabel || ('recorrido "' + route.name + '"');
+
+  const lines = [
+    '; Punto individual: ' + hole.name + ' — ' + context + (variableLabel ? ' — ' + variableLabel : ''),
+    '',
+    'G21',
+    'G90 ' + workCoord + ' G01 X' + fmt(hole.result.cx) + ' Y' + fmt(hole.result.cy) + ' Z0 A0 F400   ; -> ' + hole.name,
+    'G04 P' + settleP + '                         ; espera',
+    'M08 (GAS ON)',
+    'M07 (LASER ON)',
+    'G04 P' + weldP + '                          ; solda',
+    'M09 (LASER OFF, GAS OFF)',
+    'G04 P' + settleP + '                         ; espera',
+    '',
+    'M30'
+  ];
+  return lines.join('\n');
+}
+
+function exportSinglePointGcode(route, holeId){
+  const hole = holes.find(h => h.id === holeId);
+  if(!hole){ setStatus('Ese punto ya no existe.', 'err'); return; }
+
+  const laminaPart = sanitizeFilename(lamina.name || document.getElementById('fileName').value) || 'lamina';
+  const routePart = sanitizeFilename(route.name) || 'recorrido';
+  const pointPart = sanitizeFilename(hole.name) || 'punto';
+
+  if(route.materialId && route.selectedVariableId === 'all'){
+    const material = materials.find(m => m.id === route.materialId);
+    if(!material || material.variables.length === 0){
+      setStatus('El material seleccionado no tiene variables para exportar.', 'err');
+      return;
+    }
+    const materialPart = sanitizeFilename(material.name);
+    material.variables.forEach(v=>{
+      const gcode = buildSinglePointGcode(route, holeId, v.value, material.name + ' · ' + v.name);
+      const fname = laminaPart + '_' + routePart + '_' + pointPart + '_' + materialPart + '_' + sanitizeFilename(v.name);
+      downloadTextFile(gcode, fname + '.txt');
+    });
+    setStatus('Se exportaron ' + material.variables.length + ' archivo(s) de "' + hole.name + '" (' + material.name + ').', 'ok');
+    return;
+  }
+
+  const override = getRouteWeldOverride(route);
+  const gcode = buildSinglePointGcode(route, holeId, override ? override.value : null, override ? override.label : null);
+  const fname = laminaPart + '_' + routePart + '_' + pointPart + (override ? '_' + sanitizeFilename(override.materialName) + '_' + sanitizeFilename(override.name) : '');
+
+  downloadTextFile(gcode, fname + '.txt');
+  setStatus('G-code de "' + hole.name + '" exportado como "' + fname + '.txt".', 'ok');
+}
+
+// ---------- EXPORTAR TODOS LOS PUNTOS (individual, toda la lámina) ----------
+function toggleExportAllPanel(){
+  document.getElementById('exportAllContent').classList.toggle('collapsed');
+  document.getElementById('exportAllChevron').classList.toggle('expanded');
+}
+
+function renderExportAllMaterialUI(){
+  const select = document.getElementById('exportAllMaterialSelect');
+  const prevValue = exportAllConfig.materialId || '';
+  select.innerHTML = '<option value="">Manual (sin material)</option>';
+  materials.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m.id; opt.textContent = m.name;
+    if(prevValue === m.id) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  const weldInput = document.getElementById('exportAllWeld');
+  const pillsWrap = document.getElementById('exportAllVarPills');
+  pillsWrap.innerHTML = '';
+
+  const override = getRouteWeldOverride(exportAllConfig);
+  if(override){
+    weldInput.value = override.value;
+    weldInput.disabled = true;
+    weldInput.title = 'Definido por la variable de material "' + override.label + '"';
+  } else if(exportAllConfig.materialId && exportAllConfig.selectedVariableId === 'all'){
+    weldInput.value = '';
+    weldInput.placeholder = 'varía';
+    weldInput.disabled = true;
+    weldInput.title = 'Se usará cada variable del material al exportar';
+  } else {
+    weldInput.disabled = false;
+    weldInput.title = '';
+  }
+
+  if(exportAllConfig.materialId){
+    const material = materials.find(m => m.id === exportAllConfig.materialId);
+    if(material && material.variables.length > 0){
+      material.variables.forEach(v=>{
+        const pill = document.createElement('div');
+        pill.className = 'material-var-pill' + (exportAllConfig.selectedVariableId === v.id ? ' active' : '');
+        if(exportAllConfig.selectedVariableId === v.id){ pill.style.background = 'var(--laser)'; pill.style.borderColor = 'transparent'; }
+        pill.textContent = v.name + ' · P' + v.value;
+        pill.addEventListener('click', ()=>{
+          exportAllConfig.selectedVariableId = (exportAllConfig.selectedVariableId === v.id) ? null : v.id;
+          renderExportAllMaterialUI();
+        });
+        pillsWrap.appendChild(pill);
+      });
+      const allPill = document.createElement('div');
+      allPill.className = 'material-var-pill' + (exportAllConfig.selectedVariableId === 'all' ? ' active' : '');
+      if(exportAllConfig.selectedVariableId === 'all'){ allPill.style.background = 'var(--laser)'; allPill.style.borderColor = 'transparent'; }
+      allPill.textContent = 'Todos';
+      allPill.title = 'Exportar cada punto con cada variable de este material';
+      allPill.addEventListener('click', ()=>{
+        exportAllConfig.selectedVariableId = (exportAllConfig.selectedVariableId === 'all') ? null : 'all';
+        renderExportAllMaterialUI();
+      });
+      pillsWrap.appendChild(allPill);
+    } else if(material){
+      const hint = document.createElement('div');
+      hint.className = 'route-empty-hint';
+      hint.textContent = 'Este material no tiene variables — agrégalas en "Materiales de soldadura".';
+      pillsWrap.appendChild(hint);
+    }
+  }
+}
+
+function exportAllPointsIndividually(){
+  const statusEl = document.getElementById('exportAllStatus');
+  const validHoles = holes.filter(h => h.result);
+  if(validHoles.length === 0){ statusEl.textContent = 'No hay puntos en la lámina para exportar.'; return; }
+
+  const laminaPart = sanitizeFilename(lamina.name || document.getElementById('fileName').value) || 'lamina';
+  const folderName = laminaPart + '_puntosIndividuales';
+  const zipFiles = [];
+
+  if(exportAllConfig.materialId && exportAllConfig.selectedVariableId === 'all'){
+    const material = materials.find(m => m.id === exportAllConfig.materialId);
+    if(!material || material.variables.length === 0){
+      statusEl.textContent = 'El material seleccionado no tiene variables para exportar.';
+      return;
+    }
+    const materialPart = sanitizeFilename(material.name);
+    validHoles.forEach(h=>{
+      material.variables.forEach(v=>{
+        const gcode = buildSinglePointGcode(exportAllConfig, h.id, v.value, material.name + ' · ' + v.name, 'lámina completa');
+        const fname = laminaPart + '_' + sanitizeFilename(h.name) + '_' + materialPart + '_' + sanitizeFilename(v.name);
+        zipFiles.push({ name: folderName + '/' + fname + '.txt', content: gcode });
+      });
+    });
+  } else {
+    const override = getRouteWeldOverride(exportAllConfig);
+    validHoles.forEach(h=>{
+      const gcode = buildSinglePointGcode(exportAllConfig, h.id, override ? override.value : null, override ? override.label : null, 'lámina completa');
+      const fname = laminaPart + '_' + sanitizeFilename(h.name) + (override ? '_' + sanitizeFilename(override.materialName) + '_' + sanitizeFilename(override.name) : '');
+      zipFiles.push({ name: folderName + '/' + fname + '.txt', content: gcode });
+    });
+  }
+
+  const zipBlob = createZipBlob(zipFiles);
+  downloadBlob(zipBlob, folderName + '.zip');
+
+  statusEl.textContent = 'Se exportó "' + folderName + '.zip" con ' + zipFiles.length + ' archivo(s) — descomprímelo para obtener la carpeta.';
+}
+
+function addHoleToActiveRoute(holeId){
+  if(!routeAddMode || !activeRouteId) return;
+  const route = routes.find(r => r.id === activeRouteId);
+  if(!route) return;
+  route.holeIds.push(holeId);
+  renderRoutesList();
+  updateLiveView();
+}
+
+function removeRouteStep(routeId, index){
+  const route = routes.find(r => r.id === routeId);
+  if(!route) return;
+  route.holeIds.splice(index, 1);
+  renderRoutesList();
+  updateLiveView();
+}
+
+function moveRouteStep(routeId, index, dir){
+  const route = routes.find(r => r.id === routeId);
+  if(!route) return;
+  const j = index + dir;
+  if(j < 0 || j >= route.holeIds.length) return;
+  const tmp = route.holeIds[index];
+  route.holeIds[index] = route.holeIds[j];
+  route.holeIds[j] = tmp;
+  renderRoutesList();
+  updateLiveView();
+}
+
+// Calcula los pasos del recorrido con coordenadas relativas según el modo elegido.
+// Devuelve null si algún punto referenciado ya no existe.
+function computeRouteSteps(route){
+  const centers = route.holeIds.map(id => {
+    const h = holes.find(x => x.id === id);
+    return (h && h.result) ? { id:h.id, name:h.name, x:h.result.cx, y:h.result.cy } : null;
+  });
+  if(centers.length === 0) return [];
+  if(centers.some(c => !c)) return null;
+
+  const steps = [];
+  if(route.coordMode === 'chained'){
+    centers.forEach((c,i)=>{
+      if(i === 0) steps.push({ name:c.name, isOrigin:true, x:c.x, y:c.y });
+      else steps.push({ name:c.name, isOrigin:false, dx:c.x-centers[i-1].x, dy:c.y-centers[i-1].y });
+    });
+  } else {
+    const origin = centers[0];
+    centers.forEach((c,i)=>{
+      if(i === 0) steps.push({ name:c.name, isOrigin:true, x:c.x, y:c.y });
+      else steps.push({ name:c.name, isOrigin:false, dx:c.x-origin.x, dy:c.y-origin.y });
+    });
+  }
+  return steps;
+}
+
+function buildRouteGcodePreview(route, weldOverride, variableLabel){
+  const steps = computeRouteSteps(route);
+  if(!steps) return '; Falta al menos un punto de este recorrido (fue eliminado).';
+  if(steps.length === 0) return '; Recorrido vacío.';
+
+  const settleP = (route.settleP !== undefined && route.settleP !== null && route.settleP !== '') ? route.settleP : 100;
+  const weldP = (weldOverride !== undefined && weldOverride !== null && weldOverride !== '')
+    ? weldOverride
+    : ((route.weldP !== undefined && route.weldP !== null && route.weldP !== '') ? route.weldP : 18);
+  const workCoord = route.workCoord || 'G58';
+  const first = steps[0];
+
+  const lines = [
+    '; Recorrido: ' + route.name + ' (' + (route.coordMode==='chained' ? 'incremental' : 'absoluto') + ')' + (variableLabel ? ' — ' + variableLabel : ''),
+    ''
+  ];
+
+  lines.push('G21');
+  lines.push('G90 ' + workCoord + ' G01 X' + fmt(first.x) + ' Y' + fmt(first.y) + ' Z0 A0 F400   ; -> ' + first.name);
+  lines.push(route.coordMode === 'chained' ? 'G91' : 'G90');
+  lines.push('');
+  lines.push('G04 P' + settleP + '                         ; espera');
+  lines.push('M08 (GAS ON)');
+  lines.push('M07 (LASER ON)');
+  lines.push('G04 P' + weldP + '                          ; solda');
+  lines.push('M09 (LASER OFF, GAS OFF)');
+  lines.push('G04 P' + settleP + '                         ; espera (sirve también de apertura del siguiente punto)');
+
+  for(let i=1;i<steps.length;i++){
+    const s = steps[i];
+    // En modo fijo, s.dx/s.dy son delta respecto al origen (solo para mostrar en pantalla);
+    // para G90 real se necesita la coordenada absoluta verdadera del punto.
+    const x = route.coordMode === 'chained' ? s.dx : (first.x + s.dx);
+    const y = route.coordMode === 'chained' ? s.dy : (first.y + s.dy);
+    lines.push('');
+    lines.push('G01 X' + fmt(x) + ' Y' + fmt(y) + '   ; -> ' + s.name);
+    lines.push('M08 (GAS ON)');
+    lines.push('M07 (LASER ON)');
+    lines.push('G04 P' + weldP + '                          ; solda');
+    lines.push('M09 (LASER OFF, GAS OFF)');
+    lines.push('G04 P' + settleP + '                         ; espera');
+  }
+
+  lines.push('');
+  lines.push('M30');
+  return lines.join('\n');
+}
+
+function renderRoutesList(){
+  const listEl = document.getElementById('routeList');
+  if(routes.length === 0){
+    listEl.innerHTML = '<div class="piece-empty">Aún no has creado ningún recorrido.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  routes.forEach(route=>{
+    const card = document.createElement('div');
+    card.className = 'route-card' + (route.id === activeRouteId && routeAddMode ? ' active' : '');
+    card.dataset.routeId = route.id;
+    card.style.borderLeftColor = route.color;
+    card.addEventListener('click', (e)=>{
+      if(e.target.closest('.route-name-input, .route-mini-btn, .route-mode-opt, .route-step-btn, .route-gcode')) return;
+      selectRouteCard(route.id);
+    });
+
+    // --- CABECERA (Siempre visible) ---
+    const head = document.createElement('div');
+    head.className = 'route-head';
+    head.style.display = 'flex';
+    head.style.alignItems = 'center';
+    head.style.gap = '4px';
+
+    const collapseBtn = document.createElement('button');
+    collapseBtn.className = 'route-mini-btn';
+    collapseBtn.innerHTML = route.collapsed ? '▶' : '▼';
+    collapseBtn.title = route.collapsed ? 'Expandir' : 'Colapsar';
+    collapseBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      route.collapsed = !route.collapsed;
+      renderRoutesList();
+    });
+    head.appendChild(collapseBtn);
+
+    const nameInput = document.createElement('input');
+    nameInput.className = 'route-name-input mono';
+    nameInput.value = route.name;
+    nameInput.addEventListener('click', e => e.stopPropagation());
+    nameInput.addEventListener('input', e => renameRoute(route.id, e.target.value));
+
+    const actions = document.createElement('div');
+    actions.className = 'route-actions';
+    const visBtn = document.createElement('button');
+    visBtn.className = 'route-mini-btn';
+    visBtn.innerHTML = route.visible ? '👁' : '🚫';
+    visBtn.title = route.visible ? 'Ocultar este recorrido en el lienzo' : 'Mostrar este recorrido en el lienzo';
+    visBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleRouteVisibility(route.id); });
+    const delBtn = document.createElement('button');
+    delBtn.className = 'route-mini-btn';
+    delBtn.innerHTML = '&times;';
+    delBtn.title = 'Eliminar recorrido';
+    delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteRoute(route.id); });
+    
+    actions.appendChild(visBtn);
+    actions.appendChild(delBtn);
+
+    head.appendChild(nameInput);
+    head.appendChild(actions);
+    card.appendChild(head);
+
+    // --- CONTENEDOR DE DETALLES (Se oculta al colapsar) ---
+    const details = document.createElement('div');
+    details.style.display = route.collapsed ? 'none' : 'block';
+
+    const meta = document.createElement('div');
+    meta.className = 'route-meta mono';
+    meta.textContent = route.holeIds.length + ' punto(s)' + (route.id===activeRouteId && routeAddMode ? ' · agregando…' : '') + (!route.visible ? ' · oculto' : '');
+    details.appendChild(meta);
+
+    const modeRow = document.createElement('div');
+    modeRow.className = 'route-mode-row';
+    ['chained','fixed'].forEach(mode=>{
+      const opt = document.createElement('div');
+      opt.className = 'route-mode-opt' + (route.coordMode===mode ? ' active' : '');
+      if(route.coordMode===mode){ opt.style.borderColor = route.color; opt.style.color = route.color; }
+      opt.textContent = mode==='chained' ? 'Incremental' : 'Absoluto';
+      opt.addEventListener('click', (e)=>{ e.stopPropagation(); setRouteMode(route.id, mode); });
+      modeRow.appendChild(opt);
+    });
+    details.appendChild(modeRow);
+
+    const paramsRow = document.createElement('div');
+    paramsRow.className = 'route-params';
+
+    const settleField = document.createElement('div');
+    settleField.className = 'field';
+    settleField.innerHTML = '<label>Asent. (G04 P)</label>';
+    const settleInput = document.createElement('input');
+    settleInput.type = 'number'; settleInput.value = route.settleP;
+    settleInput.addEventListener('click', e => e.stopPropagation());
+    settleInput.addEventListener('input', e => { route.settleP = e.target.value; if(route.gcodeVisible) refreshRouteGcode(route); });
+    settleField.appendChild(settleInput);
+
+    const weldField = document.createElement('div');
+    weldField.className = 'field';
+    weldField.innerHTML = '<label>Suelda (G04 P)</label>';
+    const weldInput = document.createElement('input');
+    weldInput.type = 'number';
+    const activeOverride = getRouteWeldOverride(route);
+    if(activeOverride){
+      weldInput.value = activeOverride.value;
+      weldInput.disabled = true;
+      weldInput.title = 'Definido por la variable de material "' + activeOverride.label + '"';
+    } else if(route.materialId && route.selectedVariableId === 'all'){
+      weldInput.value = '';
+      weldInput.placeholder = 'varía';
+      weldInput.disabled = true;
+      weldInput.title = 'Se usará cada variable del material al exportar "Todos"';
+    } else {
+      weldInput.value = route.weldP;
+      weldInput.addEventListener('click', e => e.stopPropagation());
+      weldInput.addEventListener('input', e => { route.weldP = e.target.value; if(route.gcodeVisible) refreshRouteGcode(route); });
+    }
+    weldField.appendChild(weldInput);
+
+    const coordField = document.createElement('div');
+    coordField.className = 'field';
+    coordField.innerHTML = '<label>Sist. coord.</label>';
+    const coordInput = document.createElement('input');
+    coordInput.type = 'text'; coordInput.value = route.workCoord;
+    coordInput.addEventListener('click', e => e.stopPropagation());
+    coordInput.addEventListener('input', e => { route.workCoord = e.target.value; if(route.gcodeVisible) refreshRouteGcode(route); });
+    coordField.appendChild(coordInput);
+
+    paramsRow.appendChild(settleField);
+    paramsRow.appendChild(weldField);
+    paramsRow.appendChild(coordField);
+    details.appendChild(paramsRow);
+
+    const materialSelect = document.createElement('select');
+    materialSelect.className = 'route-material-select';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = ''; noneOpt.textContent = 'Manual (sin material)';
+    materialSelect.appendChild(noneOpt);
+    materials.forEach(m=>{
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.name;
+      if(route.materialId === m.id) opt.selected = true;
+      materialSelect.appendChild(opt);
+    });
+    materialSelect.addEventListener('click', e => e.stopPropagation());
+    materialSelect.addEventListener('change', e=>{
+      route.materialId = e.target.value || null;
+      route.selectedVariableId = null;
+      renderRoutesList();
+      updateLiveView();
+    });
+    details.appendChild(materialSelect);
+
+    if(route.materialId){
+      const material = materials.find(m => m.id === route.materialId);
+      if(material && material.variables.length > 0){
+        const pills = document.createElement('div');
+        pills.className = 'material-var-pills';
+        material.variables.forEach(v=>{
+          const pill = document.createElement('div');
+          pill.className = 'material-var-pill' + (route.selectedVariableId === v.id ? ' active' : '');
+          if(route.selectedVariableId === v.id){ pill.style.background = route.color; pill.style.borderColor = route.color; }
+          pill.textContent = v.name + ' · P' + v.value;
+          pill.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            route.selectedVariableId = (route.selectedVariableId === v.id) ? null : v.id;
+            renderRoutesList();
+            updateLiveView();
+          });
+          pills.appendChild(pill);
+        });
+        const allPill = document.createElement('div');
+        allPill.className = 'material-var-pill' + (route.selectedVariableId === 'all' ? ' active' : '');
+        if(route.selectedVariableId === 'all'){ allPill.style.background = route.color; allPill.style.borderColor = route.color; }
+        allPill.textContent = 'Todos';
+        allPill.title = 'Exportar un archivo por cada variable de este material';
+        allPill.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          route.selectedVariableId = (route.selectedVariableId === 'all') ? null : 'all';
+          renderRoutesList();
+          updateLiveView();
+        });
+        pills.appendChild(allPill);
+        details.appendChild(pills);
+      } else if(material){
+        const hint = document.createElement('div');
+        hint.className = 'route-empty-hint';
+        hint.textContent = 'Este material no tiene variables — agrégalas en "Materiales de soldadura".';
+        details.appendChild(hint);
+      }
+    }
+
+    if(route.holeIds.length === 0){
+      const hint = document.createElement('div');
+      hint.className = 'route-empty-hint';
+      hint.textContent = 'Activa este recorrido y haz clic en puntos para agregarlos.';
+      details.appendChild(hint);
+    } else {
+      const steps = computeRouteSteps(route);
+      const stepsWrap = document.createElement('div');
+      stepsWrap.className = 'route-steps';
+
+      route.holeIds.forEach((holeId, idx)=>{
+        const hole = holes.find(h => h.id === holeId);
+        const stepData = steps ? steps[idx] : null;
+        const row = document.createElement('div');
+        row.className = 'route-step';
+
+        const seq = document.createElement('span');
+        seq.className = 'seq';
+        seq.style.background = route.color;
+        seq.textContent = idx+1;
+
+        const info = document.createElement('span');
+        info.className = 'info';
+        info.textContent = hole ? hole.name : '⚠ punto eliminado';
+
+        const delta = document.createElement('span');
+        delta.className = 'delta';
+        if(stepData){
+          delta.textContent = stepData.isOrigin
+            ? ('X ' + fmt(stepData.x) + ' Y ' + fmt(stepData.y))
+            : ('ΔX ' + fmt(stepData.dx) + ' ΔY ' + fmt(stepData.dy));
+        } else {
+          delta.textContent = '—';
+        }
+
+        const stepActions = document.createElement('span');
+        stepActions.className = 'route-step-actions';
+        const exportPtBtn = document.createElement('button');
+        exportPtBtn.className = 'route-step-btn'; exportPtBtn.innerHTML = '⬇';
+        exportPtBtn.title = 'Exportar G-code solo de este punto';
+        exportPtBtn.disabled = !hole;
+        exportPtBtn.addEventListener('click', (e)=>{ e.stopPropagation(); if(hole) exportSinglePointGcode(route, hole.id); });
+        const upBtn = document.createElement('button');
+        upBtn.className = 'route-step-btn'; upBtn.innerHTML = '↑'; upBtn.disabled = idx===0;
+        upBtn.addEventListener('click', (e)=>{ e.stopPropagation(); moveRouteStep(route.id, idx, -1); });
+        const downBtn = document.createElement('button');
+        downBtn.className = 'route-step-btn'; downBtn.innerHTML = '↓'; downBtn.disabled = idx===route.holeIds.length-1;
+        downBtn.addEventListener('click', (e)=>{ e.stopPropagation(); moveRouteStep(route.id, idx, 1); });
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'route-step-btn'; rmBtn.innerHTML = '&times;';
+        rmBtn.addEventListener('click', (e)=>{ e.stopPropagation(); removeRouteStep(route.id, idx); });
+        stepActions.appendChild(exportPtBtn); stepActions.appendChild(upBtn); stepActions.appendChild(downBtn); stepActions.appendChild(rmBtn);
+
+        row.appendChild(seq); row.appendChild(info); row.appendChild(delta); row.appendChild(stepActions);
+        stepsWrap.appendChild(row);
+      });
+      details.appendChild(stepsWrap);
+
+      const gcodeWrap = document.createElement('div');
+      gcodeWrap.className = 'route-gcode';
+      const gcodeBtnRow = document.createElement('div');
+      gcodeBtnRow.className = 'btn-row';
+      const gcodeBtn = document.createElement('button');
+      gcodeBtn.className = 'btn-tiny';
+      gcodeBtn.style.flex = '1';
+      gcodeBtn.textContent = route.gcodeVisible ? '⛭ Ocultar vista previa' : '⛭ Vista previa';
+      const exportBtn = document.createElement('button');
+      exportBtn.className = 'btn-tiny';
+      exportBtn.style.flex = '1';
+      exportBtn.textContent = '⬇ Exportar .txt';
+      {
+        const base = sanitizeFilename(lamina.name || document.getElementById('fileName').value || 'lamina') + '_' + sanitizeFilename(route.name);
+        const ov = getRouteWeldOverride(route);
+        if(ov) exportBtn.title = 'Descargar como ' + base + '_' + sanitizeFilename(ov.materialName) + '_' + sanitizeFilename(ov.name) + '.txt';
+        else if(route.materialId && route.selectedVariableId === 'all'){
+          const mat = materials.find(m => m.id === route.materialId);
+          exportBtn.title = 'Descargar ' + (mat ? mat.variables.length : 0) + ' archivo(s), ej.: ' + base + '_' + sanitizeFilename(mat ? mat.name : '') + '_<variable>.txt';
+        } else {
+          exportBtn.title = 'Descargar como ' + base + '.txt';
+        }
+      }
+      exportBtn.addEventListener('click', (e)=>{ e.stopPropagation(); exportRouteGcode(route); });
+      const gcodeArea = document.createElement('textarea');
+      gcodeArea.className = 'mono';
+      gcodeArea.readOnly = true;
+      gcodeArea.style.display = route.gcodeVisible ? 'block' : 'none';
+      if(route.gcodeVisible) gcodeArea.value = computeRouteGcodeText(route);
+      gcodeBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        route.gcodeVisible = !route.gcodeVisible;
+        if(route.gcodeVisible){
+          gcodeArea.value = computeRouteGcodeText(route); 
+          gcodeArea.style.display = 'block'; 
+          gcodeBtn.textContent = '⛭ Ocultar vista previa'; 
+          setTimeout(() => {
+            gcodeArea.style.height = 'auto';
+            gcodeArea.style.height = (gcodeArea.scrollHeight + 2) + 'px';
+          }, 0);
+        } else { 
+          gcodeArea.style.display = 'none'; 
+          gcodeBtn.textContent = '⛭ Vista previa'; 
+        }
+      });
+      gcodeBtnRow.appendChild(gcodeBtn);
+      gcodeBtnRow.appendChild(exportBtn);
+      gcodeWrap.appendChild(gcodeBtnRow);
+      gcodeWrap.appendChild(gcodeArea);
+      
+      details.appendChild(gcodeWrap);
+    }
+
+    card.appendChild(details);
+    listEl.appendChild(card);
+  });
+}
+
+
+
+
+// ---------- RENDER SCENE ----------
+function renderScene(current){
+  current = current || { pts: [], method: currentMethod, previewResult:null };
+  const currentPts = current.pts || [];
+  const currentMeth = current.method || currentMethod;
+  const previewResult = current.previewResult || null;
+  placedLabels = [];
+
+  clearSvg();
+
+  const hasGcode = lamina.showGcode && lamina.gcodePaths.length > 0;
+  const hasAny = holes.length > 0 || currentPts.length > 0 || hasGcode || previewResult;
+
+  if(!cameraInitialized || !camera){
+    // La camara solo se recoloca cuando se pide: al cargar una lamina o con
+    // "Ajustar vista". Agregar puntos NUNCA la mueve.
+    const bounds = hasAny ? computeContentBounds(currentPts, previewResult) : null;
+    if(bounds) camera = { cx:bounds.cx, cy:bounds.cy, scale:bounds.scale };
+    else if(!camera) camera = camaraInicial();
+    cameraInitialized = true;
+  }
+
+  const scale = camera.scale, cxMid = camera.cx, cyMid = camera.cy;
+  currentRenderScale = scale;
+
+  drawGridMm(scale, cxMid, cyMid);
+
+  function toScreen(x,y){ return [ W/2 + (x - cxMid) * scale, H/2 - (y - cyMid) * scale ]; }
+
+  document.getElementById('scaleLabel').textContent = '1 mm = ' + scale.toFixed(2) + ' px';
+
+  const ox = lamina.gcodeOffset.dx, oy = lamina.gcodeOffset.dy;
+
+  // ---- G-code background contour (arrastrable): láser (negro) vs movimiento (punteado) ----
+  // Cada trazo va doble: una banda ancha invisible que es la que se agarra, y
+  // encima la linea fina que se ve. Con solo la linea fina habia que puntear
+  // sobre 1.8 px para poder mover el contorno.
+  if(hasGcode){
+    const AGARRE = 16;                       // px de banda para el raton
+    const dibujarTrazo = (path, atributos)=>{
+      const pts = path.map(p => toScreen(p[0]+ox, p[1]+oy));
+      if(pts.length < 2) return;
+      const d = 'M ' + pts.map(p => p[0]+','+p[1]).join(' L ');
+      const agarre = el('path', { d, fill:'none', stroke:'#000000', 'stroke-width':AGARRE,
+        'stroke-linecap':'round', 'stroke-linejoin':'round', opacity:'0', class:'gcode-move-cursor' });
+      agarre.style.pointerEvents = 'stroke';
+      agarre.addEventListener('mousedown', startGcodeDrag);
+      agarre.addEventListener('touchstart', startGcodeDrag, { passive:false });
+      svg.appendChild(agarre);
+
+      const visible = el('path', Object.assign({ d, fill:'none' }, atributos));
+      visible.style.pointerEvents = 'none';   // lo que se agarra es la banda
+      svg.appendChild(visible);
+    };
+    if(lamina.gcodeLaserPaths) lamina.gcodeLaserPaths.forEach(path=>{
+      dibujarTrazo(path, { stroke:'#111111', 'stroke-width':1.8, 'stroke-linecap':'round',
+                           'stroke-linejoin':'round', opacity:'0.92', class:'gcode-move-cursor' });
+    });
+    if(lamina.showGcodeMove && lamina.gcodeMovePaths) lamina.gcodeMovePaths.forEach(path=>{
+      dibujarTrazo(path, { stroke:'#2563eb', 'stroke-width':1.3, 'stroke-dasharray':'6 4',
+                           'stroke-linecap':'round', 'stroke-linejoin':'round', opacity:'0.75',
+                           class:'gcode-move-cursor' });
+    });
+  }
+
+  // ---- saved holes ----
+  holes.forEach(hole=>{
+    const color = hole.color;
+    const screenPts = hole.pts.map(pt => toScreen(pt[0], pt[1]));
+    let centerScreen = hole.result ? toScreen(hole.result.cx, hole.result.cy) : null;
+
+    if(showConstruction && hole.result && hole.method !== 'direct'){
+      if(hole.method === 'np' && hole.pts.length === 3){
+        const [scx, scy] = centerScreen;
+        [[0,1],[1,2],[2,0]].forEach(([a,b])=>{
+          const A = screenPts[a], B = screenPts[b];
+          const mid = [(A[0]+B[0])/2, (A[1]+B[1])/2];
+          svg.appendChild(el('line', { x1:A[0], y1:A[1], x2:B[0], y2:B[1], stroke:color, 'stroke-width':1, opacity:'0.4' }));
+          svg.appendChild(el('line', { x1:mid[0], y1:mid[1], x2:scx, y2:scy, stroke:color, 'stroke-width':1.2, 'stroke-dasharray':'2 4', opacity:'0.85' }));
+          const chordDir = normalizeVec(B[0]-A[0], B[1]-A[1]);
+          const perpDir = normalizeVec(scx-mid[0], scy-mid[1]);
+          if(Math.hypot(scx-mid[0], scy-mid[1]) > 14){
+            svg.appendChild(el('path', { d: rightAngleMarker(mid, chordDir, perpDir, 8), fill:'none', stroke:color, 'stroke-width':1, opacity:'0.7' }));
+          }
+          svg.appendChild(el('circle', { cx:mid[0], cy:mid[1], r:2.2, fill:color, opacity:'0.8' }));
+        });
+      } else if(hole.method === 'np'){
+        const [scx, scy] = centerScreen;
+        hole.pts.forEach((pt,i)=>{
+          const [px,py] = screenPts[i];
+          svg.appendChild(el('line', { x1:scx, y1:scy, x2:px, y2:py, stroke:color, 'stroke-width':1, 'stroke-dasharray':'2 4', opacity:'0.5' }));
+          const dist = Math.hypot(pt[0]-hole.result.cx, pt[1]-hole.result.cy);
+          const residual = dist - hole.result.r;
+          const label = el('text', { x:px, y:py+16, fill:color, 'font-size':9, 'text-anchor':'middle', 'font-family':'IBM Plex Mono, monospace', opacity:'0.85' });
+          label.textContent = (residual>=0?'+':'') + residual.toFixed(3);
+          svg.appendChild(label);
+        });
+      } else {
+        const [scx, scy] = centerScreen;
+        for(let i=0;i<3;i++){
+          const A = screenPts[2*i], B = screenPts[2*i+1];
+          const mid = [(A[0]+B[0])/2, (A[1]+B[1])/2];
+          svg.appendChild(el('line', { x1:A[0], y1:A[1], x2:B[0], y2:B[1], stroke:color, 'stroke-width':1, opacity:'0.35' }));
+          svg.appendChild(el('line', { x1:mid[0], y1:mid[1], x2:scx, y2:scy, stroke:color, 'stroke-width':1.1, 'stroke-dasharray':'2 4', opacity:'0.8' }));
+          svg.appendChild(el('circle', { cx:mid[0], cy:mid[1], r:3, fill:'#ffffff', stroke:color, 'stroke-width':1.4 }));
+        }
+        if(hole.result.deltaX){
+          const devPx = (hole.result.deltaX/2) * scale;
+          svg.appendChild(el('circle', { cx:scx, cy:scy, r:devPx, fill:'none', stroke:color, 'stroke-width':1, 'stroke-dasharray':'3 3', opacity:'0.4' }));
+        }
+      }
+    }
+
+    if(hole.result){
+      const [scx, scy] = centerScreen;
+      const rPx = hole.result.r * scale;
+      svg.appendChild(el('circle', { cx:scx, cy:scy, r:rPx, fill:'none', stroke:color, 'stroke-width':2.2 }));
+      svg.appendChild(el('circle', { cx:scx, cy:scy, r:rPx, fill:color, opacity:'0.06', stroke:'none' }));
+
+      const cs = 12;
+      svg.appendChild(el('line', { x1:scx-cs, y1:scy, x2:scx+cs, y2:scy, stroke:color, 'stroke-width':1.6 }));
+      svg.appendChild(el('line', { x1:scx, y1:scy-cs, x2:scx, y2:scy+cs, stroke:color, 'stroke-width':1.6 }));
+      svg.appendChild(el('circle', { cx:scx, cy:scy, r:4, fill:color }));
+
+      const hit = el('circle', { cx:scx, cy:scy, r:Math.max(rPx, 14), fill:'transparent', stroke:'none' });
+      hit.style.cursor = routeAddMode ? 'pointer' : 'default';
+      hit.addEventListener('click', ()=>{
+        if(panMoved) return;
+        if(routeAddMode && activeRouteId) addHoleToActiveRoute(hole.id);
+      });
+      svg.appendChild(hit);
+
+      placeLabel(scx, scy - rPx, [ hole.name, 'C(' + fmt(hole.result.cx) + ', ' + fmt(hole.result.cy) + ')' ], color);
+    }
+
+    hole.pts.forEach(pt=>{
+      const [px,py] = toScreen(pt[0], pt[1]);
+      svg.appendChild(el('circle', { cx:px, cy:py, r:5.5, fill:'#ffffff', stroke:color, 'stroke-width':2 }));
+      svg.appendChild(el('circle', { cx:px, cy:py, r:1.8, fill:color }));
+    });
+  });
+
+  // ---- recorridos de soldadura ----
+  if(showRoutes && routes.length > 0){
+    routes.forEach(route=>{
+      if(route.visible === false) return; // ocultado individualmente
+      if(route.holeIds.length === 0) return;
+      const pts = route.holeIds.map(id=>{
+        const h = holes.find(x => x.id === id);
+        return (h && h.result) ? toScreen(h.result.cx, h.result.cy) : null;
+      });
+      if(pts.some(p => !p)) return; // punto faltante: no se dibuja esta ruta
+
+      if(pts.length > 1){
+        const d = 'M ' + pts.map(p => p[0]+','+p[1]).join(' L ');
+        const lineEl = el('path', { d, fill:'none', stroke:route.color, 'stroke-width':2, opacity:'0.8' });
+        lineEl.style.pointerEvents = 'none';
+        svg.appendChild(lineEl);
+        for(let i=0;i<pts.length-1;i++) drawArrowHead(pts[i], pts[i+1], route.color);
+      }
+
+      const routeIdx = routes.indexOf(route);
+      const badgeAngle = (routeIdx * 47) * Math.PI/180;
+      pts.forEach((p,i)=>{
+        const bx = p[0] + 16*Math.cos(badgeAngle), by = p[1] - 16*Math.sin(badgeAngle);
+        const badge = el('circle', { cx:bx, cy:by, r:8, fill:route.color, stroke:'#ffffff', 'stroke-width':1.5 });
+        badge.style.pointerEvents = 'none';
+        svg.appendChild(badge);
+        const t = el('text', { x:bx, y:by+3, 'text-anchor':'middle', 'font-size':8.5, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:'#ffffff' });
+        t.style.pointerEvents = 'none';
+        t.textContent = i+1;
+        svg.appendChild(t);
+      });
+    });
+  }
+
+  // ---- vista previa del círculo en construcción (aún no guardado) ----
+  if(previewResult){
+    const [pscx, pscy] = toScreen(previewResult.cx, previewResult.cy);
+    const prPx = previewResult.r * scale;
+    const pcolor = CURRENT_COLORS[0];
+    svg.appendChild(el('circle', { cx:pscx, cy:pscy, r:prPx, fill:'none', stroke:pcolor, 'stroke-width':1.8, 'stroke-dasharray':'5 4', opacity:'0.8' }));
+    svg.appendChild(el('circle', { cx:pscx, cy:pscy, r:3, fill:pcolor, opacity:'0.8' }));
+  }
+
+  // ---- current in-progress entry (puntos siendo ingresados) ----
+  currentPts.forEach((p,i)=>{
+    const [px,py] = toScreen(p[0], p[1]);
+    let c, label;
+    if(currentMeth === 'np'){
+      c = CURRENT_COLORS[i % CURRENT_COLORS.length];
+      label = 'P' + (i+1);
+    } else if(currentMeth === '6p'){
+      const pairIdx = Math.floor(i/2);
+      c = CURRENT_COLORS[pairIdx % CURRENT_COLORS.length];
+      label = String.fromCharCode(65+pairIdx) + ((i%2)+1);
+    } else {
+      c = CURRENT_COLORS[0];
+      label = 'C';
+    }
+    svg.appendChild(el('circle', { cx:px, cy:py, r:7, fill:'#ffffff', stroke:c, 'stroke-width':2.5 }));
+    svg.appendChild(el('circle', { cx:px, cy:py, r:2.3, fill:c }));
+    const t = el('text', { x:px, y:py-14, fill:c, 'font-size':11, 'text-anchor':'middle', 'font-family':'IBM Plex Mono, monospace', 'font-weight':600 });
+    t.textContent = label;
+    svg.appendChild(t);
+  });
+
+  document.getElementById('badgeState').textContent =
+    holes.length > 0 ? (holes.length + ' punto' + (holes.length>1?'s':'') + ' en la lámina') : 'ingresando puntos';
+
+  drawRulers(scale, cxMid, cyMid);
+}
+
+// ---------- CONSTRUCTION TOGGLE ----------
+function toggleConstruction(){
+  showConstruction = !showConstruction;
+  const btn = document.getElementById('bisectorBtn');
+  btn.textContent = showConstruction ? 'Ocultar construcción' : 'Mostrar construcción';
+  btn.classList.toggle('active', showConstruction);
+  updateLiveView();
+}
+
+// ---------- GCODE PANEL COLAPSABLE ----------
+function toggleGcodePanel(){
+  document.getElementById('gcodeContent').classList.toggle('collapsed');
+  document.getElementById('gcodeChevron').classList.toggle('expanded');
+}
+
+// ---------- SAVE / LOAD ----------
+/* El punto NO se quita: es lo que separa la pieza del tipo en
+   Pieza.tipo-etiqueta.txt. Sin el, "Cervical.lamina-2026-09-03" queda en
+   "Cervicallamina-2026-09-03", un nombre que ya no dice ni de que pieza
+   es ni que lleva dentro. */
+function sanitizeFilename(name){
+  return (name || '').replace(/[^a-zA-Z0-9_.\-áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
+}
+
+function saveToFile(){
+  if(holes.length === 0 && !lamina.gcode.trim()){
+    setStatus('No hay puntos ni G-code para exportar.', 'err');
+    return;
+  }
+  let fname = sanitizeFilename(document.getElementById('fileName').value) || 'lamina';
+
+  const lines = [
+    '# Lámina: ' + (lamina.name || fname),
+    '# Los valores de centro en los comentarios son solo referencia; se recalculan siempre desde los puntos al cargar.',
+    ''
+  ];
+
+  lines.push('[GCODE]');
+  if(lamina.gcodeOffset.dx !== 0 || lamina.gcodeOffset.dy !== 0){
+    lines.push(';OFFSET ' + lamina.gcodeOffset.dx + ',' + lamina.gcodeOffset.dy);
+  }
+  if(lamina.gcode.trim()) lines.push(...lamina.gcode.split('\n'));
+  lines.push('[/GCODE]');
+  lines.push('');
+
+  lines.push(...lineasDeCirculos());
+  lines.push('');
+
+  lines.push('[MATERIALES]');
+  materials.forEach(m=>{
+    const vars = m.variables.map(v => v.name + ':' + v.value).join(' | ');
+    lines.push(m.name + (vars ? ' | ' + vars : ''));
+  });
+  lines.push('[/MATERIALES]');
+
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  setStatus('Archivo "' + fname + '.txt" guardado (' + holes.length + ' punto(s), ' + materials.length + ' material(es)).', 'ok');
+}
+
+function parseCoord(str){
+  const parts = str.split(',').map(s => s.trim());
+  if(parts.length !== 2) return null;
+  const x = parseFloat(parts[0]), y = parseFloat(parts[1]);
+  if(Number.isNaN(x) || Number.isNaN(y)) return null;
+  return [x,y];
+}
+
+/* La receta de como se escribe un circulo, en un solo sitio: la usan la
+   lamina y las medidas que se meten dentro de cada recorrido. */
+function lineasDeCirculos(){
+  const out = ['[CIRCULOS]'];
+  holes.forEach(h=>{
+    if(h.result){
+      out.push('# ' + h.name + ' — C(' + fmt(h.result.cx) + ', ' + fmt(h.result.cy) + ')  R ' + fmt(h.result.r) +
+               '  D ' + fmt(h.result.r*2) + '  A ' + fmt(Math.PI*h.result.r*h.result.r));
+    }
+    if(h.method === 'np'){
+      out.push(h.name + ' | NP | ' + h.pts.map(pt => pt[0] + ',' + pt[1]).join(' | '));
+    } else if(h.method === '6p'){
+      out.push(h.name + ' | 6P | ' + h.pts.map(pt => pt[0] + ',' + pt[1]).join(' | ') +
+               ' | CX:' + (h.cxChoice || 'cx1'));
+    } else {
+      const tag = (h.directType === 'd') ? ('D:' + h.result.r*2) : ('R:' + h.result.r);
+      out.push(h.name + ' | DR | ' + h.result.cx + ',' + h.result.cy + ' | ' + tag);
+    }
+  });
+  out.push('[/CIRCULOS]');
+  return out;
+}
+
+/* Un recorrido dice por donde pasa la maquina, y nada mas. Los centros se
+   pueden recuperar de el —un punto se suelda EN el centro—, pero el diametro
+   y los seis bordes medidos solo viven en la lamina, y sin ellos no se puede
+   recalcular nada. Por eso el recorrido se lleva sus medidas dentro,
+   comentadas: la maquina las ignora y este programa las lee. Asi da igual
+   cual de los dos archivos se abra. */
+function medidasDeOrigen(){
+  if(!holes.length) return '';
+  const bloque = [];
+  bloque.push('');
+  bloque.push('; ==================================================================');
+  bloque.push('; MEDIDAS DE ORIGEN — no las lee la maquina, las lee el programa de');
+  bloque.push('; puntos de soldadura. Son las que hicieron falta para sacar estos');
+  bloque.push('; puntos; sin ellas, de este archivo solo se pueden recuperar los');
+  bloque.push('; centros, no los diametros.');
+  bloque.push('; ==================================================================');
+  bloque.push('[GCODE]');
+  if(lamina.gcodeOffset.dx !== 0 || lamina.gcodeOffset.dy !== 0){
+    bloque.push(';OFFSET ' + lamina.gcodeOffset.dx + ',' + lamina.gcodeOffset.dy);
+  }
+  if(lamina.gcode.trim()) bloque.push(...lamina.gcode.split('\n'));
+  bloque.push('[/GCODE]');
+  bloque.push(...lineasDeCirculos());
+  bloque.push('[MATERIALES]');
+  materials.forEach(m=>{
+    const vars = m.variables.map(v => v.name + ':' + v.value).join(' | ');
+    bloque.push(m.name + (vars ? ' | ' + vars : ''));
+  });
+  bloque.push('[/MATERIALES]');
+  bloque.push('# Lámina: ' + (lamina.name || ''));
+  /* Todo comentado con ';', que es lo que ignora cualquier control. */
+  return bloque.map(l => (l === '' ? '' : '; ' + l)).join('\n');
+}
+
+function conMedidasDeOrigen(gcode){
+  const m = medidasDeOrigen();
+  return m ? (gcode + '\n' + m + '\n') : gcode;
+}
+
+/* Que es esto que me han dado, si no es una lamina.
+
+   Un recorrido de soldadura para en cada punto y aguanta (G04, M07); un
+   programa de corte se mueve con el laser encendido y traza arcos. La
+   diferencia importa: del primero se pueden sacar los centros, del segundo
+   no hay ningun punto que sacar. */
+function leerComoGcode(rawLines){
+  if(!rawLines.some(l => /^\s*[GgMm]\d/.test(l))) return null;
+
+  const arcos = rawLines.filter(l => /\bG0*[23]\b/.test(l.split(';')[0])).length;
+  const esperas = rawLines.filter(l => /\bG0*4\b/.test(l.split(';')[0])).length;
+  if(arcos > 0 || esperas < 2) return { tipo:'corte', puntos:[] };
+
+  let modo = 'abs', x = 0, y = 0, n = 0;
+  const puntos = [];
+  rawLines.forEach(l=>{
+    const corte = l.indexOf(';');
+    const cuerpo = corte >= 0 ? l.slice(0, corte) : l;
+    const com = corte >= 0 ? l.slice(corte + 1) : '';
+    if(/\bG0*90\b/.test(cuerpo)) modo = 'abs';
+    if(/\bG0*91\b/.test(cuerpo)) modo = 'inc';
+    const wx = cuerpo.match(/[Xx]\s*(-?\d*\.?\d+)/);
+    const wy = cuerpo.match(/[Yy]\s*(-?\d*\.?\d+)/);
+    if(!wx && !wy) return;
+    const vx = wx ? parseFloat(wx[1]) : (modo === 'inc' ? 0 : x);
+    const vy = wy ? parseFloat(wy[1]) : (modo === 'inc' ? 0 : y);
+    x = (modo === 'inc') ? x + vx : vx;
+    y = (modo === 'inc') ? y + vy : vy;
+    const m = com.match(/->\s*(.+?)\s*$/);
+    n++;
+    puntos.push({ nombre: m ? m[1].trim() : ('Punto ' + n),
+                  x: Math.round(x * 1e4) / 1e4, y: Math.round(y * 1e4) / 1e4 });
+  });
+  if(!puntos.length) return { tipo:'corte', puntos:[] };
+  return { tipo:'recorrido', puntos:puntos };
+}
+
+function extractBlock(lines, startTag, endTag){
+  const startIdx = lines.findIndex(l => l.trim().toUpperCase() === startTag);
+  const endIdx = lines.findIndex(l => l.trim().toUpperCase() === endTag);
+  if(startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return null;
+  return lines.slice(startIdx+1, endIdx);
+}
+
+function loadFromFile(file){
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    const rawLines = text.split('\n').map(l => l.replace(/\r$/, ''));
+
+    let laminaNameFound = '';
+    for(const l of rawLines){
+      const m = l.match(/^\s*#\s*L[aá]mina:\s*(.*)$/i);
+      if(m){ laminaNameFound = m[1].trim(); break; }
+    }
+
+    /* Un recorrido nuestro trae las medidas dentro, comentadas. Si no se ven
+       los bloques a la vista, se mira si estan detras de un ';'. */
+    let lineasBloques = rawLines;
+    if(!rawLines.some(l => l.trim().toUpperCase() === '[CIRCULOS]')){
+      const desc = rawLines.map(l => l.replace(/^\s*;\s?/, ''));
+      if(desc.some(l => l.trim().toUpperCase() === '[CIRCULOS]')){
+        lineasBloques = desc;
+        if(!laminaNameFound){
+          for(const l of desc){
+            const m = l.match(/^\s*#\s*L[aá]mina:\s*(.*)$/i);
+            if(m && m[1].trim()){ laminaNameFound = m[1].trim(); break; }
+          }
+        }
+      }
+    }
+
+    const gcodeBlock = extractBlock(lineasBloques, '[GCODE]', '[/GCODE]');
+    const circleBlock = extractBlock(lineasBloques, '[CIRCULOS]', '[/CIRCULOS]');
+    const materialsBlock = extractBlock(lineasBloques, '[MATERIALES]', '[/MATERIALES]');
+
+    let gcodeText = '';
+    let circleLines = [];
+    let avisoRescate = 0;      // cuantos centros se rescataron de un recorrido
+
+    if(gcodeBlock !== null || circleBlock !== null){
+      gcodeText = (gcodeBlock || []).join('\n');
+      circleLines = (circleBlock || []).filter(l => l.trim() && !l.trim().startsWith('#'));
+    } else {
+      /* Aqui es donde el programa se quedaba mudo: sin bloques, tomaba cada
+         linea como un circulo y las tiraba todas por no llevar '|'. */
+      const rescate = leerComoGcode(rawLines);
+      if(rescate){
+        if(rescate.tipo === 'corte'){
+          setStatus('Esto es un programa de CORTE, no una lámina: mueve el láser encendido y no ' +
+                    'tiene puntos de soldadura. Ábrelo en el Editor de G-code.', 'err');
+          return;
+        }
+        const msg = 'Esto es un RECORRIDO de soldadura, no una lámina.\n\n' +
+          'Trae ' + rescate.puntos.length + ' centro(s) con su nombre —exactos, porque un punto ' +
+          'se suelda en el centro—, pero NO trae los diámetros ni los bordes que se midieron: ' +
+          'un G-code no guarda eso.\n\n' +
+          '¿Cargo los ' + rescate.puntos.length + ' centros con diámetro 0?\n\n' +
+          'Si lo que buscas es la lámina completa, es el archivo *.lamina.txt del proyecto.';
+        if(!window.confirm(msg)){
+          setStatus('No se cargó nada. Busca la lámina (*.lamina.txt), que sí trae las medidas.', '');
+          return;
+        }
+        circleLines = rescate.puntos.map(p => p.nombre + ' | DR | ' + p.x + ',' + p.y + ' | R:0');
+        gcodeText = '';
+        avisoRescate = rescate.puntos.length;
+      } else {
+        circleLines = rawLines.map(l => l.trim())
+                              .filter(l => l && !l.startsWith('#') && !l.startsWith(';'));
+      }
+    }
+
+    const loadedMaterials = [];
+    (materialsBlock || []).forEach(line=>{
+      const trimmed = line.trim();
+      if(!trimmed || trimmed.startsWith('#')) return;
+      const parts = trimmed.split('|').map(s => s.trim());
+      const name = parts[0];
+      if(!name) return;
+      const variables = [];
+      for(let i=1;i<parts.length;i++){
+        const idx = parts[i].lastIndexOf(':');
+        if(idx === -1) continue;
+        const vname = parts[i].slice(0, idx).trim();
+        const vval = parts[i].slice(idx+1).trim();
+        if(!vname || vval === '' || Number.isNaN(parseFloat(vval))) continue;
+        variables.push({ id: 'mv-' + Date.now() + '-' + variables.length, name: vname, value: parseFloat(vval) });
+      }
+      loadedMaterials.push({ id: 'mat-' + Date.now() + '-' + loadedMaterials.length, name, variables });
+    });
+
+    const loaded = [];
+    circleLines.forEach(line=>{
+      const parts = line.split('|').map(s => s.trim());
+      if(parts.length < 3) return;
+
+      let name, method, coordParts, cxChoiceLoaded = 'cx2', directTypeLoaded = 'r', directValue = null;
+      const tag = parts[1].toUpperCase();
+
+      if(tag === 'NP' || tag === '3P'){
+        name = parts[0]; method = 'np'; coordParts = parts.slice(2);
+      } else if(tag === '6P'){
+        name = parts[0]; method = '6p';
+        let rest = parts.slice(2);
+        const last = rest[rest.length-1] || '';
+        const cxMatch = last.match(/^CX:(cx1|cx2|avg)$/i);
+        if(cxMatch){ cxChoiceLoaded = cxMatch[1].toLowerCase(); rest = rest.slice(0,-1); }
+        coordParts = rest;
+      } else if(tag === 'DR'){
+        name = parts[0]; method = 'direct';
+        const coordPt = parseCoord(parts[2]);
+        const valPart = (parts[3]||'').match(/^([RD]):(-?[\d.]+)$/i);
+        if(!coordPt || !valPart) return;
+        directTypeLoaded = valPart[1].toLowerCase();
+        directValue = parseFloat(valPart[2]);
+        const r = directTypeLoaded === 'r' ? directValue : directValue/2;
+        loaded.push({ name, method:'direct', pts:[], directType:directTypeLoaded, result:{ cx:coordPt[0], cy:coordPt[1], r } });
+        return;
+      } else {
+        name = parts[0]; method = 'np'; coordParts = parts.slice(1);
+      }
+
+      if(method === '6p' && coordParts.length !== 6) return;
+      if(method === 'np' && coordParts.length < 3) return;
+
+      const pts = [];
+      for(const cp of coordParts){
+        const p = parseCoord(cp);
+        if(!p) return;
+        pts.push(p);
+      }
+      loaded.push({ name, method, pts, cxChoice: cxChoiceLoaded });
+    });
+
+    if(loaded.length === 0 && !gcodeText.trim()){
+      setStatus('No se reconoció nada en ese archivo: ni puntos, ni G-code, ni secciones ' +
+                '[CIRCULOS]/[GCODE]. ¿Seguro que es el archivo de la pieza?', 'err');
+      return;
+    }
+
+    holes = [];
+    holeCounter = 0;
+    loaded.forEach(item=>{
+      let result, extra = {};
+      if(item.method === 'np'){
+        result = fitCircleLeastSquares(item.pts);
+      } else if(item.method === '6p'){
+        const r = compute6p(item.pts, item.cxChoice);
+        result = { cx:r.cx, cy:r.cy, r:r.r, cx1:r.cx1, cx2:r.cx2, deltaX:r.deltaX };
+        extra.cxChoice = item.cxChoice;
+      } else {
+        result = item.result;
+        extra.directType = item.directType;
+      }
+      const color = PALETTE[holeCounter % PALETTE.length];
+      holes.push({ id: 'ag-' + Date.now() + '-' + holeCounter, name:item.name, method:item.method, pts:item.pts, result, color, ...extra });
+      holeCounter++;
+    });
+
+    lamina.name = laminaNameFound;
+    lamina.gcodeOffset = { dx:0, dy:0 };
+    syncOffsetInputs();
+    document.getElementById('laminaName').value = laminaNameFound;
+    document.getElementById('gcodeInput').value = gcodeText;
+    applyGcode(gcodeText);
+
+    materials = loadedMaterials;
+    materialCounter = materials.length;
+    // los recorridos existentes (de esta sesión) podrían referenciar materiales
+    // que ya no existen tras cargar; se limpian esas referencias para evitar datos huérfanos.
+    routes.forEach(r=>{
+      if(r.materialId && !materials.some(m => m.id === r.materialId)){
+        r.materialId = null; r.selectedVariableId = null;
+      }
+    });
+    renderMaterialsList();
+    renderRoutesList();
+
+    currentEditId = null;
+    cameraInitialized = false; // reencuadrar automáticamente esta vez, al cargar un archivo nuevo
+    updateEditorUI();
+    document.getElementById('pieceName').placeholder = nextDefaultName();
+    renderPieceList();
+    updateLiveView();
+    if(avisoRescate){
+      setStatus('Rescatados ' + avisoRescate + ' centro(s) de un recorrido. Los diámetros vienen en 0: ' +
+                'esa medida no está en el G-code. Para tenerla, abre la lámina (*.lamina.txt).', 'warn');
+    } else {
+      setStatus(loaded.length + ' punto(s) y ' + materials.length + ' material(es) cargados correctamente.', 'ok');
+    }
+  };
+  reader.onerror = function(){ setStatus('No se pudo leer el archivo.', 'err'); };
+  reader.readAsText(file);
+}
+
+// ---------- EVENTS ----------
+document.getElementById('calcBtn').addEventListener('click', calculate);
+document.getElementById('bisectorBtn').addEventListener('click', toggleConstruction);
+document.getElementById('saveBtn').addEventListener('click', saveToFile);
+document.getElementById('clearAllBtn').addEventListener('click', clearAll);
+document.getElementById('cancelEditBtn').addEventListener('click', selectNew);
+document.getElementById('prevPieceBtn').addEventListener('click', () => navStep(-1));
+document.getElementById('nextPieceBtn').addEventListener('click', () => navStep(1));
+document.getElementById('methodNpBtn').addEventListener('click', () => setMethod('np'));
+document.getElementById('method6pBtn').addEventListener('click', () => setMethod('6p'));
+document.getElementById('methodDirectBtn').addEventListener('click', () => setMethod('direct'));
+document.getElementById('npAddBtn').addEventListener('click', () => { addNpRow(); updateLiveView(); });
+document.getElementById('npRemoveBtn').addEventListener('click', removeLastNpRow);
+
+document.getElementById('cxOptCx1').addEventListener('click', () => setCxChoice('cx1'));
+document.getElementById('cxOptCx2').addEventListener('click', () => setCxChoice('cx2'));
+document.getElementById('cxOptAvg').addEventListener('click', () => setCxChoice('avg'));
+document.getElementById('directTypeR').addEventListener('click', () => setDirectType('r'));
+document.getElementById('directTypeD').addEventListener('click', () => setDirectType('d'));
+
+document.getElementById('laminaName').addEventListener('input', (e) => { lamina.name = e.target.value; });
+
+document.getElementById('gcodeHeader').addEventListener('click', toggleGcodePanel);
+document.getElementById('gcodeInput').addEventListener('input', (e) => applyGcode(e.target.value));
+document.getElementById('gcodeUploadBtn').addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('gcodeFileInput').click(); });
+document.getElementById('gcodeFileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    document.getElementById('gcodeInput').value = ev.target.result;
+    applyGcode(ev.target.result);
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+document.getElementById('gcodeClearBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('gcodeInput').value = '';
+  applyGcode('');
+});
+document.getElementById('gcodeToggleBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  lamina.showGcode = !lamina.showGcode;
+  document.getElementById('gcodeToggleBtn').textContent = lamina.showGcode ? 'Ocultar contorno' : 'Mostrar contorno';
+  updateLiveView();
+});
+document.getElementById('gcodeMoveToggleBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  lamina.showGcodeMove = !lamina.showGcodeMove;
+  document.getElementById('gcodeMoveToggleBtn').textContent = lamina.showGcodeMove ? 'Ocultar movimiento' : 'Mostrar movimiento';
+  updateLiveView();
+});
+document.getElementById('gcodeOffsetX').addEventListener('input', (e)=>{
+  const v = parseFloat(e.target.value);
+  lamina.gcodeOffset.dx = Number.isNaN(v) ? 0 : v;
+  updateLiveView();
+});
+document.getElementById('gcodeOffsetY').addEventListener('input', (e)=>{
+  const v = parseFloat(e.target.value);
+  lamina.gcodeOffset.dy = Number.isNaN(v) ? 0 : v;
+  updateLiveView();
+});
+document.getElementById('gcodeResetOffsetBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  lamina.gcodeOffset = { dx:0, dy:0 };
+  syncOffsetInputs();
+  updateLiveView();
+});
+
+document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(file){
+    document.getElementById('fileName').value = file.name.replace(/\.txt$/i, '');
+    loadFromFile(file);
+  }
+  e.target.value = '';
+});
+
+// recorridos de soldadura
+document.getElementById('materialsHeader').addEventListener('click', toggleMaterialsPanel);
+document.getElementById('newMaterialBtn').addEventListener('click', (e)=>{ e.stopPropagation(); createMaterial(); });
+document.getElementById('routesHeader').addEventListener('click', toggleRoutesPanel);
+document.getElementById('newRouteBtn').addEventListener('click', (e)=>{ e.stopPropagation(); createRoute(); });
+
+// exportar todos los puntos por separado
+document.getElementById('exportAllHeader').addEventListener('click', toggleExportAllPanel);
+document.getElementById('exportAllSettle').addEventListener('input', e => { exportAllConfig.settleP = e.target.value; });
+document.getElementById('exportAllWeld').addEventListener('input', e => { exportAllConfig.weldP = e.target.value; });
+document.getElementById('exportAllCoord').addEventListener('input', e => { exportAllConfig.workCoord = e.target.value; });
+document.getElementById('exportAllMaterialSelect').addEventListener('change', e=>{
+  exportAllConfig.materialId = e.target.value || null;
+  exportAllConfig.selectedVariableId = null;
+  renderExportAllMaterialUI();
+});
+document.getElementById('exportAllBtn').addEventListener('click', exportAllPointsIndividually);
+document.getElementById('routeAddDoneBtn').addEventListener('click', (e)=>{ e.stopPropagation(); exitRouteAddMode(); });
+document.getElementById('toggleRoutesVisibilityBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  showRoutes = !showRoutes;
+  document.getElementById('toggleRoutesVisibilityBtn').textContent = showRoutes ? 'Ocultar en lienzo' : 'Mostrar en lienzo';
+  updateLiveView();
+});
+
+// zoom / pan
+document.getElementById('zoomInBtn').addEventListener('click', () => zoomBy(1.25));
+document.getElementById('zoomOutBtn').addEventListener('click', () => zoomBy(1/1.25));
+document.getElementById('zoomFitBtn').addEventListener('click', fitView);
+svg.addEventListener('wheel', onWheelZoom, { passive:false });
+svg.addEventListener('mousedown', startPan);
+svg.addEventListener('touchstart', startPan, { passive:false });
+
+['xa1','ya1','xa2','ya2','xb1','yb1','xb2','yb2','xc1','yc1','xc2','yc2'].forEach(id=>{
+  const node = document.getElementById(id);
+  node.addEventListener('input', (e)=>{
+    if(CASCADE_TARGETS.includes(id)){
+      if(e.target.value === '') overriddenFields.delete(id);
+      else { overriddenFields.add(id); e.target.classList.remove('auto-filled'); }
+    }
+  });
+  node.addEventListener('input', updateLiveView);
+  node.addEventListener('keydown', e => { if(e.key === 'Enter') calculate(); });
+});
+
+['dCx','dCy','dValue'].forEach(id=>{
+  const node = document.getElementById(id);
+  node.addEventListener('input', updateLiveView);
+  node.addEventListener('keydown', e => { if(e.key === 'Enter') calculate(); });
+});
+
+// ---------- INIT ----------
+rebuildNpRows(NP_MIN);
+document.getElementById('pieceName').placeholder = nextDefaultName();
+updateLiveView();
+renderPieceList();
+renderMaterialsList();
+renderRoutesList();
+
+
+/* ================================================================
+   Puerta de GCoder. El hub llama aqui al abrir un archivo de un
+   proyecto; el guardado va por el puente, asi que no hace falta nada mas.
+   Si el programa se abre suelto, esto no lo llama nadie y no estorba.
+   ================================================================ */
+window.GCODER_ABRIR = function(nombre, texto){
+  // su lector espera un File; se le fabrica uno, y asi conserva el nombre.
+  loadFromFile(new File([texto], nombre, {type:'text/plain'}));
+};
+
+/* Un campo numerico que ya trae un numero no deja teclear un negativo.
+
+   Pinchas, el cursor cae detras de lo que hay, tecleas "-5" y quedaria "0-5",
+   que no es un numero: el navegador descarta la tecla sin decir nada y parece
+   que el guion este roto. Por eso los campos vacios si lo aceptaban y los
+   rellenos no.
+
+   Seleccionando el contenido al entrar, lo que tecleas sustituye a lo que
+   habia, que es lo que uno espera de un campo de dos cifras. Para corregir un
+   digito suelto, un segundo clic coloca el cursor como siempre. */
+document.addEventListener('focusin', function(ev){
+  const el = ev.target;
+  if(el && el.tagName === 'INPUT' && el.type === 'number'){
+    /* En un type=number solo vale select(): setSelectionRange revienta. */
+    try { el.select(); } catch(err) {}
+  }
+});
+
+</script>
+
+</body>
+</html>
+<!-- Diseñado por Rolando Ordoñez Rodriguez A01177301 -->

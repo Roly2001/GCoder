@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diseñador de Contornos (v1.0)</title>
+<!-- VERSION: 1.0 — incrementar en cada cambio, aquí y en <h1>/<title>, y renombrar el archivo -->
+<style>
+  :root{
+    --bg:#fbfbf9; --panel:#ffffff; --panel-2:#f4f4f1;
+    --line:#dedbd3; --line-soft:#eae8e2; --text:#20221f; --muted:#7a7d76;
+    --accent:#2563eb; --accent-dim:#2563eb33;
+    --laser:#d9541f; --move:#1f8f84; --dim:#a16207; --constr:#8b8f86;
+    --ok:#2e8f4f; --warn:#c1462f;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: radial-gradient(1200px 600px at 80% -10%, #f2f1eb 0%, transparent 60%), var(--bg);
+    color:var(--text); font-family:'IBM Plex Sans', -apple-system, Segoe UI, sans-serif;
+  }
+  .mono{ font-family:'IBM Plex Mono', 'Consolas', monospace; }
+
+  .app-shell{ display:grid; grid-template-rows:auto 1fr; height:100vh; }
+
+  .topbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--panel); border-bottom:1px solid var(--line); padding:10px 20px;
+  }
+  .brand{ display:flex; align-items:baseline; gap:9px; margin-right:8px; }
+  .brand .dot{
+    width:8px; height:8px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 10px 2px var(--accent-dim); flex-shrink:0;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.5; transform:scale(.8);} }
+  .brand h1{ font-size:13px; margin:0; letter-spacing:.05em; text-transform:uppercase; font-weight:700; white-space:nowrap; }
+  .version-tag{
+    font-size:9.5px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:4px; padding:1px 6px; letter-spacing:.03em; margin-left:2px;
+  }
+  .topbar-field{ display:flex; flex-direction:column; gap:2px; }
+  .topbar-field label{ font-size:9px; color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
+  .topbar-field input{
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; color:var(--text);
+    padding:6px 9px; font-size:12.5px; outline:none; width:170px;
+  }
+  .topbar-field input:focus{ border-color:var(--accent); }
+  .topbar-spacer{ flex:1; }
+  .topbar-actions{ display:flex; gap:8px; }
+
+  .btn-secondary{
+    background:#ffffff; color:var(--text); border:1px solid var(--line); border-radius:7px;
+    padding:8px 12px; font-size:11.5px; font-weight:600; letter-spacing:.02em;
+    cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center;
+    gap:6px; white-space:nowrap;
+  }
+  .btn-secondary:hover{ border-color:#c7c4bb; background:var(--panel-2); }
+  .btn-secondary.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .btn-tiny{
+    background:#ffffff; color:var(--muted); border:1px solid var(--line); border-radius:6px;
+    padding:5px 9px; font-size:10.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .btn-tiny:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn-tiny:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn{
+    background:var(--accent); color:#fff; border:none; border-radius:7px;
+    padding:12px 14px; font-size:12.5px; font-weight:700; letter-spacing:.03em;
+    cursor:pointer; transition:filter .15s, transform .1s; width:100%;
+  }
+  .btn:hover{ filter:brightness(1.08); }
+  .btn:active{ transform:scale(.98); }
+  .link-btn{ background:none; border:none; color:var(--muted); font-size:11px; text-decoration:underline; cursor:pointer; padding:0; }
+  .link-btn:hover{ color:var(--accent); }
+
+  .app-body{ display:grid; grid-template-columns: 240px 1fr 300px; min-height:0; }
+  .col{ background:var(--panel); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .col-left{ border-right:1px solid var(--line); }
+  .col-right{ border-left:1px solid var(--line); }
+  .col::-webkit-scrollbar{ width:7px; }
+  .col::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .divider{ height:1px; background:var(--line); margin:2px 0; }
+
+  /* ---- toolbar ---- */
+  .tool-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .tool-btn{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px 4px;
+    cursor:pointer; font-size:9.5px; color:var(--text); font-weight:600; text-align:center;
+  }
+  .tool-btn .icon{ font-size:16px; line-height:1; }
+  .tool-btn:hover{ border-color:#c7c4bb; background:var(--panel-2); }
+  .tool-btn.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+
+  /* ---- layers ---- */
+  .layer-row{
+    display:flex; align-items:center; gap:8px; padding:7px 9px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:7px; font-size:11.5px;
+  }
+  .layer-row .swatch{ width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+  .layer-row .name{ flex:1; font-weight:600; }
+  .layer-row input[type="checkbox"]{ cursor:pointer; width:14px; height:14px; accent-color:var(--accent); }
+
+  /* ---- canvas ---- */
+  .col-center{ position:relative; padding:16px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .stage-frame{
+    position:relative; width:100%; height:100%; max-width:1200px;
+    background:#ffffff; border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow: inset 0 0 40px #00000008;
+  }
+  .stage-badge{
+    position:absolute; top:14px; left:16px; font-size:10.5px; color:var(--muted);
+    letter-spacing:.08em; text-transform:uppercase; z-index:5; display:flex; gap:6px; align-items:center;
+    pointer-events:none;
+  }
+  .stage-badge b{ color:var(--text); font-weight:600; }
+  .stage-scale{ position:absolute; top:14px; right:16px; font-size:10px; color:#a6a89f; z-index:5; pointer-events:none; }
+  svg{ width:100%; height:100%; display:block;
+    cursor: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='26'%20height='26'%3E%3Cline%20x1='13'%20y1='2'%20x2='13'%20y2='24'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3E%3Cline%20x1='2'%20y1='13'%20x2='24'%20y2='13'%20stroke='white'%20stroke-width='4'%20stroke-linecap='round'/%3E%3Cline%20x1='13'%20y1='2'%20x2='13'%20y2='24'%20stroke='%232a2a26'%20stroke-width='1.6'%20stroke-linecap='round'/%3E%3Cline%20x1='2'%20y1='13'%20x2='24'%20y2='13'%20stroke='%232a2a26'%20stroke-width='1.6'%20stroke-linecap='round'/%3E%3Ccircle%20cx='13'%20cy='13'%20r='3'%20fill='%232563eb'%20stroke='white'%20stroke-width='1.2'/%3E%3C/svg%3E") 13 13, auto;
+  }
+  svg.panning{ cursor:grabbing; }
+
+  .zoom-controls{
+    position:absolute; bottom:16px; right:16px; z-index:6;
+    display:flex; flex-direction:column; gap:4px; background:#ffffff;
+    border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 2px 8px #00000012;
+  }
+  .zoom-btn{
+    width:30px; height:30px; border:none; background:#ffffff; color:var(--text);
+    font-size:16px; font-weight:700; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-btn:hover{ background:var(--panel-2); }
+  .zoom-fit-btn{
+    width:30px; height:24px; border:none; background:#ffffff; color:var(--muted);
+    font-size:13px; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-fit-btn:hover{ background:var(--panel-2); color:var(--accent); }
+
+  .hint-bar{
+    position:absolute; bottom:16px; left:16px; z-index:6; background:#fff; border:1px solid var(--line);
+    border-radius:7px; padding:6px 11px; font-size:11px; color:var(--muted); max-width:60%;
+  }
+  .hint-bar b{ color:var(--accent); }
+
+  /* ---- propiedades / lista de subtrazos ---- */
+  .prop-row{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:8px 10px; background:var(--panel-2); border:1px solid var(--line); border-radius:7px;
+  }
+  .prop-row .k{ font-size:11px; color:var(--muted); }
+  .prop-row input{
+    width:110px; font-size:12px; padding:5px 7px; border:1px solid var(--line); border-radius:5px;
+    background:#fff; color:var(--text); outline:none; font-family:'IBM Plex Mono', monospace; text-align:right;
+  }
+  .prop-row input:focus{ border-color:var(--accent); }
+  .prop-empty{ font-size:11.5px; color:#a6a89f; padding:10px 4px; font-style:italic; }
+
+  .subpath-list{ display:flex; flex-direction:column; gap:6px; }
+  .subpath-row{
+    display:flex; align-items:center; gap:6px; padding:7px 9px;
+    background:var(--panel-2); border:1px solid var(--line); border-left:3px solid var(--move); border-radius:6px;
+    font-size:11px;
+  }
+  .subpath-row .seq{
+    width:18px; height:18px; border-radius:50%; background:var(--move); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:700; flex-shrink:0;
+  }
+  .subpath-row .info{ flex:1; }
+  .subpath-row .step-btn{ background:none; border:none; color:#c7c4bb; cursor:pointer; font-size:12px; padding:0 3px; }
+  .subpath-row .step-btn:hover{ color:var(--accent); }
+  .subpath-row .step-btn:disabled{ opacity:.3; cursor:not-allowed; }
+
+  .status{ font-size:11.5px; color:var(--muted); line-height:1.5; min-height:16px; }
+  .status.err{ color:var(--warn); }
+  .status.ok{ color:var(--ok); }
+
+  .footer-note{ font-size:10.3px; color:#5b6167; line-height:1.5; padding-top:10px; border-top:1px solid var(--line-soft); margin-top:auto; }
+
+  @media (max-width: 1100px){
+    .app-body{ grid-template-columns: 210px 1fr 260px; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Diseñador de Contornos</h1>
+      <span class="version-tag mono" id="versionTag">v1.0</span>
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de la pieza</label>
+      <input type="text" id="partName" placeholder="Pieza_1">
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de archivo</label>
+      <input type="text" id="fileName" class="mono" value="contorno_1">
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-secondary" id="saveBtn">💾 Guardar .txt</button>
+      <button class="btn-secondary" id="loadBtn">📂 Cargar .txt</button>
+      <input type="file" id="fileInput" accept=".txt" style="display:none">
+    </div>
+    <div class="topbar-spacer"></div>
+    <button class="link-btn" id="clearAllBtn">Limpiar todo</button>
+  </div>
+
+  <div class="app-body">
+
+    <!-- ===================== IZQUIERDA: HERRAMIENTAS + CAPAS ===================== -->
+    <div class="col col-left">
+      <div class="section-title">Herramientas</div>
+      <div class="tool-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="tool-btn active" data-active-layer="laser" id="activeLayerLaserBtn">🔴 Láser</div>
+        <div class="tool-btn" data-active-layer="constr" id="activeLayerConstrBtn">⚙️ Construcción</div>
+      </div>
+      <div class="tool-grid" id="toolGrid">
+        <div class="tool-btn active" data-tool="select"><span class="icon">↖</span>Seleccionar</div>
+        <div class="tool-btn" data-tool="line"><span class="icon">╱</span>Línea</div>
+        <div class="tool-btn" data-tool="rect"><span class="icon">▭</span>Rectángulo</div>
+        <div class="tool-btn" data-tool="circle3"><span class="icon">◯</span>Círculo 3pt</div>
+        <div class="tool-btn" data-tool="circleCR"><span class="icon">⊙</span>Círculo C+R</div>
+        <div class="tool-btn" data-tool="arc"><span class="icon">◜</span>Arco</div>
+        <div class="tool-btn" data-tool="dimDist"><span class="icon">↔</span>Cota distancia</div>
+        <div class="tool-btn" data-tool="dimRad"><span class="icon">⌀</span>Cota radio</div>
+        <div class="tool-btn" data-tool="erase"><span class="icon">✕</span>Eliminar</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Capas</div>
+      <div id="layerList" style="display:flex; flex-direction:column; gap:6px;"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Traslado</div>
+      <button class="btn-secondary" id="regenMoveBtn" style="width:100%;">↻ Detectar / actualizar trazo</button>
+
+      <div class="footer-note mono">
+        Clic para colocar puntos (se ajustan solos a puntos ya existentes cerca).
+        Arrastra un punto con "Seleccionar" para moverlo — todo lo conectado a
+        él se mueve junto. Editar el valor de una cota mueve el punto asociado.
+      </div>
+    </div>
+
+    <!-- ===================== CENTRO: LIENZO ===================== -->
+    <div class="col-center">
+      <div class="stage-frame">
+        <div class="stage-badge">Vista · <b id="badgeState">en espera</b></div>
+        <div class="stage-scale mono" id="scaleLabel"></div>
+        <svg id="canvas" viewBox="0 0 900 820" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="hint-bar" id="hintBar">Selecciona una herramienta para empezar a dibujar.</div>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomInBtn" title="Acercar">+</button>
+          <button class="zoom-fit-btn" id="zoomFitBtn" title="Ajustar vista">⤢</button>
+          <button class="zoom-btn" id="zoomOutBtn" title="Alejar">−</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== DERECHA: PROPIEDADES + TRASLADO ===================== -->
+    <div class="col col-right">
+      <div class="section-title">Propiedades</div>
+      <div id="propPanel">
+        <div class="prop-empty">Nada seleccionado.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title" id="subpathTitle">Trazo de traslado (0 tramos)</div>
+      <div class="subpath-list" id="subpathList">
+        <div class="prop-empty">Aún no hay trazo láser dibujado.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="status mono" id="status">Listo.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const svg = document.getElementById('canvas');
+const NS = 'http://www.w3.org/2000/svg';
+const W = 900, H = 820;
+const PAD = 90;
+
+// ---------- ESTADO ----------
+let points = [];       // {id, x, y}
+let entities = [];     // {id, type:'line'|'circle'|'arc', layer, groupId?, ...refs}
+let dimensions = [];   // {id, type:'distance'|'radius', ...refs}
+let pointCounter = 0, entityCounter = 0, dimCounter = 0;
+
+const layers = {
+  laser:  { name:'Láser',        color:'#d9541f', visible:true },
+  move:   { name:'Traslado',     color:'#1f8f84', visible:true },
+  dim:    { name:'Cotas',        color:'#a16207', visible:true },
+  constr: { name:'Construcción', color:'#8b8f86', visible:true }
+};
+
+let currentTool = 'select';
+let activeLayer = 'laser';
+let toolClickBuffer = [];
+let selectedPointId = null;
+let selectedEntityId = null;
+let selectedDimId = null;
+let moveOrder = [];
+
+let camera = null;
+let cameraInitialized = false;
+let isPanning = false, panStartPt = null, panStartCamera = null, panMoved = false;
+let draggingPointId = null;
+
+// ---------- SVG HELPERS ----------
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function clearSvg(){ svg.innerHTML = ''; }
+function fmt(n){ return n.toFixed(4); }
+function fmt2(n){ return n.toFixed(2); }
+
+function clientToSvgPoint(clientX, clientY){
+  const pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return { x:0, y:0 };
+  const p = pt.matrixTransform(ctm.inverse());
+  return { x:p.x, y:p.y };
+}
+
+function setStatus(msg, type){
+  const s = document.getElementById('status');
+  s.textContent = msg;
+  s.className = 'status mono' + (type ? ' ' + type : '');
+}
+
+function sanitizeFilename(name){
+  return (name || '').replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
+}
+
+function downloadTextFile(text, filename){
+  const blob = new Blob([text], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- PUNTOS ----------
+function getPoint(id){ return points.find(p => p.id === id); }
+
+function findNearbyPoint(wx, wy){
+  const tolWorld = camera ? (12 / camera.scale) : 0.5;
+  let best = null, bestD = Infinity;
+  points.forEach(p=>{
+    const d = Math.hypot(p.x-wx, p.y-wy);
+    if(d < tolWorld && d < bestD){ best = p; bestD = d; }
+  });
+  return best;
+}
+
+function getOrCreatePoint(wx, wy){
+  const existing = findNearbyPoint(wx, wy);
+  if(existing) return existing.id;
+  const id = 'pt' + (pointCounter++);
+  points.push({ id, x:wx, y:wy });
+  return id;
+}
+
+// elimina puntos que ya no son referenciados por ninguna entidad ni cota
+function cleanupOrphanPoints(){
+  const used = new Set();
+  entities.forEach(e=>{
+    ['p1','p2','p3','center','radiusPt','startPt','endPt'].forEach(k=>{ if(e[k]) used.add(e[k]); });
+  });
+  dimensions.forEach(d=>{ if(d.p1) used.add(d.p1); if(d.p2) used.add(d.p2); });
+  points = points.filter(p => used.has(p.id));
+}
+
+// ---------- GEOMETRÍA ----------
+function fitCircle3pt(p1, p2, p3){
+  const D = 2*(p1.x*(p2.y-p3.y) + p2.x*(p3.y-p1.y) + p3.x*(p1.y-p2.y));
+  if(Math.abs(D) < 1e-9) return null;
+  const sq = (x,y)=>x*x+y*y;
+  const ux = (sq(p1.x,p1.y)*(p2.y-p3.y) + sq(p2.x,p2.y)*(p3.y-p1.y) + sq(p3.x,p3.y)*(p1.y-p2.y)) / D;
+  const uy = (sq(p1.x,p1.y)*(p3.x-p2.x) + sq(p2.x,p2.y)*(p1.x-p3.x) + sq(p3.x,p3.y)*(p2.x-p1.x)) / D;
+  const r = Math.hypot(p1.x-ux, p1.y-uy);
+  return { cx:ux, cy:uy, r };
+}
+
+function circleGeom(entity){
+  if(entity.method === '3pt'){
+    const p1 = getPoint(entity.p1), p2 = getPoint(entity.p2), p3 = getPoint(entity.p3);
+    if(!p1 || !p2 || !p3) return null;
+    return fitCircle3pt(p1, p2, p3);
+  }
+  const c = getPoint(entity.center), r = getPoint(entity.radiusPt);
+  if(!c || !r) return null;
+  return { cx:c.x, cy:c.y, r:Math.hypot(r.x-c.x, r.y-c.y) };
+}
+
+function arcGeom(entity){
+  const c = getPoint(entity.center), s = getPoint(entity.startPt);
+  if(!c || !s) return null;
+  return { cx:c.x, cy:c.y, r:Math.hypot(s.x-c.x, s.y-c.y) };
+}
+
+// ---------- ENTIDADES / COTAS ----------
+function addEntity(data){
+  const id = 'e' + (entityCounter++);
+  entities.push({ id, ...data });
+  return id;
+}
+function addDimension(data){
+  const id = 'd' + (dimCounter++);
+  dimensions.push({ id, ...data });
+  selectedDimId = id; selectedPointId = null; selectedEntityId = null;
+  return id;
+}
+
+function deleteEntity(id){
+  const entity = entities.find(e => e.id === id);
+  if(!entity) return;
+  const idsToDelete = entity.groupId ? entities.filter(e => e.groupId === entity.groupId).map(e => e.id) : [id];
+  entities = entities.filter(e => !idsToDelete.includes(e.id));
+  dimensions = dimensions.filter(d => d.entityId ? !idsToDelete.includes(d.entityId) : true);
+  cleanupOrphanPoints();
+  if(selectedEntityId && idsToDelete.includes(selectedEntityId)) selectedEntityId = null;
+  regenerateMoveOrder();
+  renderPropPanel();
+}
+
+function deletePoint(id){
+  const refEntities = entities.filter(e => [e.p1,e.p2,e.p3,e.center,e.radiusPt,e.startPt,e.endPt].includes(id));
+  refEntities.forEach(e => deleteEntity(e.id));
+  dimensions = dimensions.filter(d => d.p1 !== id && d.p2 !== id);
+  points = points.filter(p => p.id !== id);
+  if(selectedPointId === id) selectedPointId = null;
+  regenerateMoveOrder();
+  renderPropPanel();
+}
+
+// ---------- COTAS: edición paramétrica ----------
+function setDimensionValue(dim, newVal){
+  if(!(newVal > 0)) return;
+  if(dim.type === 'distance'){
+    const fixedId = dim.drivenPoint === dim.p2 ? dim.p1 : dim.p2;
+    const fixed = getPoint(fixedId), driven = getPoint(dim.drivenPoint);
+    if(!fixed || !driven) return;
+    const dx = driven.x-fixed.x, dy = driven.y-fixed.y;
+    const curD = Math.hypot(dx,dy) || 1e-9;
+    driven.x = fixed.x + (dx/curD)*newVal;
+    driven.y = fixed.y + (dy/curD)*newVal;
+  } else if(dim.type === 'radius'){
+    const entity = entities.find(e => e.id === dim.entityId);
+    if(!entity) return;
+    if(entity.type === 'circle' && entity.method === 'cr'){
+      const c = getPoint(entity.center), r = getPoint(entity.radiusPt);
+      const dx = r.x-c.x, dy = r.y-c.y;
+      const curD = Math.hypot(dx,dy) || 1e-9;
+      r.x = c.x + (dx/curD)*newVal;
+      r.y = c.y + (dy/curD)*newVal;
+    } else if(entity.type === 'arc'){
+      const c = getPoint(entity.center);
+      [entity.startPt, entity.endPt].forEach(pid=>{
+        const p = getPoint(pid);
+        const dx = p.x-c.x, dy = p.y-c.y;
+        const curD = Math.hypot(dx,dy) || 1e-9;
+        p.x = c.x + (dx/curD)*newVal;
+        p.y = c.y + (dy/curD)*newVal;
+      });
+    }
+    // circulo por 3 puntos: no se puede accionar por radio (sobredeterminado)
+  }
+  regenerateMoveOrder();
+  updateLiveView();
+}
+
+// ---------- CÁMARA (zoom/pan persistente) ----------
+function computeContentBounds(){
+  let xs = [], ys = [];
+  points.forEach(p => { xs.push(p.x); ys.push(p.y); });
+  entities.forEach(e=>{
+    if(e.type === 'circle'){ const g = circleGeom(e); if(g){ xs.push(g.cx-g.r, g.cx+g.r); ys.push(g.cy-g.r, g.cy+g.r); } }
+    if(e.type === 'arc'){ const g = arcGeom(e); if(g){ xs.push(g.cx-g.r, g.cx+g.r); ys.push(g.cy-g.r, g.cy+g.r); } }
+  });
+  if(xs.length === 0) return null;
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const spanX = Math.max(maxX-minX, 0.5), spanY = Math.max(maxY-minY, 0.5);
+  const span = Math.max(spanX, spanY);
+  const scale = (Math.min(W,H) - PAD*2) / span;
+  return { cx:(minX+maxX)/2, cy:(minY+maxY)/2, scale };
+}
+
+function fitView(){
+  const bounds = computeContentBounds();
+  if(!bounds){ setStatus('No hay nada que ajustar todavía.', ''); return; }
+  camera = bounds; cameraInitialized = true;
+  updateLiveView();
+}
+
+function zoomBy(factor){
+  if(!camera) return;
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*factor));
+  updateLiveView();
+}
+
+function startPan(e){
+  if(!camera) return;
+  if(draggingPointId) return;
+  isPanning = true; panMoved = false;
+  svg.classList.add('panning');
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  panStartPt = clientToSvgPoint(cx, cy);
+  panStartCamera = { cx:camera.cx, cy:camera.cy };
+  window.addEventListener('mousemove', onPanMove);
+  window.addEventListener('mouseup', endPan);
+  window.addEventListener('touchmove', onPanMove, { passive:false });
+  window.addEventListener('touchend', endPan);
+}
+function onPanMove(e){
+  if(!isPanning) return;
+  e.preventDefault();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  const cur = clientToSvgPoint(cx, cy);
+  const dx = cur.x-panStartPt.x, dy = cur.y-panStartPt.y;
+  if(Math.hypot(dx,dy) > 3) panMoved = true;
+  camera.cx = panStartCamera.cx - dx/camera.scale;
+  camera.cy = panStartCamera.cy + dy/camera.scale;
+  updateLiveView();
+}
+function endPan(){
+  isPanning = false;
+  svg.classList.remove('panning');
+  window.removeEventListener('mousemove', onPanMove);
+  window.removeEventListener('mouseup', endPan);
+  window.removeEventListener('touchmove', onPanMove);
+  window.removeEventListener('touchend', endPan);
+}
+function onWheelZoom(e){
+  if(!camera) return;
+  e.preventDefault();
+  const pt = clientToSvgPoint(e.clientX, e.clientY);
+  const worldX = camera.cx + (pt.x-W/2)/camera.scale;
+  const worldY = camera.cy - (pt.y-H/2)/camera.scale;
+  const factor = e.deltaY < 0 ? 1.12 : (1/1.12);
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*factor));
+  camera.cx = worldX - (pt.x-W/2)/camera.scale;
+  camera.cy = worldY + (pt.y-H/2)/camera.scale;
+  updateLiveView();
+}
+
+function onCanvasClick(e){
+  if(panMoved) return;
+  const svgPt = clientToSvgPoint(e.clientX, e.clientY);
+  if(!camera){
+    // primer clic: sembrar una cámara por defecto centrada ahí
+    camera = { cx:0, cy:0, scale:20 }; cameraInitialized = true;
+  }
+  const wx = camera.cx + (svgPt.x-W/2)/camera.scale;
+  const wy = camera.cy - (svgPt.y-H/2)/camera.scale;
+  handleToolClick(wx, wy);
+}
+
+// ---------- GRID / REGLAS (mm) ----------
+function niceScaleValue(raw){
+  if(!isFinite(raw) || raw <= 0) return 1;
+  const exponent = Math.floor(Math.log10(raw));
+  const base = raw / Math.pow(10, exponent);
+  let niceBase;
+  if(base < 1.5) niceBase = 1; else if(base < 3.5) niceBase = 2; else if(base < 7.5) niceBase = 5; else niceBase = 10;
+  return niceBase * Math.pow(10, exponent);
+}
+
+function drawGridMm(scale, cxMid, cyMid){
+  const worldXatScreen = sx => cxMid + (sx-W/2)/scale;
+  const worldYatScreen = sy => cyMid - (sy-H/2)/scale;
+  const xMinV = worldXatScreen(0), xMaxV = worldXatScreen(W);
+  const yMinV = worldYatScreen(H), yMaxV = worldYatScreen(0);
+  let minorStep = 1, majorEvery = 5;
+  if(scale < 4){ minorStep = niceScaleValue(6/scale); }
+  const g = el('g', {});
+  const startKx = Math.floor(xMinV/minorStep), endKx = Math.ceil(xMaxV/minorStep);
+  for(let k=startKx; k<=endKx; k++){
+    const xw = k*minorStep, sx = W/2 + (xw-cxMid)*scale;
+    const isMajor = (Math.round(xw/minorStep) % majorEvery === 0);
+    g.appendChild(el('line', { x1:sx, y1:0, x2:sx, y2:H, stroke: isMajor?'#e2dfd5':'#f1efe9', 'stroke-width':1 }));
+  }
+  const startKy = Math.floor(yMinV/minorStep), endKy = Math.ceil(yMaxV/minorStep);
+  for(let k=startKy; k<=endKy; k++){
+    const yw = k*minorStep, sy = H/2 - (yw-cyMid)*scale;
+    const isMajor = (Math.round(yw/minorStep) % majorEvery === 0);
+    g.appendChild(el('line', { x1:0, y1:sy, x2:W, y2:sy, stroke: isMajor?'#e2dfd5':'#f1efe9', 'stroke-width':1 }));
+  }
+  svg.appendChild(g);
+}
+
+const RULER_H = 20;
+function drawRulers(scale, cxMid, cyMid){
+  const step = niceScaleValue(70/scale);
+  const decimals = step < 1 ? 2 : (step < 10 ? 1 : 0);
+  const fontSize = 9;
+  const worldXatScreen = sx => cxMid + (sx-W/2)/scale;
+  const worldYatScreen = sy => cyMid - (sy-H/2)/scale;
+  const baseGuess = 26;
+  const yMinV0 = worldYatScreen(H-RULER_H), yMaxV0 = worldYatScreen(0);
+  const startKy = Math.ceil(yMinV0/step), endKy = Math.floor(yMaxV0/step);
+  const yLabels = [];
+  for(let k=startKy; k<=endKy; k++) yLabels.push((k*step).toFixed(decimals));
+  const maxLen = yLabels.reduce((m,s) => Math.max(m,s.length), 0);
+  const RULER_W = Math.max(baseGuess, maxLen*fontSize*0.62 + 14);
+  const xMinV = worldXatScreen(RULER_W), xMaxV = worldXatScreen(W);
+
+  const bandH = el('rect', { x:0, y:H-RULER_H, width:W, height:RULER_H, fill:'#ffffff', opacity:'0.92' }); bandH.style.pointerEvents='none';
+  const bandV = el('rect', { x:0, y:0, width:RULER_W, height:H, fill:'#ffffff', opacity:'0.92' }); bandV.style.pointerEvents='none';
+  svg.appendChild(bandH); svg.appendChild(bandV);
+  svg.appendChild(el('line', { x1:0, y1:H-RULER_H, x2:W, y2:H-RULER_H, stroke:'#dedbd3', 'stroke-width':1 }));
+  svg.appendChild(el('line', { x1:RULER_W, y1:0, x2:RULER_W, y2:H, stroke:'#dedbd3', 'stroke-width':1 }));
+
+  const startKx = Math.ceil(xMinV/step), endKx = Math.floor(xMaxV/step);
+  for(let k=startKx; k<=endKx; k++){
+    const xw = k*step, sx = W/2 + (xw-cxMid)*scale;
+    if(sx < RULER_W) continue;
+    svg.appendChild(el('line', { x1:sx, y1:H-RULER_H, x2:sx, y2:H-RULER_H+6, stroke:'#8b8f86', 'stroke-width':1 }));
+    const t = el('text', { x:sx, y:H-6, 'text-anchor':'middle', 'font-size':fontSize, 'font-family':'IBM Plex Mono, monospace', fill:'#6b6f68' });
+    t.textContent = xw.toFixed(decimals); svg.appendChild(t);
+  }
+  for(let k=startKy; k<=endKy; k++){
+    const yw = k*step, sy = H/2 - (yw-cyMid)*scale;
+    if(sy > H-RULER_H) continue;
+    svg.appendChild(el('line', { x1:RULER_W-6, y1:sy, x2:RULER_W, y2:sy, stroke:'#8b8f86', 'stroke-width':1 }));
+    const t = el('text', { x:RULER_W-9, y:sy+3, 'text-anchor':'end', 'font-size':fontSize, 'font-family':'IBM Plex Mono, monospace', fill:'#6b6f68' });
+    t.textContent = yw.toFixed(decimals); svg.appendChild(t);
+  }
+  const corner = el('text', { x:6, y:H-6, 'font-size':8, 'font-family':'IBM Plex Mono, monospace', fill:'#a6a89f' });
+  corner.textContent = 'mm'; svg.appendChild(corner);
+}
+
+// ---------- DETECCIÓN DE SUBTRAZOS (para el trazo de traslado) ----------
+function detectSubpaths(){
+  const laserLE = entities.filter(e => e.layer === 'laser' && (e.type === 'line' || e.type === 'arc'));
+  const parent = {};
+  function find(x){ if(!(x in parent)) parent[x] = x; while(parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+  function union(a,b){ parent[find(a)] = find(b); }
+  laserLE.forEach(e=>{ find(e.p1); find(e.p2); union(e.p1, e.p2); });
+
+  const groups = {};
+  laserLE.forEach(e=>{ const r = find(e.p1); (groups[r] = groups[r] || []).push(e); });
+
+  const subpaths = [];
+  Object.values(groups).forEach(list=>{
+    const key = 'grp-' + list.map(e => e.id).sort().join('_');
+    const deg = {};
+    list.forEach(e=>{ deg[e.p1] = (deg[e.p1]||0)+1; deg[e.p2] = (deg[e.p2]||0)+1; });
+    const openPts = Object.keys(deg).filter(p => deg[p] === 1);
+    const closed = openPts.length === 0;
+    const startPointId = closed ? list[0].p1 : openPts[0];
+    const endPointId = closed ? list[0].p1 : openPts[1];
+    subpaths.push({ key, entityIds:list.map(e=>e.id), startPointId, endPointId, closed, count:list.length, isCircle:false });
+  });
+
+  entities.filter(e => e.layer === 'laser' && e.type === 'circle').forEach(c=>{
+    subpaths.push({ key:'circ-'+c.id, entityIds:[c.id], startPointId:null, endPointId:null, closed:true, count:1, isCircle:true });
+  });
+
+  return subpaths;
+}
+
+function subpathConnectionPoint(sub, which){
+  if(sub.isCircle){
+    const c = entities.find(e => e.id === sub.entityIds[0]);
+    const g = circleGeom(c);
+    return g ? { x:g.cx+g.r, y:g.cy } : { x:0, y:0 };
+  }
+  const pid = which === 'start' ? sub.startPointId : sub.endPointId;
+  const p = getPoint(pid);
+  return p ? { x:p.x, y:p.y } : { x:0, y:0 };
+}
+
+function regenerateMoveOrder(){
+  const subs = detectSubpaths();
+  const keep = moveOrder.filter(k => subs.some(s => s.key === k));
+  const fresh = subs.map(s => s.key).filter(k => !keep.includes(k));
+  moveOrder = [...keep, ...fresh];
+  renderSubpathList();
+}
+
+// ---------- MANEJO DE HERRAMIENTAS (clic en el lienzo) ----------
+function handleToolClick(wx, wy){
+  if(currentTool === 'select' || currentTool === 'erase') return; // se manejan por elemento, no por clic vacío
+
+  if(currentTool === 'line'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 2){
+      addEntity({ type:'line', layer:activeLayer, p1:toolClickBuffer[0], p2:toolClickBuffer[1] });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'rect'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push({ id:pid, x:wx, y:wy });
+    if(toolClickBuffer.length === 2){
+      const [a,b] = toolClickBuffer;
+      const p1 = a.id, p3 = b.id;
+      const p2 = getOrCreatePoint(b.x, a.y);
+      const p4 = getOrCreatePoint(a.x, b.y);
+      const gid = 'grp' + (entityCounter);
+      addEntity({ type:'line', layer:activeLayer, groupId:gid, p1, p2 });
+      addEntity({ type:'line', layer:activeLayer, groupId:gid, p1:p2, p2:p3 });
+      addEntity({ type:'line', layer:activeLayer, groupId:gid, p1:p3, p2:p4 });
+      addEntity({ type:'line', layer:activeLayer, groupId:gid, p1:p4, p2:p1 });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'circle3'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 3){
+      addEntity({ type:'circle', method:'3pt', layer:activeLayer, p1:toolClickBuffer[0], p2:toolClickBuffer[1], p3:toolClickBuffer[2] });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'circleCR'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 2){
+      addEntity({ type:'circle', method:'cr', layer:activeLayer, center:toolClickBuffer[0], radiusPt:toolClickBuffer[1] });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'arc'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 3){
+      addEntity({ type:'arc', layer:activeLayer, center:toolClickBuffer[0], startPt:toolClickBuffer[1], endPt:toolClickBuffer[2] });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'dimDist'){
+    const pt = findNearbyPoint(wx, wy);
+    if(!pt){ setStatus('La cota de distancia debe apoyarse en un punto ya existente.', 'err'); return; }
+    toolClickBuffer.push(pt.id);
+    if(toolClickBuffer.length === 2){
+      if(toolClickBuffer[0] !== toolClickBuffer[1]){
+        addDimension({ type:'distance', p1:toolClickBuffer[0], p2:toolClickBuffer[1], drivenPoint:toolClickBuffer[1] });
+        renderPropPanel();
+      }
+      toolClickBuffer = [];
+    }
+  }
+  updateHint();
+  updateLiveView();
+}
+
+function updateHint(){
+  const hint = document.getElementById('hintBar');
+  const need = { line:2, rect:2, circle3:3, circleCR:2, arc:3, dimDist:2 }[currentTool];
+  if(need){
+    hint.innerHTML = 'Clic ' + (toolClickBuffer.length+1) + ' de ' + need + ' — <b>' + toolLabel(currentTool) + '</b>';
+  } else if(currentTool === 'select'){
+    hint.innerHTML = 'Arrastra un punto para moverlo. Clic en una entidad para ver/editar sus propiedades.';
+  } else if(currentTool === 'erase'){
+    hint.innerHTML = 'Clic sobre una línea, círculo, arco o cota para eliminarla.';
+  } else if(currentTool === 'dimRad'){
+    hint.innerHTML = 'Clic sobre un círculo o arco para acotar su radio.';
+  }
+}
+function toolLabel(t){
+  return { line:'Línea', rect:'Rectángulo', circle3:'Círculo 3pt', circleCR:'Círculo C+R', arc:'Arco', dimDist:'Cota distancia' }[t] || t;
+}
+
+function setTool(tool){
+  currentTool = tool;
+  toolClickBuffer = [];
+  document.querySelectorAll('#toolGrid .tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  updateHint();
+  updateLiveView();
+}
+
+function setActiveLayer(l){
+  activeLayer = l;
+  document.getElementById('activeLayerLaserBtn').classList.toggle('active', l === 'laser');
+  document.getElementById('activeLayerConstrBtn').classList.toggle('active', l === 'constr');
+}
+
+// ---------- PANEL DE CAPAS ----------
+function renderLayerList(){
+  const wrap = document.getElementById('layerList');
+  wrap.innerHTML = '';
+  Object.keys(layers).forEach(key=>{
+    const L = layers[key];
+    const row = document.createElement('div');
+    row.className = 'layer-row';
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch'; swatch.style.background = L.color;
+    const name = document.createElement('span');
+    name.className = 'name'; name.textContent = L.name;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = L.visible;
+    cb.addEventListener('change', ()=>{ L.visible = cb.checked; updateLiveView(); });
+    row.appendChild(swatch); row.appendChild(name); row.appendChild(cb);
+    wrap.appendChild(row);
+  });
+}
+
+// ---------- PANEL DE PROPIEDADES ----------
+function renderPropPanel(){
+  const panel = document.getElementById('propPanel');
+  panel.innerHTML = '';
+
+  if(selectedDimId){
+    const dim = dimensions.find(d => d.id === selectedDimId);
+    if(!dim){ panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>'; return; }
+    let value = 0, label = '';
+    if(dim.type === 'distance'){
+      const p1 = getPoint(dim.p1), p2 = getPoint(dim.p2);
+      value = p1 && p2 ? Math.hypot(p2.x-p1.x, p2.y-p1.y) : 0;
+      label = 'Distancia';
+    } else {
+      const entity = entities.find(e => e.id === dim.entityId);
+      const g = entity ? (entity.type==='circle' ? circleGeom(entity) : arcGeom(entity)) : null;
+      value = g ? g.r : 0;
+      label = 'Radio';
+    }
+    const row = document.createElement('div');
+    row.className = 'prop-row';
+    const editable = dim.type === 'distance' || (dim.type === 'radius' && entities.find(e=>e.id===dim.entityId) && entities.find(e=>e.id===dim.entityId).method !== '3pt');
+    row.innerHTML = '<span class="k">' + label + ' (mm)</span>';
+    const input = document.createElement('input');
+    input.type = 'number'; input.step = 'any'; input.value = value.toFixed(4);
+    input.disabled = !editable;
+    input.title = editable ? '' : 'El círculo por 3 puntos no admite radio editable (queda definido por sus 3 puntos)';
+    input.addEventListener('change', ()=> setDimensionValue(dim, parseFloat(input.value)));
+    row.appendChild(input);
+    panel.appendChild(row);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-tiny'; delBtn.style.marginTop = '8px'; delBtn.textContent = 'Eliminar cota';
+    delBtn.addEventListener('click', ()=>{ dimensions = dimensions.filter(d => d.id !== dim.id); selectedDimId = null; renderPropPanel(); updateLiveView(); });
+    panel.appendChild(delBtn);
+    return;
+  }
+
+  if(selectedPointId){
+    const p = getPoint(selectedPointId);
+    if(!p){ panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>'; return; }
+    ['x','y'].forEach(axis=>{
+      const row = document.createElement('div');
+      row.className = 'prop-row';
+      row.innerHTML = '<span class="k">Punto ' + axis.toUpperCase() + '</span>';
+      const input = document.createElement('input');
+      input.type = 'number'; input.step = 'any'; input.value = p[axis].toFixed(4);
+      input.addEventListener('change', ()=>{ p[axis] = parseFloat(input.value); regenerateMoveOrder(); updateLiveView(); });
+      row.appendChild(input);
+      panel.appendChild(row);
+    });
+    return;
+  }
+
+  if(selectedEntityId){
+    const entity = entities.find(e => e.id === selectedEntityId);
+    if(!entity){ panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>'; return; }
+    const row = document.createElement('div');
+    row.className = 'prop-row';
+    row.innerHTML = '<span class="k">Tipo</span><span class="mono" style="font-size:11px;">' + entity.type + (entity.method?(' · '+entity.method):'') + '</span>';
+    panel.appendChild(row);
+    const layerRow = document.createElement('div');
+    layerRow.className = 'prop-row';
+    layerRow.innerHTML = '<span class="k">Capa</span><span class="mono" style="font-size:11px;">' + layers[entity.layer].name + '</span>';
+    panel.appendChild(layerRow);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-tiny'; delBtn.style.marginTop = '8px'; delBtn.textContent = 'Eliminar';
+    delBtn.addEventListener('click', ()=> deleteEntity(entity.id));
+    panel.appendChild(delBtn);
+    return;
+  }
+
+  panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>';
+}
+
+// ---------- LISTA DE SUBTRAZOS / TRASLADO ----------
+function renderSubpathList(){
+  const listEl = document.getElementById('subpathList');
+  const subs = detectSubpaths();
+  document.getElementById('subpathTitle').textContent = 'Trazo de traslado (' + subs.length + ' tramos)';
+  if(subs.length === 0){
+    listEl.innerHTML = '<div class="prop-empty">Aún no hay trazo láser dibujado.</div>';
+    return;
+  }
+  const ordered = moveOrder.map(k => subs.find(s => s.key === k)).filter(Boolean);
+  listEl.innerHTML = '';
+  ordered.forEach((sub, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'subpath-row';
+    const seq = document.createElement('span'); seq.className = 'seq'; seq.textContent = idx+1;
+    const info = document.createElement('span'); info.className = 'info';
+    info.textContent = (sub.isCircle ? 'Círculo' : (sub.closed ? 'Cerrado' : 'Abierto')) + ' · ' + sub.count + ' entidad(es)';
+    const up = document.createElement('button'); up.className='step-btn'; up.innerHTML='↑'; up.disabled = idx===0;
+    up.addEventListener('click', ()=>{ [moveOrder[idx-1],moveOrder[idx]]=[moveOrder[idx],moveOrder[idx-1]]; renderSubpathList(); updateLiveView(); });
+    const down = document.createElement('button'); down.className='step-btn'; down.innerHTML='↓'; down.disabled = idx===ordered.length-1;
+    down.addEventListener('click', ()=>{ [moveOrder[idx+1],moveOrder[idx]]=[moveOrder[idx],moveOrder[idx+1]]; renderSubpathList(); updateLiveView(); });
+    row.appendChild(seq); row.appendChild(info); row.appendChild(up); row.appendChild(down);
+    listEl.appendChild(row);
+  });
+}
+
+// ---------- INTERACCIÓN POR ENTIDAD / PUNTO ----------
+function attachEntityInteraction(shapeEl, entity){
+  shapeEl.style.pointerEvents = 'stroke';
+  if(currentTool === 'select'){
+    shapeEl.style.cursor = 'pointer';
+    shapeEl.addEventListener('click', (e)=>{ e.stopPropagation(); selectedEntityId = entity.id; selectedPointId=null; selectedDimId=null; renderPropPanel(); });
+  } else if(currentTool === 'erase'){
+    shapeEl.style.cursor = 'pointer';
+    shapeEl.addEventListener('click', (e)=>{ e.stopPropagation(); deleteEntity(entity.id); updateLiveView(); });
+  } else if(currentTool === 'dimRad' && (entity.type === 'circle' || entity.type === 'arc')){
+    shapeEl.style.cursor = 'pointer';
+    shapeEl.addEventListener('click', (e)=>{ e.stopPropagation(); addDimension({ type:'radius', entityId:entity.id }); renderPropPanel(); updateLiveView(); });
+  }
+}
+
+function drawPointHandle(p, sx, sy){
+  const isSelected = selectedPointId === p.id;
+  const handle = el('circle', { cx:sx, cy:sy, r:5, fill: isSelected ? '#2563eb' : '#ffffff', stroke:'#2563eb', 'stroke-width':1.6, opacity: currentTool==='select'||currentTool==='erase' ? '1' : '0.55' });
+  handle.style.pointerEvents = 'none'; // el visual no captura clics; el hit-target de abajo sí
+  svg.appendChild(handle);
+
+  if(currentTool !== 'select' && currentTool !== 'erase') return;
+
+  // hit-target invisible más grande, para no tener que acertar el pixel exacto
+  // (y con prioridad sobre líneas/círculos que converjan en el mismo punto,
+  // porque se dibuja después de todas las entidades)
+  const hit = el('circle', { cx:sx, cy:sy, r:12, fill:'transparent', stroke:'none' });
+  if(currentTool === 'select'){
+    hit.style.cursor = 'move';
+    hit.addEventListener('mousedown', (e)=>{
+      e.stopPropagation();
+      selectedPointId = p.id; selectedEntityId = null; selectedDimId = null;
+      renderPropPanel();
+      draggingPointId = p.id;
+      window.addEventListener('mousemove', onPointDragMove);
+      window.addEventListener('mouseup', endPointDrag);
+    });
+  } else if(currentTool === 'erase'){
+    hit.style.cursor = 'pointer';
+    hit.addEventListener('click', (e)=>{ e.stopPropagation(); deletePoint(p.id); updateLiveView(); });
+  }
+  svg.appendChild(hit);
+}
+
+function onPointDragMove(e){
+  if(!draggingPointId) return;
+  e.preventDefault();
+  const svgPt = clientToSvgPoint(e.clientX, e.clientY);
+  const wx = camera.cx + (svgPt.x-W/2)/camera.scale;
+  const wy = camera.cy - (svgPt.y-H/2)/camera.scale;
+  const p = getPoint(draggingPointId);
+  if(p){ p.x = wx; p.y = wy; updateLiveView(); }
+}
+function endPointDrag(){
+  draggingPointId = null;
+  window.removeEventListener('mousemove', onPointDragMove);
+  window.removeEventListener('mouseup', endPointDrag);
+}
+
+function drawArrowHead(from, to, color){
+  const angle = Math.atan2(to[1]-from[1], to[0]-from[0]);
+  const midX = (from[0]+to[0])/2, midY = (from[1]+to[1])/2;
+  const size = 6;
+  const p1 = [midX - size*Math.cos(angle-Math.PI/7), midY - size*Math.sin(angle-Math.PI/7)];
+  const p2 = [midX - size*Math.cos(angle+Math.PI/7), midY - size*Math.sin(angle+Math.PI/7)];
+  const d = `M ${midX},${midY} L ${p1[0]},${p1[1]} M ${midX},${midY} L ${p2[0]},${p2[1]}`;
+  const arrow = el('path', { d, stroke:color, 'stroke-width':1.8, fill:'none', 'stroke-linecap':'round' });
+  arrow.style.pointerEvents = 'none';
+  svg.appendChild(arrow);
+}
+
+// ---------- DIBUJO DE ENTIDADES / CAPA DE TRASLADO / COTAS ----------
+function drawEntity(entity, toScreen, scale, color){
+  const isSelected = selectedEntityId === entity.id;
+  const strokeColor = isSelected ? '#2563eb' : color;
+  const strokeWidth = isSelected ? 2.6 : 1.8;
+
+  if(entity.type === 'line'){
+    const p1 = getPoint(entity.p1), p2 = getPoint(entity.p2);
+    if(!p1 || !p2) return;
+    const [x1,y1] = toScreen(p1.x,p1.y), [x2,y2] = toScreen(p2.x,p2.y);
+    const line = el('line', { x1,y1,x2,y2, stroke:strokeColor, 'stroke-width':strokeWidth, 'stroke-linecap':'round' });
+    attachEntityInteraction(line, entity);
+    svg.appendChild(line);
+  } else if(entity.type === 'circle'){
+    const g = circleGeom(entity);
+    if(!g) return;
+    const [cx,cy] = toScreen(g.cx,g.cy);
+    const circle = el('circle', { cx,cy, r:g.r*scale, fill:'none', stroke:strokeColor, 'stroke-width':strokeWidth });
+    attachEntityInteraction(circle, entity);
+    svg.appendChild(circle);
+  } else if(entity.type === 'arc'){
+    const c = getPoint(entity.center), s = getPoint(entity.startPt), en = getPoint(entity.endPt);
+    if(!c || !s || !en) return;
+    const r = Math.hypot(s.x-c.x, s.y-c.y);
+    const a0 = Math.atan2(s.y-c.y, s.x-c.x);
+    let a1 = Math.atan2(en.y-c.y, en.x-c.x);
+    while(a1 < a0) a1 += 2*Math.PI;
+    const steps = 32, pts = [];
+    for(let i=0;i<=steps;i++){
+      const a = a0 + (a1-a0)*(i/steps);
+      pts.push(toScreen(c.x+r*Math.cos(a), c.y+r*Math.sin(a)));
+    }
+    const d = 'M ' + pts.map(p=>p[0]+','+p[1]).join(' L ');
+    const path = el('path', { d, fill:'none', stroke:strokeColor, 'stroke-width':strokeWidth, 'stroke-linecap':'round' });
+    attachEntityInteraction(path, entity);
+    svg.appendChild(path);
+  }
+}
+
+function drawMoveLayer(toScreen, scale){
+  const subs = detectSubpaths();
+  const ordered = moveOrder.map(k => subs.find(s => s.key === k)).filter(Boolean);
+  for(let i=0; i<ordered.length-1; i++){
+    const endPt = subpathConnectionPoint(ordered[i], 'end');
+    const startPt = subpathConnectionPoint(ordered[i+1], 'start');
+    const [x1,y1] = toScreen(endPt.x, endPt.y);
+    const [x2,y2] = toScreen(startPt.x, startPt.y);
+    const line = el('line', { x1,y1,x2,y2, stroke:layers.move.color, 'stroke-width':1.6, 'stroke-dasharray':'5 4', opacity:'0.85' });
+    line.style.pointerEvents = 'none';
+    svg.appendChild(line);
+    drawArrowHead([x1,y1], [x2,y2], layers.move.color);
+  }
+  ordered.forEach((sub, idx)=>{
+    const pt = subpathConnectionPoint(sub, 'start');
+    const [bx,by] = toScreen(pt.x, pt.y);
+    const badge = el('circle', { cx:bx-14, cy:by-14, r:8, fill:layers.move.color, stroke:'#fff', 'stroke-width':1.5 });
+    badge.style.pointerEvents = 'none';
+    svg.appendChild(badge);
+    const t = el('text', { x:bx-14, y:by-11, 'text-anchor':'middle', 'font-size':8.5, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:'#fff' });
+    t.textContent = idx+1; t.style.pointerEvents = 'none';
+    svg.appendChild(t);
+  });
+}
+
+function drawDimension(dim, toScreen, scale){
+  const color = selectedDimId === dim.id ? '#2563eb' : layers.dim.color;
+  if(dim.type === 'distance'){
+    const p1 = getPoint(dim.p1), p2 = getPoint(dim.p2);
+    if(!p1 || !p2) return;
+    const [x1,y1] = toScreen(p1.x,p1.y), [x2,y2] = toScreen(p2.x,p2.y);
+    const line = el('line', { x1,y1,x2,y2, stroke:color, 'stroke-width':1, 'stroke-dasharray':'4 3', opacity:'0.8' });
+    svg.appendChild(line);
+    const dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+    const label = el('text', { x:(x1+x2)/2, y:(y1+y2)/2-6, 'text-anchor':'middle', 'font-size':10, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:color });
+    label.textContent = dist.toFixed(2) + ' mm';
+    label.style.cursor = 'pointer';
+    label.addEventListener('click', (e)=>{ e.stopPropagation(); selectedDimId=dim.id; selectedPointId=null; selectedEntityId=null; renderPropPanel(); updateLiveView(); });
+    svg.appendChild(label);
+  } else {
+    const entity = entities.find(e => e.id === dim.entityId);
+    if(!entity) return;
+    const g = entity.type === 'circle' ? circleGeom(entity) : arcGeom(entity);
+    if(!g) return;
+    const [cx,cy] = toScreen(g.cx,g.cy);
+    const label = el('text', { x:cx, y:cy-g.r*scale-8, 'text-anchor':'middle', 'font-size':10, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:color });
+    label.textContent = 'R' + g.r.toFixed(2);
+    label.style.cursor = 'pointer';
+    label.addEventListener('click', (e)=>{ e.stopPropagation(); selectedDimId=dim.id; selectedPointId=null; selectedEntityId=null; renderPropPanel(); updateLiveView(); });
+    svg.appendChild(label);
+  }
+}
+
+function placeholderState(){
+  clearSvg();
+  const g = el('g', {});
+  const step = 40;
+  for(let x=0;x<=W;x+=step) g.appendChild(el('line', { x1:x,y1:0,x2:x,y2:H, stroke:'#eeece5', 'stroke-width':1 }));
+  for(let y=0;y<=H;y+=step) g.appendChild(el('line', { x1:0,y1:y,x2:W,y2:y, stroke:'#eeece5', 'stroke-width':1 }));
+  svg.appendChild(g);
+  const t = el('text', { x:W/2, y:H/2, fill:'#c4c1b8', 'font-size':14, 'text-anchor':'middle', 'font-family':'IBM Plex Mono, monospace' });
+  t.textContent = 'CLIC EN EL LIENZO PARA EMPEZAR';
+  svg.appendChild(t);
+  document.getElementById('badgeState').textContent = 'en espera';
+  document.getElementById('scaleLabel').textContent = '';
+}
+
+function renderScene(){
+  clearSvg();
+  const hasContent = points.length > 0;
+
+  if(!cameraInitialized || !camera){
+    if(!hasContent){ placeholderState(); return; }
+    const bounds = computeContentBounds();
+    if(bounds){ camera = bounds; cameraInitialized = true; } else { placeholderState(); return; }
+  }
+
+  const scale = camera.scale, cxMid = camera.cx, cyMid = camera.cy;
+  drawGridMm(scale, cxMid, cyMid);
+  function toScreen(x,y){ return [ W/2 + (x-cxMid)*scale, H/2 - (y-cyMid)*scale ]; }
+  document.getElementById('scaleLabel').textContent = '1 mm = ' + scale.toFixed(2) + ' px';
+
+  ['constr','laser'].forEach(layerKey=>{
+    if(!layers[layerKey].visible) return;
+    entities.filter(e => e.layer === layerKey).forEach(entity => drawEntity(entity, toScreen, scale, layers[layerKey].color));
+  });
+
+  if(layers.move.visible) drawMoveLayer(toScreen, scale);
+  if(layers.dim.visible) dimensions.forEach(dim => drawDimension(dim, toScreen, scale));
+
+  points.forEach(p=>{
+    const [sx,sy] = toScreen(p.x, p.y);
+    drawPointHandle(p, sx, sy);
+  });
+
+  drawRulers(scale, cxMid, cyMid);
+  document.getElementById('badgeState').textContent = entities.length>0 ? (entities.length + ' entidad' + (entities.length>1?'es':'')) : (hasContent ? 'dibujando' : 'en espera');
+}
+
+function updateLiveView(){ renderScene(); }
+
+// ---------- GUARDAR / CARGAR ----------
+function saveToFile(){
+  if(points.length === 0){ setStatus('No hay nada que guardar todavía.', 'err'); return; }
+  const partName = document.getElementById('partName').value.trim();
+  const fname = sanitizeFilename(document.getElementById('fileName').value) || 'contorno';
+  const state = { partName, points, entities, dimensions, moveOrder, layers, pointCounter, entityCounter, dimCounter };
+  const text = '# Diseñador de Contornos — ' + (partName || fname) + '\n' +
+               '# No editar a mano salvo que sepas lo que haces (es JSON).\n' +
+               JSON.stringify(state, null, 2);
+  downloadTextFile(text, fname + '.txt');
+  setStatus('Archivo "' + fname + '.txt" guardado (' + entities.length + ' entidad(es)).', 'ok');
+}
+
+function loadFromFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const text = e.target.result;
+      const jsonStart = text.indexOf('{');
+      if(jsonStart === -1) throw new Error('sin JSON');
+      const state = JSON.parse(text.slice(jsonStart));
+
+      points = state.points || [];
+      entities = state.entities || [];
+      dimensions = state.dimensions || [];
+      moveOrder = state.moveOrder || [];
+      if(state.layers){ Object.keys(layers).forEach(k=>{ if(state.layers[k]) layers[k].visible = state.layers[k].visible; }); }
+      pointCounter = state.pointCounter || 0;
+      entityCounter = state.entityCounter || 0;
+      dimCounter = state.dimCounter || 0;
+
+      document.getElementById('partName').value = state.partName || '';
+      document.getElementById('fileName').value = file.name.replace(/\.txt$/i,'') || 'contorno';
+
+      selectedPointId = null; selectedEntityId = null; selectedDimId = null;
+      cameraInitialized = false;
+      renderLayerList();
+      renderPropPanel();
+      regenerateMoveOrder();
+      updateLiveView();
+      setStatus('Pieza cargada correctamente (' + entities.length + ' entidad(es)).', 'ok');
+    }catch(err){
+      setStatus('No se pudo leer el archivo (formato no reconocido).', 'err');
+    }
+  };
+  reader.onerror = ()=> setStatus('No se pudo leer el archivo.', 'err');
+  reader.readAsText(file);
+}
+
+function clearAll(){
+  points = []; entities = []; dimensions = []; moveOrder = [];
+  pointCounter = 0; entityCounter = 0; dimCounter = 0;
+  selectedPointId = null; selectedEntityId = null; selectedDimId = null;
+  toolClickBuffer = [];
+  cameraInitialized = false; camera = null;
+  renderPropPanel();
+  renderSubpathList();
+  updateLiveView();
+  setStatus('Lienzo limpio.', '');
+}
+
+// ---------- EVENTOS ----------
+document.querySelectorAll('#toolGrid .tool-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> setTool(btn.dataset.tool));
+});
+document.getElementById('activeLayerLaserBtn').addEventListener('click', ()=> setActiveLayer('laser'));
+document.getElementById('activeLayerConstrBtn').addEventListener('click', ()=> setActiveLayer('constr'));
+
+document.getElementById('regenMoveBtn').addEventListener('click', ()=>{ regenerateMoveOrder(); updateLiveView(); setStatus('Trazo de traslado actualizado.', 'ok'); });
+
+document.getElementById('saveBtn').addEventListener('click', saveToFile);
+document.getElementById('loadBtn').addEventListener('click', ()=> document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(file) loadFromFile(file);
+  e.target.value = '';
+});
+document.getElementById('clearAllBtn').addEventListener('click', clearAll);
+
+document.getElementById('zoomInBtn').addEventListener('click', ()=> zoomBy(1.25));
+document.getElementById('zoomOutBtn').addEventListener('click', ()=> zoomBy(1/1.25));
+document.getElementById('zoomFitBtn').addEventListener('click', fitView);
+svg.addEventListener('wheel', onWheelZoom, { passive:false });
+svg.addEventListener('mousedown', startPan);
+svg.addEventListener('touchstart', startPan, { passive:false });
+svg.addEventListener('click', onCanvasClick);
+
+// ---------- INIT ----------
+renderLayerList();
+renderPropPanel();
+renderSubpathList();
+placeholderState();
+updateHint();
+
+</script>
+
+</body>
+</html>
+<!-- Diseñado por Rolando Ordoñez Rodriguez A01177301 -->

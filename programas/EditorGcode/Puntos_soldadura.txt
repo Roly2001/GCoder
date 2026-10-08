@@ -1,0 +1,63 @@
+; Recorrido: Cervical (absoluto) — Titanio Gr2 · 0.5 mm
+
+G21
+G90 G58 G01 X4.36 Y0.98 Z0 A0 F400   ; -> A1
+G90
+
+G04 P100                         ; espera
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera (sirve tambien de apertura del siguiente punto)
+
+G01 X2.195 Y1.32   ; -> A2
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X6.525 Y1.32   ; -> A3
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X1.865 Y-3.35   ; -> A4
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X6.855 Y-3.35   ; -> A5
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X1.085 Y-8.21   ; -> A6
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X4.36 Y-8.12   ; -> A7
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X7.635 Y-8.21   ; -> A8
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+M30

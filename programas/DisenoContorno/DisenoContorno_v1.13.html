@@ -1,0 +1,3215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diseñador de Contornos (v1.13)</title>
+<!-- VERSION: 1.13 — incrementar en cada cambio, aquí y en <h1>/<title>, y renombrar el archivo -->
+<style>
+  :root{
+    --bg:#fbfbf9; --panel:#ffffff; --panel-2:#f4f4f1;
+    --line:#dedbd3; --line-soft:#eae8e2; --text:#20221f; --muted:#7a7d76;
+    --accent:#2563eb; --accent-dim:#2563eb33;
+    --laser:#d9541f; --move:#1f8f84; --dim:#a16207; --constr:#8b8f86;
+    --ok:#2e8f4f; --warn:#c1462f;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: radial-gradient(1200px 600px at 80% -10%, #f2f1eb 0%, transparent 60%), var(--bg);
+    color:var(--text); font-family:'IBM Plex Sans', -apple-system, Segoe UI, sans-serif;
+  }
+  .mono{ font-family:'IBM Plex Mono', 'Consolas', monospace; }
+
+  .app-shell{ display:grid; grid-template-rows:auto 1fr; height:100vh; }
+
+  .topbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--panel); border-bottom:1px solid var(--line); padding:10px 20px;
+  }
+  .brand{ display:flex; align-items:baseline; gap:9px; margin-right:8px; }
+  .brand .dot{
+    width:8px; height:8px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 10px 2px var(--accent-dim); flex-shrink:0;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.5; transform:scale(.8);} }
+  .brand h1{ font-size:13px; margin:0; letter-spacing:.05em; text-transform:uppercase; font-weight:700; white-space:nowrap; }
+  .version-tag{
+    font-size:9.5px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:4px; padding:1px 6px; letter-spacing:.03em; margin-left:2px;
+  }
+  .topbar-field{ display:flex; flex-direction:column; gap:2px; }
+  .topbar-field label{ font-size:9px; color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
+  .topbar-field input{
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; color:var(--text);
+    padding:6px 9px; font-size:12.5px; outline:none; width:170px;
+  }
+  .topbar-field input:focus{ border-color:var(--accent); }
+  .topbar-spacer{ flex:1; }
+  .topbar-actions{ display:flex; gap:8px; }
+
+  .btn-secondary{
+    background:#ffffff; color:var(--text); border:1px solid var(--line); border-radius:7px;
+    padding:8px 12px; font-size:11.5px; font-weight:600; letter-spacing:.02em;
+    cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center;
+    gap:6px; white-space:nowrap;
+  }
+  .btn-secondary:hover{ border-color:#c7c4bb; background:var(--panel-2); }
+  .btn-secondary.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .btn-tiny{
+    background:#ffffff; color:var(--muted); border:1px solid var(--line); border-radius:6px;
+    padding:5px 9px; font-size:10.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .btn-tiny:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn-tiny:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn{
+    background:var(--accent); color:#fff; border:none; border-radius:7px;
+    padding:12px 14px; font-size:12.5px; font-weight:700; letter-spacing:.03em;
+    cursor:pointer; transition:filter .15s, transform .1s; width:100%;
+  }
+  .btn:hover{ filter:brightness(1.08); }
+  .btn:active{ transform:scale(.98); }
+  .link-btn{ background:none; border:none; color:var(--muted); font-size:11px; text-decoration:underline; cursor:pointer; padding:0; }
+  .link-btn:hover{ color:var(--accent); }
+
+  .app-body{ display:grid; grid-template-columns: 240px 1fr 300px; min-height:0; }
+  .col{ background:var(--panel); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .col-left{ border-right:1px solid var(--line); }
+  .col-right{ border-left:1px solid var(--line); }
+  .col::-webkit-scrollbar{ width:7px; }
+  .col::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .divider{ height:1px; background:var(--line); margin:2px 0; }
+
+  /* ---- toolbar ---- */
+  .tool-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .tool-btn{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:#fff; border:1px solid var(--line); border-radius:8px; padding:9px 4px;
+    cursor:pointer; font-size:9.5px; color:var(--text); font-weight:600; text-align:center;
+  }
+  .tool-btn .icon{ font-size:16px; line-height:1; }
+  .tool-btn:hover{ border-color:#c7c4bb; background:var(--panel-2); }
+  .tool-btn.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+
+  /* ---- layers ---- */
+  .layer-row{
+    display:flex; align-items:center; gap:8px; padding:7px 9px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:7px; font-size:11.5px;
+  }
+  .layer-row .swatch{ width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+  .layer-row .name{ flex:1; font-weight:600; }
+  .layer-row input[type="checkbox"]{ cursor:pointer; width:14px; height:14px; accent-color:var(--accent); }
+
+  /* ---- canvas ---- */
+  .col-center{ position:relative; padding:16px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .stage-frame{
+    position:relative; width:100%; height:100%; max-width:1200px;
+    background:#ffffff; border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow: inset 0 0 40px #00000008;
+  }
+  .stage-badge{
+    position:absolute; top:14px; left:16px; font-size:10.5px; color:var(--muted);
+    letter-spacing:.08em; text-transform:uppercase; z-index:5; display:flex; gap:6px; align-items:center;
+    pointer-events:none;
+  }
+  .stage-badge b{ color:var(--text); font-weight:600; }
+  .stage-scale{ position:absolute; top:14px; right:16px; font-size:10px; color:#a6a89f; z-index:5; pointer-events:none; }
+  svg{ width:100%; height:100%; display:block; }
+  svg.panning{ cursor:grabbing; }
+
+  .zoom-controls{
+    position:absolute; bottom:16px; right:16px; z-index:6;
+    display:flex; flex-direction:column; gap:4px; background:#ffffff;
+    border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 2px 8px #00000012;
+  }
+  .zoom-btn{
+    width:30px; height:30px; border:none; background:#ffffff; color:var(--text);
+    font-size:16px; font-weight:700; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-btn:hover{ background:var(--panel-2); }
+  .zoom-fit-btn{
+    width:30px; height:24px; border:none; background:#ffffff; color:var(--muted);
+    font-size:13px; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-fit-btn:hover{ background:var(--panel-2); color:var(--accent); }
+
+  .hint-bar{
+    position:absolute; bottom:16px; left:16px; z-index:6; background:#fff; border:1px solid var(--line);
+    border-radius:7px; padding:6px 11px; font-size:11px; color:var(--muted); max-width:60%;
+  }
+  .hint-bar b{ color:var(--accent); }
+
+  /* ---- propiedades / lista de subtrazos ---- */
+  .prop-row{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:8px 10px; background:var(--panel-2); border:1px solid var(--line); border-radius:7px;
+  }
+  .prop-row .k{ font-size:11px; color:var(--muted); }
+  .prop-row input{
+    width:110px; font-size:12px; padding:5px 7px; border:1px solid var(--line); border-radius:5px;
+    background:#fff; color:var(--text); outline:none; font-family:'IBM Plex Mono', monospace; text-align:right;
+  }
+  .prop-row input:focus{ border-color:var(--accent); }
+  .prop-empty{ font-size:11.5px; color:#a6a89f; padding:10px 4px; font-style:italic; }
+
+  .subpath-list{ display:flex; flex-direction:column; gap:6px; }
+  .subpath-row{
+    display:flex; align-items:center; gap:6px; padding:7px 9px;
+    background:var(--panel-2); border:1px solid var(--line); border-left:3px solid var(--move); border-radius:6px;
+    font-size:11px;
+  }
+  .subpath-row .seq{
+    width:18px; height:18px; border-radius:50%; background:var(--move); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:700; flex-shrink:0;
+  }
+  .subpath-row .info{ flex:1; }
+  .subpath-row .step-btn{ background:none; border:none; color:#c7c4bb; cursor:pointer; font-size:12px; padding:0 3px; }
+  .subpath-row .step-btn:hover{ color:var(--accent); }
+  .subpath-row .step-btn:disabled{ opacity:.3; cursor:not-allowed; }
+
+  .status{ font-size:11.5px; color:var(--muted); line-height:1.5; min-height:16px; }
+  .status.err{ color:var(--warn); }
+  .status.ok{ color:var(--ok); }
+
+  .footer-note{ font-size:10.3px; color:#5b6167; line-height:1.5; padding-top:10px; border-top:1px solid var(--line-soft); margin-top:auto; }
+
+  @media (max-width: 1100px){
+    .app-body{ grid-template-columns: 210px 1fr 260px; }
+  }
+
+  /* ---- restricciones ---- */
+  .restr-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
+  .restr-btn{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    background:#fff; border:1px solid var(--line); border-radius:6px; cursor:pointer;
+    padding:7px 3px; font-size:8.5px; color:var(--muted); font-family:inherit;
+    text-align:center; line-height:1.15; transition:all .12s;
+  }
+  .restr-btn .g{ font-size:14px; line-height:1; color:var(--text); }
+  .restr-btn:hover:not(:disabled){ border-color:var(--laser); color:var(--laser); }
+  .restr-btn:hover:not(:disabled) .g{ color:var(--laser); }
+  .restr-btn:disabled{ opacity:.32; cursor:default; }
+  .restr-hint{ font-size:9.5px; color:var(--muted); margin:2px 0 7px; line-height:1.45; }
+  .restr-item{
+    display:flex; align-items:center; gap:7px; font-size:10.5px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px; padding:4px 7px;
+  }
+  .restr-item .g{ font-size:12px; }
+  .restr-item .x{ margin-left:auto; cursor:pointer; color:var(--muted); font-size:12px; padding:0 3px; }
+  .restr-item .x:hover{ color:var(--danger,#b3261e); }
+  .restr-estado{ font-size:9.5px; margin-top:6px; line-height:1.4; }
+  .restr-estado.ok{ color:var(--ok); }
+  .restr-estado.mal{ color:var(--warn); }
+
+  /* ---- dibujo asistido ---- */
+  .coord-label{
+    position:absolute; bottom:44px; right:16px; z-index:5; pointer-events:none;
+    font-size:10.5px; color:#5f625a; background:rgba(255,255,255,.86);
+    border:1px solid var(--line); border-radius:5px; padding:3px 9px;
+    font-family:'IBM Plex Mono', Consolas, monospace; letter-spacing:.02em;
+  }
+  .auto-restr{
+    display:flex; align-items:center; gap:6px; margin-top:8px;
+    font-size:9.5px; color:var(--muted); cursor:pointer;
+  }
+
+  /* Puntero propio: el crosshair del sistema es blanco y se pierde en el fondo. */
+  /* Un unico cursor en todo el lienzo: el !important gana tambien a los
+     cursores que el JS pone elemento a elemento (move, pointer...). */
+  #canvas, #canvas *{ cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="25" height="25"><g stroke="%23ffffff" stroke-width="3.2" stroke-linecap="round"><line x1="12.5" y1="1" x2="12.5" y2="8"/><line x1="12.5" y1="17" x2="12.5" y2="24"/><line x1="1" y1="12.5" x2="8" y2="12.5"/><line x1="17" y1="12.5" x2="24" y2="12.5"/></g><g stroke="%23111111" stroke-width="1.3" stroke-linecap="round"><line x1="12.5" y1="1" x2="12.5" y2="8"/><line x1="12.5" y1="17" x2="12.5" y2="24"/><line x1="1" y1="12.5" x2="8" y2="12.5"/><line x1="17" y1="12.5" x2="24" y2="12.5"/></g><circle cx="12.5" cy="12.5" r="2.6" fill="%232563eb" stroke="%23ffffff" stroke-width="1.1"/></svg>') 12 12, crosshair !important; }
+
+
+  /* ---- generador de G-code ---- */
+  .gcode-box{ display:flex; flex-direction:column; gap:6px; }
+  .gcode-resumen{ font-size:9.5px; color:var(--muted); }
+  .gcode-box textarea{
+    width:100%; height:180px; resize:vertical; background:#fbfbf9;
+    border:1px solid var(--line); border-radius:6px; color:var(--text);
+    font-family:'IBM Plex Mono', Consolas, monospace; font-size:10.5px;
+    line-height:1.5; padding:8px; white-space:pre; overflow:auto;
+  }
+  .gcode-acciones{ display:flex; gap:6px; }
+  .gcode-acciones button{ flex:1; }
+  .mat-card{ border:1px solid var(--line); border-radius:6px; padding:6px; margin-bottom:6px;
+             background:var(--panel-2); }
+  .mat-head{ display:flex; gap:5px; align-items:center; margin-bottom:5px; }
+  .mat-name{ flex:1; background:#fff; border:1px solid var(--line); border-radius:5px;
+             padding:4px 6px; font-size:11px; font-family:inherit; color:var(--text); }
+  .mat-var{ display:flex; gap:5px; margin-top:4px; }
+  .mat-var input[type=text]{ flex:1; }
+  .mat-var input{ background:#fff; border:1px solid var(--line); border-radius:5px;
+                  padding:3px 6px; font-size:10.5px; width:100%; font-family:inherit;
+                  color:var(--text); }
+  .mat-var input[type=number]{ max-width:74px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Diseñador de Contornos</h1>
+      <span class="version-tag mono" id="versionTag">v1.13</span>
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de la pieza</label>
+      <input type="text" id="partName" placeholder="Pieza_1">
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de archivo</label>
+      <input type="text" id="fileName" class="mono" value="contorno_1">
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-secondary" id="undoBtn" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
+      <button class="btn-secondary" id="redoBtn" title="Rehacer (Ctrl+Y)">↷ Rehacer</button>
+      <button class="btn-secondary" id="saveBtn">💾 Guardar .txt</button>
+      <button class="btn-secondary" id="loadBtn">📂 Cargar .txt</button>
+      <input type="file" id="fileInput" accept=".txt" style="display:none">
+    </div>
+    <div class="topbar-spacer"></div>
+    <button class="link-btn" id="clearAllBtn">Limpiar todo</button>
+  </div>
+
+  <div class="app-body">
+
+    <!-- ===================== IZQUIERDA: HERRAMIENTAS + CAPAS ===================== -->
+    <div class="col col-left">
+      <div class="section-title">Herramientas</div>
+      <div class="tool-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="tool-btn active" data-active-layer="laser" id="activeLayerLaserBtn">🔴 Láser</div>
+        <div class="tool-btn" data-active-layer="constr" id="activeLayerConstrBtn">⚙️ Construcción</div>
+      </div>
+      <div class="tool-grid" id="toolGrid">
+        <div class="tool-btn active" data-tool="select"><span class="icon">↖</span>Seleccionar</div>
+        <div class="tool-btn" data-tool="line"><span class="icon">╱</span>Línea</div>
+        <div class="tool-btn" data-tool="rect"><span class="icon">▭</span>Rectángulo</div>
+        <div class="tool-btn" data-tool="circle3"><span class="icon">◯</span>Círculo 3pt</div>
+        <div class="tool-btn" data-tool="circleCR"><span class="icon">⊙</span>Círculo C+R</div>
+        <div class="tool-btn" data-tool="arc"><span class="icon">◜</span>Arco</div>
+        <div class="tool-btn" data-tool="dimDist"><span class="icon">↔</span>Cota distancia</div>
+        <div class="tool-btn" data-tool="dimRad"><span class="icon">⌀</span>Cota radio</div>
+        <div class="tool-btn" data-tool="erase"><span class="icon">✕</span>Eliminar</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div id="lineInputBlock" style="display:none; flex-direction:column; gap:8px;">
+        <div class="section-title">Línea: distancia y ángulo</div>
+        <div class="prop-row"><span class="k">Distancia (mm)</span><input type="number" step="any" id="lineDistInput"></div>
+        <div class="prop-row"><span class="k">Ángulo (°)</span><input type="number" step="any" id="lineAngleInput" value="0"></div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--muted);">
+          <input type="checkbox" id="lineAngleRelative"> Ángulo relativo a la línea anterior
+        </label>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-secondary" id="linePlaceBtn" style="flex:1;">Colocar línea</button>
+          <button class="btn-tiny" id="lineCancelBtn">Cancelar</button>
+        </div>
+        <div class="footer-note mono" style="border-top:none; padding-top:0; margin-top:0;">
+          O bien haz clic directo en el lienzo para colocarla a ojo, como antes.
+        </div>
+      </div>
+
+      <div id="rectInputBlock" style="display:none; flex-direction:column; gap:8px;">
+        <div class="section-title">Rectángulo: ancho y alto</div>
+        <div class="prop-row"><span class="k">Ancho (mm)</span><input type="number" step="any" id="rectWidthInput"></div>
+        <div class="prop-row"><span class="k">Alto (mm)</span><input type="number" step="any" id="rectHeightInput"></div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-secondary" id="rectPlaceBtn" style="flex:1;">Colocar rectángulo</button>
+          <button class="btn-tiny" id="rectCancelBtn">Cancelar</button>
+        </div>
+        <div class="footer-note mono" style="border-top:none; padding-top:0; margin-top:0;">
+          O bien haz clic directo en el lienzo para la esquina opuesta.
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Restricciones</div>
+      <div class="restr-hint" id="restrHint">Selecciona una entidad. Ctrl+clic para anadir mas.</div>
+      <div class="restr-grid" id="restrGrid"></div>
+      <label class="auto-restr" title="Al dibujar enganchado a la guia horizontal o vertical, deja puesta esa relacion">
+        <input type="checkbox" id="autoRestr" checked> Relaciones automáticas al dibujar
+      </label>
+      <div id="restrEstado" class="restr-estado"></div>
+      <div id="restrList" style="display:flex; flex-direction:column; gap:4px; margin-top:8px;"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Capas</div>
+      <div id="layerList" style="display:flex; flex-direction:column; gap:6px;"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Traslado</div>
+      <button class="btn-secondary" id="regenMoveBtn" style="width:100%;">↻ Detectar / actualizar trazo</button>
+
+      <div class="footer-note mono">
+        Mantén <b>Alt</b> para colocar un punto sin que se enganche a nada.
+        Clic para colocar puntos (se ajustan solos a puntos ya existentes cerca).
+        Arrastra un punto con "Seleccionar" para moverlo — todo lo conectado a
+        él se mueve junto. Editar el valor de una cota mueve el punto asociado.
+      </div>
+    </div>
+
+    <!-- ===================== CENTRO: LIENZO ===================== -->
+    <div class="col-center">
+      <div class="stage-frame">
+        <div class="stage-badge">Vista · <b id="badgeState">en espera</b></div>
+        <div class="stage-scale mono" id="scaleLabel"></div>
+        <div class="coord-label" id="coordLabel"></div>
+        <svg id="canvas" viewBox="0 0 900 820" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="hint-bar" id="hintBar">Selecciona una herramienta para empezar a dibujar.</div>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomInBtn" title="Acercar">+</button>
+          <button class="zoom-fit-btn" id="zoomFitBtn" title="Ajustar vista">⤢</button>
+          <button class="zoom-btn" id="zoomOutBtn" title="Alejar">−</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== DERECHA: PROPIEDADES + TRASLADO ===================== -->
+    <div class="col col-right">
+      <div class="section-title">Propiedades</div>
+      <div id="propPanel">
+        <div class="prop-empty">Nada seleccionado.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title" id="subpathTitle">Trazo de traslado (0 tramos)</div>
+      <div class="subpath-list" id="subpathList">
+        <div class="prop-empty">Aún no hay trazo láser dibujado.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">G-code de corte</div>
+      <div id="gcodeParams"></div>
+      <div class="gcode-resumen" id="gcodeResumen"></div>
+
+      <div class="gcode-box" style="margin-top:8px;">
+        <textarea id="gcodePreview" spellcheck="false" readonly></textarea>
+        <div class="gcode-acciones">
+          <button class="btn-secondary" id="gcodeRefreshBtn">↻ Actualizar</button>
+          <button class="btn-secondary" id="gcodeExportBtn">💾 Exportar</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Materiales</div>
+      <div id="materialList"></div>
+      <button class="btn-secondary" id="matAddBtn" style="width:100%; margin-top:6px;">+ Material</button>
+
+      <div class="divider"></div>
+
+      <div class="status mono" id="status">Listo.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const svg = document.getElementById('canvas');
+const NS = 'http://www.w3.org/2000/svg';
+const W = 900, H = 820;
+const PAD = 90;
+
+// ---------- ESTADO ----------
+let points = [];       // {id, x, y}
+let entities = [];     // {id, type:'line'|'circle'|'arc', layer, groupId?, ...refs}
+let dimensions = [];   // {id, type:'distance'|'radius', ...refs}
+let pointCounter = 0, entityCounter = 0, dimCounter = 0;
+
+const layers = {
+  laser:  { name:'Láser',        color:'#d9541f', visible:true },
+  move:   { name:'Traslado',     color:'#1f8f84', visible:true },
+  dim:    { name:'Cotas',        color:'#a16207', visible:true },
+  constr: { name:'Construcción', color:'#8b8f86', visible:true }
+};
+
+let currentTool = 'select';
+let activeLayer = 'laser';
+let toolClickBuffer = [];
+let selectedPointId = null;
+let selectedEntityId = null;
+let selectedDimId = null;
+let moveOrder = [];
+let constraints = [];        // {id, type, entities:[ids], points:[ids]}
+let constraintCounter = 0;
+let selection = [];          // seleccion multiple: [{kind:'entity'|'point', id}]
+
+let camera = null;
+let cameraInitialized = false;
+let isPanning = false, panStartPt = null, panStartCamera = null, panMoved = false;
+let draggingPointId = null;
+
+// ---------- DESHACER / REHACER (Ctrl+Z / Ctrl+Y) ----------
+// Estrategia de "foto completa": antes de cada acción que modifica algo,
+// se guarda una copia del estado. Es más simple y confiable que rastrear
+// cada cambio individual, dado lo variado del modelo de datos.
+let undoStack = [];
+let redoStack = [];
+const UNDO_LIMIT = 60;
+
+function snapshotState(){
+  return JSON.stringify({ points, entities, dimensions, constraints, moveOrder, pointCounter, entityCounter, dimCounter, constraintCounter });
+}
+function updateUndoRedoButtons(){
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  if(undoBtn) undoBtn.disabled = undoStack.length === 0;
+  if(redoBtn) redoBtn.disabled = redoStack.length === 0;
+}
+function pushUndo(){
+  undoStack.push(snapshotState());
+  if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+function restoreState(snapshotStr){
+  const s = JSON.parse(snapshotStr);
+  points = s.points; entities = s.entities; dimensions = s.dimensions; moveOrder = s.moveOrder;
+  constraints = s.constraints || []; constraintCounter = s.constraintCounter || 0;
+  pointCounter = s.pointCounter; entityCounter = s.entityCounter; dimCounter = s.dimCounter;
+  selectedPointId = null; selectedEntityId = null; selectedDimId = null;
+  selection = [];
+  renderConstraintUI();
+  renderPropPanel();
+  renderSubpathList();
+  updateLiveView();
+}
+function undo(){
+  if(undoStack.length === 0){ setStatus('No hay nada que deshacer.', ''); return; }
+  redoStack.push(snapshotState());
+  restoreState(undoStack.pop());
+  updateUndoRedoButtons();
+  setStatus('Deshecho (Ctrl+Z).', 'ok');
+}
+function redo(){
+  if(redoStack.length === 0){ setStatus('No hay nada que rehacer.', ''); return; }
+  undoStack.push(snapshotState());
+  restoreState(redoStack.pop());
+  updateUndoRedoButtons();
+  setStatus('Rehecho (Ctrl+Y).', 'ok');
+}
+
+// ---------- SVG HELPERS ----------
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function clearSvg(){ svg.innerHTML = ''; }
+function fmt(n){ return n.toFixed(4); }
+function fmt2(n){ return n.toFixed(2); }
+
+function clientToSvgPoint(clientX, clientY){
+  const pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return { x:0, y:0 };
+  const p = pt.matrixTransform(ctm.inverse());
+  return { x:p.x, y:p.y };
+}
+
+function setStatus(msg, type){
+  const s = document.getElementById('status');
+  s.textContent = msg;
+  s.className = 'status mono' + (type ? ' ' + type : '');
+}
+
+function sanitizeFilename(name){
+  return (name || '').replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
+}
+
+function downloadTextFile(text, filename){
+  const blob = new Blob([text], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- PUNTOS ----------
+function getPoint(id){ return points.find(p => p.id === id); }
+
+function findNearbyPoint(wx, wy){
+  const tolWorld = camera ? (12 / camera.scale) : 0.5;
+  let best = null, bestD = Infinity;
+  points.forEach(p=>{
+    const d = Math.hypot(p.x-wx, p.y-wy);
+    if(d < tolWorld && d < bestD){ best = p; bestD = d; }
+  });
+  return best;
+}
+
+function getOrCreatePoint(wx, wy){
+  const existing = findNearbyPoint(wx, wy);
+  if(existing) return existing.id;
+  const id = 'pt' + (pointCounter++);
+  points.push({ id, x:wx, y:wy });
+  return id;
+}
+
+// elimina puntos que ya no son referenciados por ninguna entidad ni cota
+function cleanupOrphanPoints(){
+  const used = new Set();
+  entities.forEach(e=>{
+    ['p1','p2','p3','center','radiusPt','startPt','endPt'].forEach(k=>{ if(e[k]) used.add(e[k]); });
+  });
+  dimensions.forEach(d=>{ if(d.p1) used.add(d.p1); if(d.p2) used.add(d.p2); });
+  points = points.filter(p => used.has(p.id));
+}
+
+// ---------- GEOMETRÍA ----------
+function fitCircle3pt(p1, p2, p3){
+  const D = 2*(p1.x*(p2.y-p3.y) + p2.x*(p3.y-p1.y) + p3.x*(p1.y-p2.y));
+  if(Math.abs(D) < 1e-9) return null;
+  const sq = (x,y)=>x*x+y*y;
+  const ux = (sq(p1.x,p1.y)*(p2.y-p3.y) + sq(p2.x,p2.y)*(p3.y-p1.y) + sq(p3.x,p3.y)*(p1.y-p2.y)) / D;
+  const uy = (sq(p1.x,p1.y)*(p3.x-p2.x) + sq(p2.x,p2.y)*(p1.x-p3.x) + sq(p3.x,p3.y)*(p2.x-p1.x)) / D;
+  const r = Math.hypot(p1.x-ux, p1.y-uy);
+  return { cx:ux, cy:uy, r };
+}
+
+function circleGeom(entity){
+  if(entity.method === '3pt'){
+    const p1 = getPoint(entity.p1), p2 = getPoint(entity.p2), p3 = getPoint(entity.p3);
+    if(!p1 || !p2 || !p3) return null;
+    return fitCircle3pt(p1, p2, p3);
+  }
+  const c = getPoint(entity.center), r = getPoint(entity.radiusPt);
+  if(!c || !r) return null;
+  return { cx:c.x, cy:c.y, r:Math.hypot(r.x-c.x, r.y-c.y) };
+}
+
+function arcGeom(entity){
+  const c = getPoint(entity.center), s = getPoint(entity.startPt);
+  if(!c || !s) return null;
+  return { cx:c.x, cy:c.y, r:Math.hypot(s.x-c.x, s.y-c.y) };
+}
+
+// Devuelve el ángulo de barrido (con signo: positivo=antihorario, negativo=horario)
+// desde a0 hasta a1raw. Por defecto usa el camino MÁS CORTO (<=180°), sin importar
+// el orden en que se hayan hecho los clics — así el sentido de dibujo no importa.
+// Si preferLong=true, usa el arco reflejo (>180°) en su lugar.
+function computeArcSweep(a0, a1raw, preferLong){
+  let ccw = a1raw - a0;
+  while(ccw < 0) ccw += 2*Math.PI;
+  while(ccw > 2*Math.PI) ccw -= 2*Math.PI;
+  const useCcw = preferLong ? (ccw > Math.PI) : (ccw <= Math.PI);
+  return useCcw ? ccw : -(2*Math.PI - ccw);
+}
+
+// Longitud/ángulo de una línea (p1 fijo, p2 móvil). Ángulo desde el eje X, antihorario.
+function getLineLengthAngle(entity){
+  const p1 = getPoint(entity.p1), p2 = getPoint(entity.p2);
+  const dx = p2.x-p1.x, dy = p2.y-p1.y;
+  let angleDeg = Math.atan2(dy,dx) * 180/Math.PI;
+  if(angleDeg < 0) angleDeg += 360;
+  return { length: Math.hypot(dx,dy), angleDeg };
+}
+function setLineLength(entity, newLength){
+  if(!(newLength > 0)) return;
+  const p1 = getPoint(entity.p1), p2 = getPoint(entity.p2);
+  const dx = p2.x-p1.x, dy = p2.y-p1.y;
+  const curD = Math.hypot(dx,dy) || 1e-9;
+  p2.x = p1.x + (dx/curD)*newLength;
+  p2.y = p1.y + (dy/curD)*newLength;
+}
+function setLineAngle(entity, newAngleDeg){
+  const p1 = getPoint(entity.p1), p2 = getPoint(entity.p2);
+  const curLen = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+  const rad = newAngleDeg * Math.PI/180;
+  p2.x = p1.x + curLen*Math.cos(rad);
+  p2.y = p1.y + curLen*Math.sin(rad);
+}
+
+// Busca una línea ya existente que toque este punto, para usar su ángulo como
+// referencia al continuar dibujando desde ahí (ángulo "relativo a la anterior").
+function findReferenceAngleAt(pointId, excludeEntityId){
+  const e = entities.find(e => e.type === 'line' && e.id !== excludeEntityId && (e.p1 === pointId || e.p2 === pointId));
+  if(!e) return null;
+  return getLineLengthAngle(e).angleDeg;
+}
+
+// ---------- RECTÁNGULOS (grupo de 4 líneas): ancho/alto editables ----------
+// Se anclan por la esquina inferior-izquierda (minX,minY); ancho/alto mueven
+// juntos los 2 puntos del lado opuesto correspondiente, para que la figura
+// se mantenga rectangular (a diferencia de mover un solo punto suelto).
+function isRectGroup(groupId){
+  if(!groupId) return false;
+  return entities.filter(e => e.groupId === groupId && e.type === 'line').length === 4;
+}
+function getGroupCorners(groupId){
+  const list = entities.filter(e => e.groupId === groupId);
+  const ids = new Set();
+  list.forEach(e => { ids.add(e.p1); ids.add(e.p2); });
+  return Array.from(ids).map(id => getPoint(id)).filter(Boolean);
+}
+function getRectBounds(groupId){
+  const corners = getGroupCorners(groupId);
+  const xs = corners.map(p=>p.x), ys = corners.map(p=>p.y);
+  return { minX:Math.min(...xs), maxX:Math.max(...xs), minY:Math.min(...ys), maxY:Math.max(...ys) };
+}
+function setRectWidth(groupId, newWidth){
+  if(!(newWidth > 0)) return;
+  const b = getRectBounds(groupId);
+  getGroupCorners(groupId).forEach(p=>{ if(Math.abs(p.x - b.maxX) < 1e-6) p.x = b.minX + newWidth; });
+}
+function setRectHeight(groupId, newHeight){
+  if(!(newHeight > 0)) return;
+  const b = getRectBounds(groupId);
+  getGroupCorners(groupId).forEach(p=>{ if(Math.abs(p.y - b.maxY) < 1e-6) p.y = b.minY + newHeight; });
+}
+
+// ---------- ENTIDADES / COTAS ----------
+function addEntity(data){
+  const id = 'e' + (entityCounter++);
+  entities.push({ id, ...data });
+  return id;
+}
+function addDimension(data){
+  const id = 'd' + (dimCounter++);
+  dimensions.push({ id, ...data });
+  selectedDimId = id; selectedPointId = null; selectedEntityId = null;
+  return id;
+}
+
+function deleteEntity(id){
+  const entity = entities.find(e => e.id === id);
+  if(!entity) return;
+  const idsToDelete = entity.groupId ? entities.filter(e => e.groupId === entity.groupId).map(e => e.id) : [id];
+  entities = entities.filter(e => !idsToDelete.includes(e.id));
+  // Una restriccion sin sus entidades no significa nada: se va con ellas.
+  constraints = constraints.filter(c => !(c.entities || []).some(eid => idsToDelete.includes(eid)));
+  selection = selection.filter(s => !(s.kind === 'entity' && idsToDelete.includes(s.id)));
+  dimensions = dimensions.filter(d => d.entityId ? !idsToDelete.includes(d.entityId) : true);
+  cleanupOrphanPoints();
+  if(selectedEntityId && idsToDelete.includes(selectedEntityId)) selectedEntityId = null;
+  regenerateMoveOrder();
+  renderPropPanel();
+}
+
+function deletePoint(id){
+  const refEntities = entities.filter(e => [e.p1,e.p2,e.p3,e.center,e.radiusPt,e.startPt,e.endPt].includes(id));
+  refEntities.forEach(e => deleteEntity(e.id));
+  dimensions = dimensions.filter(d => d.p1 !== id && d.p2 !== id);
+  points = points.filter(p => p.id !== id);
+  constraints = constraints.filter(c => !(c.points || []).includes(id));
+  selection = selection.filter(s => !(s.kind === 'point' && s.id === id));
+  if(selectedPointId === id) selectedPointId = null;
+  regenerateMoveOrder();
+  renderPropPanel();
+}
+
+// ---------- COTAS: edición paramétrica ----------
+// Cambia el radio de un círculo (centro+radio) o arco, moviendo el punto que
+// define ese radio en su dirección actual desde el centro. Un círculo por
+// 3 puntos no es accionable por radio (queda sobredeterminado por sus puntos).
+function setEntityRadius(entity, newRadius){
+  if(!(newRadius > 0) || !entity) return;
+  if(entity.type === 'circle' && entity.method === 'cr'){
+    const c = getPoint(entity.center), r = getPoint(entity.radiusPt);
+    const dx = r.x-c.x, dy = r.y-c.y;
+    const curD = Math.hypot(dx,dy) || 1e-9;
+    r.x = c.x + (dx/curD)*newRadius;
+    r.y = c.y + (dy/curD)*newRadius;
+  } else if(entity.type === 'arc'){
+    const c = getPoint(entity.center);
+    [entity.startPt, entity.endPt].forEach(pid=>{
+      const p = getPoint(pid);
+      const dx = p.x-c.x, dy = p.y-c.y;
+      const curD = Math.hypot(dx,dy) || 1e-9;
+      p.x = c.x + (dx/curD)*newRadius;
+      p.y = c.y + (dy/curD)*newRadius;
+    });
+  }
+}
+
+function setDimensionValue(dim, newVal){
+  if(!(newVal > 0)) return;
+  if(dim.type === 'distance'){
+    const fixedId = dim.drivenPoint === dim.p2 ? dim.p1 : dim.p2;
+    const fixed = getPoint(fixedId), driven = getPoint(dim.drivenPoint);
+    if(!fixed || !driven) return;
+    const dx = driven.x-fixed.x, dy = driven.y-fixed.y;
+    const curD = Math.hypot(dx,dy) || 1e-9;
+    driven.x = fixed.x + (dx/curD)*newVal;
+    driven.y = fixed.y + (dy/curD)*newVal;
+  } else if(dim.type === 'radius'){
+    setEntityRadius(entities.find(e => e.id === dim.entityId), newVal);
+  }
+  resolverSketch();
+  regenerateMoveOrder();
+  updateLiveView();
+}
+
+// ================= RESTRICCIONES DE SKETCH =================
+// A diferencia de las ediciones directas (setLineLength, setLineAngle...), que
+// mueven un punto y se acabo, una restriccion es una condicion PERMANENTE que
+// debe seguir cumpliendose cuando algo mas cambia.
+//
+// El solucionador es de proyeccion iterativa: en cada pasada, cada restriccion
+// empuja un poco los puntos implicados hacia su cumplimiento, y se repite hasta
+// que nadie tiene que moverse mas. Es mas simple que un solver algebraico y,
+// sobre todo, no explota cuando el dibujo esta sobredeterminado: se queda en la
+// mejor solucion de compromiso y avisa.
+//
+// Los puntos "anclados" (los fijados por el usuario y el que esta arrastrando)
+// tienen peso 0: nunca se mueven, y el resto absorbe toda la correccion.
+
+const TIPOS_RESTRICCION = {
+  horizontal:    { nombre:'Horizontal',  glifo:'H', ent:1, pts:0 },
+  vertical:      { nombre:'Vertical',    glifo:'V', ent:1, pts:0 },
+  paralela:      { nombre:'Paralelas',   glifo:'∥', ent:2, pts:0 },
+  perpendicular: { nombre:'Perpendic.',  glifo:'⊥', ent:2, pts:0 },
+  igual:         { nombre:'Iguales',     glifo:'=', ent:2, pts:0 },
+  tangente:      { nombre:'Tangente',    glifo:'T', ent:2, pts:0 },
+  concentrica:   { nombre:'Concentric.', glifo:'◎', ent:2, pts:0 },
+  puntoEnLinea:  { nombre:'Punto en línea', glifo:'·', ent:1, pts:1 },
+  fijo:          { nombre:'Fijar punto', glifo:'▣', ent:0, pts:1 }
+};
+
+// ---------- seleccion multiple ----------
+function estaSeleccionado(kind, id){
+  return selection.some(s => s.kind === kind && s.id === id);
+}
+function alternarSeleccion(kind, id){
+  const i = selection.findIndex(s => s.kind === kind && s.id === id);
+  if(i >= 0) selection.splice(i, 1);
+  else selection.push({ kind, id });
+  // El panel de propiedades sigue mostrando el ultimo elemento tocado.
+  if(kind === 'entity'){ selectedEntityId = id; selectedPointId = null; }
+  else { selectedPointId = id; selectedEntityId = null; }
+  selectedDimId = null;
+}
+function entidadesSel(){
+  return selection.filter(s => s.kind === 'entity')
+                  .map(s => entities.find(e => e.id === s.id))
+                  .filter(Boolean);
+}
+function puntosSel(){
+  return selection.filter(s => s.kind === 'point').map(s => getPoint(s.id)).filter(Boolean);
+}
+
+// ---------- ayudas de geometria ----------
+function esLinea(e){ return e && e.type === 'line'; }
+function esCircular(e){ return e && (e.type === 'circle' || e.type === 'arc'); }
+function geomDe(e){ return e.type === 'circle' ? circleGeom(e) : arcGeom(e); }
+function centroPt(e){
+  // El circulo por 3 puntos no tiene punto de centro: su centro es un resultado.
+  if(e.type === 'circle' && e.method === '3pt') return null;
+  return getPoint(e.center);
+}
+function radioAjustable(e){
+  return (e.type === 'circle' && e.method === 'cr') || e.type === 'arc';
+}
+function anguloLinea(e){
+  const a = getPoint(e.p1), b = getPoint(e.p2);
+  return Math.atan2(b.y - a.y, b.x - a.x);
+}
+function longitudLinea(e){
+  const a = getPoint(e.p1), b = getPoint(e.p2);
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+// Lleva un angulo al rango (-90, 90]: para paralelismo da igual el sentido.
+function normMedioGiro(a){
+  while(a >  Math.PI/2) a -= Math.PI;
+  while(a <= -Math.PI/2) a += Math.PI;
+  return a;
+}
+
+// ---------- pesos ----------
+function pesosDePuntos(anclados){
+  const w = {};
+  points.forEach(p => { w[p.id] = 1; });
+  constraints.forEach(c => {
+    if(c.type === 'fijo') (c.points || []).forEach(id => { w[id] = 0; });
+  });
+  (anclados || []).forEach(id => { if(id) w[id] = 0; });
+  return w;
+}
+function lineaTieneLibertad(e, w){
+  return w[e.p1] || w[e.p2];
+}
+
+// Gira una linea el angulo indicado. Pivota sobre el extremo anclado si lo hay,
+// y sobre el punto medio si los dos estan libres.
+function girarLinea(e, delta, w){
+  const p1 = getPoint(e.p1), p2 = getPoint(e.p2);
+  if(!p1 || !p2) return 0;
+  const f1 = w[p1.id], f2 = w[p2.id];
+  if(!f1 && !f2) return 0;
+  let ox, oy;
+  if(f1 && f2){ ox = (p1.x + p2.x)/2; oy = (p1.y + p2.y)/2; }
+  else if(f1){ ox = p2.x; oy = p2.y; }
+  else { ox = p1.x; oy = p1.y; }
+  const cs = Math.cos(delta), sn = Math.sin(delta);
+  let mov = 0;
+  [[p1, f1], [p2, f2]].forEach(function(par){
+    const p = par[0], libre = par[1];
+    if(!libre) return;
+    const dx = p.x - ox, dy = p.y - oy;
+    const nx = ox + dx*cs - dy*sn;
+    const ny = oy + dx*sn + dy*cs;
+    mov = Math.max(mov, Math.hypot(nx - p.x, ny - p.y));
+    p.x = nx; p.y = ny;
+  });
+  return mov;
+}
+
+// Estira o encoge una linea hasta la longitud objetivo, con el mismo criterio
+// de pivote que girarLinea.
+function escalarLinea(e, objetivo, w){
+  const p1 = getPoint(e.p1), p2 = getPoint(e.p2);
+  if(!p1 || !p2 || !(objetivo > 0)) return 0;
+  const f1 = w[p1.id], f2 = w[p2.id];
+  if(!f1 && !f2) return 0;
+  const L = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  if(L < 1e-12) return 0;
+  const k = objetivo / L;
+  let ox, oy;
+  if(f1 && f2){ ox = (p1.x + p2.x)/2; oy = (p1.y + p2.y)/2; }
+  else if(f1){ ox = p2.x; oy = p2.y; }
+  else { ox = p1.x; oy = p1.y; }
+  let mov = 0;
+  [[p1, f1], [p2, f2]].forEach(function(par){
+    const p = par[0], libre = par[1];
+    if(!libre) return;
+    const nx = ox + (p.x - ox)*k;
+    const ny = oy + (p.y - oy)*k;
+    mov = Math.max(mov, Math.hypot(nx - p.x, ny - p.y));
+    p.x = nx; p.y = ny;
+  });
+  return mov;
+}
+
+// Todos los puntos que definen una entidad.
+function puntosDe(e){
+  return ['p1','p2','p3','center','radiusPt','startPt','endPt']
+    .map(k => e[k]).filter(Boolean).map(getPoint).filter(Boolean);
+}
+// Un circulo se mueve ENTERO. Mover solo el centro dejaria atras el punto que
+// define el radio, y el radio cambiaria sin que nadie lo haya pedido.
+function puedeTrasladar(e, w){
+  const ps = puntosDe(e);
+  return ps.length > 0 && ps.every(p => w[p.id]);
+}
+function trasladarEntidad(e, dx, dy){
+  puntosDe(e).forEach(p => { p.x += dx; p.y += dy; });
+  return Math.hypot(dx, dy);
+}
+
+// Una linea de longitud cero o un circulo de radio cero no son una solucion:
+// son el dibujo colapsado. El solver puede llegar ahi cuando dos restricciones
+// se contradicen (p.ej. horizontal y vertical sobre la misma linea).
+function sketchDegenerado(){
+  for(let i = 0; i < entities.length; i++){
+    const e = entities[i];
+    if(esLinea(e) && longitudLinea(e) < 1e-6) return true;
+    if(esCircular(e)){
+      const g = geomDe(e);
+      if(!g || !(g.r > 1e-6)) return true;
+    }
+  }
+  return false;
+}
+
+function ponerRadio(e, objetivo, w){
+  if(!(objetivo > 0) || !radioAjustable(e)) return 0;
+  const c = centroPt(e);
+  if(!c) return 0;
+  const ids = e.type === 'arc' ? [e.startPt, e.endPt] : [e.radiusPt];
+  let mov = 0;
+  ids.forEach(function(pid){
+    const p = getPoint(pid);
+    if(!p || !w[p.id]) return;
+    const dx = p.x - c.x, dy = p.y - c.y;
+    const d = Math.hypot(dx, dy) || 1e-9;
+    const nx = c.x + (dx/d)*objetivo;
+    const ny = c.y + (dy/d)*objetivo;
+    mov = Math.max(mov, Math.hypot(nx - p.x, ny - p.y));
+    p.x = nx; p.y = ny;
+  });
+  return mov;
+}
+
+// ---------- una pasada de una restriccion ----------
+function aplicarUna(c, w){
+  const ents = (c.entities || []).map(id => entities.find(e => e.id === id));
+  if(ents.some(e => !e)) return 0;
+  const e1 = ents[0], e2 = ents[1];
+
+  if(c.type === 'fijo') return 0;   // solo influye via pesos
+
+  if(c.type === 'horizontal' || c.type === 'vertical'){
+    if(!esLinea(e1)) return 0;
+    const p1 = getPoint(e1.p1), p2 = getPoint(e1.p2);
+    if(!p1 || !p2) return 0;
+    const eje = c.type === 'horizontal' ? 'y' : 'x';
+    const f1 = w[p1.id], f2 = w[p2.id];
+    const d = p2[eje] - p1[eje];
+    if(Math.abs(d) < 1e-12) return 0;
+    if(f1 && f2){ p1[eje] += d/2; p2[eje] -= d/2; return Math.abs(d)/2; }
+    if(f1){ p1[eje] += d; return Math.abs(d); }
+    if(f2){ p2[eje] -= d; return Math.abs(d); }
+    return 0;
+  }
+
+  if(c.type === 'paralela' || c.type === 'perpendicular'){
+    if(!esLinea(e1) || !esLinea(e2)) return 0;
+    const objetivo = c.type === 'paralela' ? 0 : Math.PI/2;
+    const d = normMedioGiro(anguloLinea(e2) - anguloLinea(e1) - objetivo);
+    if(Math.abs(d) < 1e-12) return 0;
+    const l1 = lineaTieneLibertad(e1, w), l2 = lineaTieneLibertad(e2, w);
+    if(l1 && l2) return Math.max(girarLinea(e1, d/2, w), girarLinea(e2, -d/2, w));
+    if(l1) return girarLinea(e1, d, w);
+    if(l2) return girarLinea(e2, -d, w);
+    return 0;
+  }
+
+  if(c.type === 'igual'){
+    if(esLinea(e1) && esLinea(e2)){
+      const L1 = longitudLinea(e1), L2 = longitudLinea(e2);
+      const m = (L1 + L2)/2;
+      if(Math.abs(L1 - L2) < 1e-12) return 0;
+      return Math.max(escalarLinea(e1, m, w), escalarLinea(e2, m, w));
+    }
+    if(esCircular(e1) && esCircular(e2)){
+      const g1 = geomDe(e1), g2 = geomDe(e2);
+      if(!g1 || !g2) return 0;
+      const m = (g1.r + g2.r)/2;
+      if(Math.abs(g1.r - g2.r) < 1e-12) return 0;
+      return Math.max(ponerRadio(e1, m, w), ponerRadio(e2, m, w));
+    }
+    return 0;
+  }
+
+  if(c.type === 'concentrica'){
+    const c1 = centroPt(e1), c2 = centroPt(e2);
+    if(!c1 || !c2) return 0;
+    const dx = c2.x - c1.x, dy = c2.y - c1.y;
+    if(Math.hypot(dx, dy) < 1e-12) return 0;
+    // Se traslada la figura completa, para no alterar el radio de paso.
+    const m1 = puedeTrasladar(e1, w), m2 = puedeTrasladar(e2, w);
+    if(m1 && m2){
+      return Math.max(trasladarEntidad(e1, dx/2, dy/2),
+                      trasladarEntidad(e2, -dx/2, -dy/2));
+    }
+    if(m1) return trasladarEntidad(e1, dx, dy);
+    if(m2) return trasladarEntidad(e2, -dx, -dy);
+    return 0;
+  }
+
+  if(c.type === 'tangente'){
+    const linea = esLinea(e1) ? e1 : (esLinea(e2) ? e2 : null);
+    const circ  = esCircular(e1) ? e1 : (esCircular(e2) ? e2 : null);
+    if(!linea || !circ) return 0;
+    const g = geomDe(circ);
+    const cen = centroPt(circ);
+    if(!g || !cen) return 0;
+    const a = getPoint(linea.p1), b = getPoint(linea.p2);
+    if(!a || !b) return 0;
+    const ux = b.x - a.x, uy = b.y - a.y;
+    const L = Math.hypot(ux, uy);
+    if(L < 1e-12) return 0;
+    // normal unitaria a la linea
+    const nx = -uy/L, ny = ux/L;
+    const d = (cen.x - a.x)*nx + (cen.y - a.y)*ny;   // distancia con signo
+    const lado = d >= 0 ? 1 : -1;
+    const err = Math.abs(d) - g.r;                   // >0: el centro esta lejos
+    if(Math.abs(err) < 1e-12) return 0;
+
+    const puedeMover = puedeTrasladar(circ, w);
+    const puedeRadio = radioAjustable(circ);
+    let mov = 0;
+    if(puedeMover && puedeRadio){
+      // se reparte: la mitad acercando la figura, la mitad cambiando el radio
+      mov = trasladarEntidad(circ, -nx*lado*err/2, -ny*lado*err/2);
+      mov = Math.max(mov, ponerRadio(circ, g.r + err/2, w));
+    } else if(puedeMover){
+      mov = trasladarEntidad(circ, -nx*lado*err, -ny*lado*err);
+    } else if(puedeRadio){
+      mov = ponerRadio(circ, Math.abs(d), w);
+    }
+    return mov;
+  }
+
+  if(c.type === 'puntoEnLinea'){
+    if(!esLinea(e1)) return 0;
+    const p = getPoint((c.points || [])[0]);
+    const a = getPoint(e1.p1), b = getPoint(e1.p2);
+    if(!p || !a || !b || !w[p.id]) return 0;
+    const ux = b.x - a.x, uy = b.y - a.y;
+    const L2 = ux*ux + uy*uy;
+    if(L2 < 1e-24) return 0;
+    const t = ((p.x - a.x)*ux + (p.y - a.y)*uy) / L2;
+    const px = a.x + ux*t, py = a.y + uy*t;
+    const mov = Math.hypot(px - p.x, py - p.y);
+    p.x = px; p.y = py;
+    return mov;
+  }
+
+  return 0;
+}
+
+// ---------- el bucle ----------
+const RESTR_MAX_PASADAS = 400;
+const RESTR_TOLERANCIA = 1e-9;
+
+function resolverSketch(anclados){
+  if(!constraints.length) return { ok:true, pasadas:0, resto:0 };
+  const w = pesosDePuntos(anclados);
+  let resto = 0, i = 0;
+  for(; i < RESTR_MAX_PASADAS; i++){
+    resto = 0;
+    for(let k = 0; k < constraints.length; k++){
+      const m = aplicarUna(constraints[k], w);
+      if(m > resto) resto = m;
+    }
+    if(resto < RESTR_TOLERANCIA) break;
+  }
+  return { ok: resto < 1e-5, pasadas:i, resto };
+}
+
+// ---------- alta / baja ----------
+function puedeAplicar(tipo){
+  const def = TIPOS_RESTRICCION[tipo];
+  if(!def) return false;
+  const ents = entidadesSel(), pts = puntosSel();
+  if(ents.length !== def.ent || pts.length !== def.pts) return false;
+
+  if(tipo === 'horizontal' || tipo === 'vertical') return esLinea(ents[0]);
+  if(tipo === 'paralela' || tipo === 'perpendicular') return esLinea(ents[0]) && esLinea(ents[1]);
+  if(tipo === 'puntoEnLinea') return esLinea(ents[0]);
+  if(tipo === 'fijo') return true;
+  if(tipo === 'igual'){
+    const dosLineas = esLinea(ents[0]) && esLinea(ents[1]);
+    const dosCirc = esCircular(ents[0]) && esCircular(ents[1]) &&
+                    radioAjustable(ents[0]) && radioAjustable(ents[1]);
+    return dosLineas || dosCirc;
+  }
+  if(tipo === 'concentrica'){
+    return esCircular(ents[0]) && esCircular(ents[1]) && !!centroPt(ents[0]) && !!centroPt(ents[1]);
+  }
+  if(tipo === 'tangente'){
+    const hayLinea = ents.filter(esLinea).length === 1;
+    const circ = ents.filter(esCircular)[0];
+    return hayLinea && !!circ && !!centroPt(circ);
+  }
+  return false;
+}
+
+function motivoNoAplicable(tipo){
+  const def = TIPOS_RESTRICCION[tipo];
+  const ents = entidadesSel(), pts = puntosSel();
+  const partes = [];
+  if(def.ent) partes.push(def.ent + ' entidad' + (def.ent > 1 ? 'es' : ''));
+  if(def.pts) partes.push(def.pts + ' punto' + (def.pts > 1 ? 's' : ''));
+  return 'Necesita ' + partes.join(' y ') + '. Tienes ' +
+         ents.length + ' entidad(es) y ' + pts.length + ' punto(s).';
+}
+
+function anadirRestriccion(tipo){
+  if(!puedeAplicar(tipo)){ setStatus(motivoNoAplicable(tipo), 'err'); return; }
+
+  const clave = function(lista){ return (lista || []).slice().sort().join(','); };
+  const eSel = clave(entidadesSel().map(function(e){ return e.id; }));
+  const pSel = clave(puntosSel().map(function(p){ return p.id; }));
+  const repetida = constraints.some(function(c){
+    return c.type === tipo && clave(c.entities) === eSel && clave(c.points) === pSel;
+  });
+  if(repetida){
+    setStatus('Esa restricción ya estaba puesta sobre lo mismo.', '');
+    selection = [];
+    renderConstraintUI();
+    return;
+  }
+
+  pushUndo();
+  // Copia de la geometria: si la restriccion resulta imposible hay que devolver
+  // el dibujo tal cual estaba, no solo quitar la restriccion.
+  const copiaPuntos = JSON.stringify(points);
+  const c = {
+    id: 'c' + (constraintCounter++),
+    type: tipo,
+    entities: entidadesSel().map(e => e.id),
+    points: puntosSel().map(p => p.id)
+  };
+  constraints.push(c);
+
+  const r = resolverSketch();
+  // Ojo: el solver puede "converger" colapsando una linea a un punto cuando dos
+  // restricciones se contradicen. Eso no es una solucion, es un dibujo roto.
+  if(!r.ok || sketchDegenerado()){
+    constraints.pop();
+    constraintCounter--;
+    points = JSON.parse(copiaPuntos);
+    setStatus('No se pudo aplicar "' + TIPOS_RESTRICCION[tipo].nombre +
+              '": entra en conflicto con las restricciones que ya hay. Se deshizo.', 'err');
+  } else {
+    setStatus('Restriccion "' + TIPOS_RESTRICCION[tipo].nombre + '" aplicada (' +
+              r.pasadas + ' pasada' + (r.pasadas === 1 ? '' : 's') + ').', 'ok');
+    selection = [];
+  }
+  regenerateMoveOrder();
+  renderConstraintUI();
+  renderPropPanel();
+  updateLiveView();
+}
+
+function borrarRestriccion(id){
+  pushUndo();
+  constraints = constraints.filter(c => c.id !== id);
+  renderConstraintUI();
+  updateLiveView();
+  setStatus('Restriccion eliminada.', '');
+}
+
+// Une dos puntos en uno solo: util cuando dos extremos quedaron separados por
+// poco y el ajuste automatico no llego a fusionarlos al dibujar.
+function unirPuntos(){
+  const pts = puntosSel();
+  if(pts.length !== 2){ setStatus('Selecciona exactamente 2 puntos (Ctrl+clic).', 'err'); return; }
+  pushUndo();
+  const queda = pts[0], sobra = pts[1];
+  const claves = ['p1','p2','p3','center','radiusPt','startPt','endPt'];
+  entities.forEach(e => { claves.forEach(k => { if(e[k] === sobra.id) e[k] = queda.id; }); });
+  dimensions.forEach(d => {
+    if(d.p1 === sobra.id) d.p1 = queda.id;
+    if(d.p2 === sobra.id) d.p2 = queda.id;
+    if(d.drivenPoint === sobra.id) d.drivenPoint = queda.id;
+  });
+  constraints.forEach(c => {
+    c.points = (c.points || []).map(id => id === sobra.id ? queda.id : id);
+  });
+  points = points.filter(p => p.id !== sobra.id);
+  selection = [];
+  resolverSketch();
+  regenerateMoveOrder();
+  renderConstraintUI();
+  renderPropPanel();
+  updateLiveView();
+  setStatus('Puntos unidos.', 'ok');
+}
+
+// ---------- interfaz ----------
+function renderConstraintUI(){
+  const grid = document.getElementById('restrGrid');
+  const lista = document.getElementById('restrList');
+  const pista = document.getElementById('restrHint');
+  const estado = document.getElementById('restrEstado');
+  if(!grid || !lista) return;
+
+  grid.innerHTML = '';
+  Object.keys(TIPOS_RESTRICCION).forEach(function(tipo){
+    const def = TIPOS_RESTRICCION[tipo];
+    const b = document.createElement('button');
+    b.className = 'restr-btn';
+    b.disabled = !puedeAplicar(tipo);
+    b.title = b.disabled ? motivoNoAplicable(tipo) : 'Aplicar ' + def.nombre;
+    const g = document.createElement('span'); g.className = 'g'; g.textContent = def.glifo;
+    b.appendChild(g);
+    b.appendChild(document.createTextNode(def.nombre));
+    b.addEventListener('click', function(){ anadirRestriccion(tipo); });
+    grid.appendChild(b);
+  });
+
+  const unir = document.createElement('button');
+  unir.className = 'restr-btn';
+  unir.disabled = puntosSel().length !== 2;
+  unir.title = unir.disabled ? 'Selecciona 2 puntos con Ctrl+clic' : 'Fusionar los 2 puntos en uno';
+  const gu = document.createElement('span'); gu.className = 'g'; gu.textContent = '⊕';
+  unir.appendChild(gu);
+  unir.appendChild(document.createTextNode('Unir puntos'));
+  unir.addEventListener('click', unirPuntos);
+  grid.appendChild(unir);
+
+  if(pista){
+    const ne = entidadesSel().length, np = puntosSel().length;
+    pista.textContent = (ne + np) === 0
+      ? 'Selecciona una entidad. Ctrl+clic para anadir mas.'
+      : 'Seleccionado: ' + ne + ' entidad(es), ' + np + ' punto(s).';
+  }
+
+  lista.innerHTML = '';
+  constraints.forEach(function(c){
+    const def = TIPOS_RESTRICCION[c.type];
+    if(!def) return;
+    const item = document.createElement('div');
+    item.className = 'restr-item';
+    const g = document.createElement('span'); g.className = 'g'; g.textContent = def.glifo;
+    item.appendChild(g);
+    const refs = (c.entities || []).concat(c.points || []).join(', ');
+    item.appendChild(document.createTextNode(def.nombre + ' · ' + refs));
+    const x = document.createElement('span');
+    x.className = 'x'; x.textContent = '✕'; x.title = 'Eliminar';
+    x.addEventListener('click', function(){ borrarRestriccion(c.id); });
+    item.appendChild(x);
+    lista.appendChild(item);
+  });
+
+  if(estado){
+    if(!constraints.length){ estado.textContent = ''; estado.className = 'restr-estado'; }
+    else {
+      const gl = contarGradosLibertad();
+      estado.textContent = constraints.length + ' restriccion(es) · ' + gl.libres +
+                           ' grado(s) de libertad';
+      estado.className = 'restr-estado ' + (gl.libres === 0 ? 'ok' : '');
+    }
+  }
+}
+
+// Cuenta aproximada: 2 por punto, menos las ecuaciones que imponen las
+// restricciones. Sirve de orientacion, no es un analisis exacto de rango.
+function contarGradosLibertad(){
+  const ecuaciones = { horizontal:1, vertical:1, paralela:1, perpendicular:1,
+                       igual:1, tangente:1, concentrica:2, puntoEnLinea:1, fijo:2 };
+  let usadas = 0;
+  constraints.forEach(c => { usadas += (ecuaciones[c.type] || 0); });
+  return { total: points.length*2, usadas, libres: Math.max(0, points.length*2 - usadas) };
+}
+
+// ---------- glifos sobre el lienzo ----------
+function dibujarGlifosRestriccion(toScreen){
+  const cuenta = {};   // cuantos glifos lleva ya cada entidad, para no solaparlos
+
+  function anclaDe(e){
+    if(esLinea(e)){
+      const a = getPoint(e.p1), b = getPoint(e.p2);
+      if(!a || !b) return null;
+      return [(a.x + b.x)/2, (a.y + b.y)/2];
+    }
+    if(esCircular(e)){
+      const g = geomDe(e);
+      if(!g) return null;
+      return [g.cx, g.cy + g.r];
+    }
+    return null;
+  }
+
+  constraints.forEach(function(c){
+    const def = TIPOS_RESTRICCION[c.type];
+    if(!def) return;
+
+    const destinos = [];
+    (c.entities || []).forEach(function(id){
+      const e = entities.find(x => x.id === id);
+      if(!e) return;
+      if(!layers[e.layer] || !layers[e.layer].visible) return;
+      const a = anclaDe(e);
+      if(a) destinos.push({ key:id, mundo:a });
+    });
+    (c.points || []).forEach(function(id){
+      const p = getPoint(id);
+      if(p) destinos.push({ key:id, mundo:[p.x, p.y] });
+    });
+
+    destinos.forEach(function(d){
+      const n = cuenta[d.key] = (cuenta[d.key] || 0) + 1;
+      const pos = toScreen(d.mundo[0], d.mundo[1]);
+      const t = el('text', {
+        x: pos[0] + 9,
+        y: pos[1] - 9 - (n-1)*12,
+        fill: '#1f8f84',
+        'font-size': 11,
+        'font-family': 'IBM Plex Mono, monospace',
+        'font-weight': 600,
+        'pointer-events': 'none'
+      });
+      t.textContent = def.glifo;
+      svg.appendChild(t);
+    });
+  });
+}
+
+
+// ================= DIBUJO ESTILO CAD =================
+// Lo que separa "hacer clic para poner puntos" de dibujar en un CAD de verdad
+// son tres cosas, y todas pasan ANTES de soltar el clic:
+//   1. Ves lo que vas a crear mientras mueves el raton (previsualizacion).
+//   2. El cursor se engancha a sitios con sentido — extremos, puntos medios,
+//      centros, sobre una linea — y te dice a que se engancho.
+//   3. El programa infiere horizontal / vertical / angulos y, al aceptar,
+//      deja puesta la relacion correspondiente.
+// Aqui esta eso.
+
+let cursor = null;          // posicion del raton en mm, o null si salio del lienzo
+let snapActual = null;      // {x, y, tipo, etiqueta, guia, pid, eid}
+let hoverEntityId = null;   // entidad bajo el raton (para resaltarla)
+let autoRestricciones = true;
+
+const SNAP_PX = 12;                 // radio de enganche, en pixeles de pantalla
+const ORTO_TOLERANCIA_GRADOS = 4;   // margen para considerar que vas "recto"
+const ANGULOS_GUIA = [0, 45, 90, 135, 180, 225, 270, 315];
+
+const ETIQUETA_SNAP = {
+  punto:    { glifo:'□', texto:'Punto' },
+  medio:    { glifo:'△', texto:'Punto medio' },
+  centro:   { glifo:'◎', texto:'Centro' },
+  sobre:    { glifo:'◇', texto:'Sobre la entidad' },
+  horizontal:{ glifo:'—', texto:'Horizontal' },
+  vertical: { glifo:'|', texto:'Vertical' },
+  angulo:   { glifo:'∠', texto:'Angulo' }
+};
+
+// ---------- utilidades geometricas ----------
+function distPuntoSegmento(px, py, ax, ay, bx, by){
+  const ux = bx-ax, uy = by-ay;
+  const L2 = ux*ux + uy*uy;
+  let t = L2 > 0 ? ((px-ax)*ux + (py-ay)*uy) / L2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const qx = ax + ux*t, qy = ay + uy*t;
+  return { d: Math.hypot(px-qx, py-qy), x:qx, y:qy };
+}
+
+function toleranciaMundo(){
+  return camera ? SNAP_PX / camera.scale : 0.5;
+}
+
+// Punto desde el que se esta dibujando ahora mismo (el ultimo clic dado).
+function puntoDePartida(){
+  if(!toolClickBuffer.length) return null;
+  const ult = toolClickBuffer[toolClickBuffer.length - 1];
+  const p = getPoint(typeof ult === 'string' ? ult : ult.id);
+  return p || null;
+}
+
+// ---------- el motor de enganche ----------
+function calcularSnap(wx, wy, sinEnganche){
+  // Alt suprime el enganche: a veces el punto que quieres es justo el que el
+  // programa se empena en corregir, y hay que poder decirle que no.
+  if(sinEnganche) return { x:wx, y:wy, tipo:null };
+  const tol = toleranciaMundo();
+  const cands = [];
+
+  // 1. Extremos y puntos ya existentes: lo mas importante, para que las
+  //    figuras queden realmente unidas y no "casi".
+  points.forEach(function(p){
+    const d = Math.hypot(p.x-wx, p.y-wy);
+    if(d < tol) cands.push({ x:p.x, y:p.y, d:d, prio:1, tipo:'punto', pid:p.id });
+  });
+
+  // 2. Puntos medios y centros.
+  entities.forEach(function(e){
+    if(!layers[e.layer] || !layers[e.layer].visible) return;
+    if(esLinea(e)){
+      const a = getPoint(e.p1), b = getPoint(e.p2);
+      if(!a || !b) return;
+      const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+      const d = Math.hypot(mx-wx, my-wy);
+      if(d < tol) cands.push({ x:mx, y:my, d:d, prio:2, tipo:'medio', eid:e.id });
+    } else if(esCircular(e)){
+      const g = geomDe(e);
+      if(!g) return;
+      const d = Math.hypot(g.cx-wx, g.cy-wy);
+      if(d < tol) cands.push({ x:g.cx, y:g.cy, d:d, prio:2, tipo:'centro', eid:e.id });
+    }
+  });
+
+  // 3. Guias de angulo desde el punto de partida (horizontal, vertical, 45...).
+  //    Solo con linea y rectangulo: en un arco la referencia seria el CENTRO,
+  //    y redondear ahi a 45 grados mueve el extremo que acabas de senalar.
+  const base = (currentTool === 'line' || currentTool === 'rect') ? puntoDePartida() : null;
+  if(base){
+    const dx = wx-base.x, dy = wy-base.y;
+    const dist = Math.hypot(dx, dy);
+    if(dist > tol*0.5){
+      let angDeg = Math.atan2(dy, dx) * 180/Math.PI;
+      if(angDeg < 0) angDeg += 360;
+      for(let i = 0; i < ANGULOS_GUIA.length; i++){
+        const A = ANGULOS_GUIA[i];
+        let dif = Math.abs(angDeg - A);
+        if(dif > 180) dif = 360 - dif;
+        if(dif < ORTO_TOLERANCIA_GRADOS){
+          const rad = A * Math.PI/180;
+          const px = base.x + Math.cos(rad)*dist;
+          const py = base.y + Math.sin(rad)*dist;
+          const tipo = (A === 0 || A === 180) ? 'horizontal'
+                     : (A === 90 || A === 270) ? 'vertical' : 'angulo';
+          cands.push({ x:px, y:py, d:Math.hypot(px-wx, py-wy), prio:3,
+                       tipo:tipo, guia:{ x0:base.x, y0:base.y, x1:px, y1:py }, angulo:A });
+          break;
+        }
+      }
+    }
+  }
+
+  // 4. Sobre una entidad (sin ser un punto notable).
+  entities.forEach(function(e){
+    if(!layers[e.layer] || !layers[e.layer].visible) return;
+    if(esLinea(e)){
+      const a = getPoint(e.p1), b = getPoint(e.p2);
+      if(!a || !b) return;
+      const r = distPuntoSegmento(wx, wy, a.x, a.y, b.x, b.y);
+      if(r.d < tol) cands.push({ x:r.x, y:r.y, d:r.d, prio:4, tipo:'sobre', eid:e.id });
+    } else if(esCircular(e)){
+      const g = geomDe(e);
+      if(!g) return;
+      const dc = Math.hypot(wx-g.cx, wy-g.cy) || 1e-9;
+      const qx = g.cx + (wx-g.cx)/dc*g.r;
+      const qy = g.cy + (wy-g.cy)/dc*g.r;
+      const d = Math.hypot(wx-qx, wy-qy);
+      if(d < tol) cands.push({ x:qx, y:qy, d:d, prio:4, tipo:'sobre', eid:e.id });
+    }
+  });
+
+  if(!cands.length) return { x:wx, y:wy, tipo:null };
+  cands.sort(function(a,b){ return (a.prio - b.prio) || (a.d - b.d); });
+  return cands[0];
+}
+
+// ---------- entidad bajo el raton ----------
+function entidadCercana(wx, wy){
+  const tol = toleranciaMundo();
+  let mejor = null, mejorD = Infinity;
+  entities.forEach(function(e){
+    if(!layers[e.layer] || !layers[e.layer].visible) return;
+    let d = Infinity;
+    if(esLinea(e)){
+      const a = getPoint(e.p1), b = getPoint(e.p2);
+      if(a && b) d = distPuntoSegmento(wx, wy, a.x, a.y, b.x, b.y).d;
+    } else if(esCircular(e)){
+      const g = geomDe(e);
+      if(g) d = Math.abs(Math.hypot(wx-g.cx, wy-g.cy) - g.r);
+    }
+    if(d < tol && d < mejorD){ mejorD = d; mejor = e.id; }
+  });
+  return mejor;
+}
+
+// ---------- seguimiento del raton ----------
+let redibujoPedido = false;
+function pedirRedibujo(){
+  if(redibujoPedido) return;
+  redibujoPedido = true;
+  requestAnimationFrame(function(){ redibujoPedido = false; renderScene(); });
+}
+
+function onCanvasMove(e){
+  if(isPanning || draggingPointId) return;
+  if(!camera) return;
+  const svgPt = clientToSvgPoint(e.clientX, e.clientY);
+  const wx = camera.cx + (svgPt.x - W/2)/camera.scale;
+  const wy = camera.cy - (svgPt.y - H/2)/camera.scale;
+
+  cursor = { x:wx, y:wy };
+  snapActual = (currentTool === 'select') ? null : calcularSnap(wx, wy, e.altKey);
+  hoverEntityId = (currentTool === 'select' || currentTool === 'erase')
+                    ? entidadCercana(wx, wy) : null;
+
+  actualizarLecturaCoordenadas();
+  pedirRedibujo();
+}
+
+function onCanvasLeave(){
+  cursor = null; snapActual = null; hoverEntityId = null;
+  actualizarLecturaCoordenadas();
+  pedirRedibujo();
+}
+
+function actualizarLecturaCoordenadas(){
+  const caja = document.getElementById('coordLabel');
+  if(!caja) return;
+  if(!cursor){ caja.textContent = ''; return; }
+  const p = snapActual || cursor;
+  let txt = 'X ' + p.x.toFixed(2) + '   Y ' + p.y.toFixed(2);
+  const base = puntoDePartida();
+  if(base){
+    const dx = p.x-base.x, dy = p.y-base.y;
+    let a = Math.atan2(dy, dx)*180/Math.PI;
+    if(a < 0) a += 360;
+    txt += '   ·   L ' + Math.hypot(dx,dy).toFixed(2) + '   ∠ ' + a.toFixed(1) + '°';
+  }
+  if(snapActual && snapActual.tipo){
+    const et = ETIQUETA_SNAP[snapActual.tipo];
+    if(et) txt += '   ·   ' + et.glifo + ' ' + et.texto;
+  } else if(snapActual){
+    txt += '   ·   sin enganche (Alt)';
+  }
+  caja.textContent = txt;
+}
+
+// ---------- previsualizacion ----------
+const COLOR_PREVIA = '#2563eb';
+const COLOR_GUIA = '#b8860b';
+
+function dibujarPrevisualizacion(toScreen, scale){
+  if(!cursor) return;
+  const p = snapActual || cursor;
+
+  // Guia de angulo: la linea punteada que confirma que vas recto.
+  if(snapActual && snapActual.guia){
+    const g = snapActual.guia;
+    const [gx0, gy0] = toScreen(g.x0, g.y0);
+    const [gx1, gy1] = toScreen(g.x1, g.y1);
+    // se prolonga un poco mas alla del cursor, como en un CAD
+    const ex = gx1 + (gx1-gx0)*0.15, ey = gy1 + (gy1-gy0)*0.15;
+    svg.appendChild(el('line', { x1:gx0, y1:gy0, x2:ex, y2:ey, stroke:COLOR_GUIA,
+      'stroke-width':1, 'stroke-dasharray':'4 4', opacity:0.9, 'pointer-events':'none' }));
+  }
+
+  const base = puntoDePartida();
+  const trazo = { stroke:COLOR_PREVIA, 'stroke-width':1.6, fill:'none',
+                  'stroke-dasharray':'6 4', opacity:0.95, 'pointer-events':'none' };
+
+  if(base && currentTool === 'line'){
+    const [x1,y1] = toScreen(base.x, base.y), [x2,y2] = toScreen(p.x, p.y);
+    svg.appendChild(el('line', Object.assign({ x1:x1, y1:y1, x2:x2, y2:y2 }, trazo)));
+    etiquetaMedida(x1, y1, x2, y2, Math.hypot(p.x-base.x, p.y-base.y));
+  } else if(base && currentTool === 'rect'){
+    const [x1,y1] = toScreen(base.x, base.y), [x2,y2] = toScreen(p.x, p.y);
+    svg.appendChild(el('rect', Object.assign({
+      x:Math.min(x1,x2), y:Math.min(y1,y2),
+      width:Math.abs(x2-x1), height:Math.abs(y2-y1) }, trazo)));
+  } else if(base && currentTool === 'circleCR'){
+    const [cx,cy] = toScreen(base.x, base.y);
+    const r = Math.hypot(p.x-base.x, p.y-base.y) * scale;
+    svg.appendChild(el('circle', Object.assign({ cx:cx, cy:cy, r:r }, trazo)));
+  } else if(currentTool === 'circle3' && toolClickBuffer.length === 2){
+    const a = getPoint(toolClickBuffer[0]), b = getPoint(toolClickBuffer[1]);
+    const g = a && b ? fitCircle3pt(a, b, p) : null;
+    if(g){
+      const [cx,cy] = toScreen(g.cx, g.cy);
+      svg.appendChild(el('circle', Object.assign({ cx:cx, cy:cy, r:g.r*scale }, trazo)));
+    }
+  } else if(currentTool === 'arc' && toolClickBuffer.length === 2){
+    const c = getPoint(toolClickBuffer[0]), s = getPoint(toolClickBuffer[1]);
+    if(c && s){
+      const r = Math.hypot(s.x-c.x, s.y-c.y);
+      const [cx,cy] = toScreen(c.x, c.y);
+      svg.appendChild(el('circle', Object.assign({ cx:cx, cy:cy, r:r*scale,
+        'stroke-dasharray':'2 5', opacity:0.45 },
+        { stroke:COLOR_PREVIA, 'stroke-width':1.2, fill:'none', 'pointer-events':'none' })));
+    }
+  }
+
+  // Marca de enganche: el cuadradito/triangulito que dice a que te pegaste.
+  if(snapActual && snapActual.tipo){
+    const [sx, sy] = toScreen(p.x, p.y);
+    const et = ETIQUETA_SNAP[snapActual.tipo];
+    svg.appendChild(el('rect', { x:sx-5, y:sy-5, width:10, height:10, fill:'none',
+      stroke:COLOR_PREVIA, 'stroke-width':1.6, 'pointer-events':'none' }));
+    if(et){
+      const t = el('text', { x:sx+9, y:sy+13, fill:COLOR_PREVIA, 'font-size':10,
+        'font-family':'IBM Plex Mono, monospace', 'pointer-events':'none' });
+      t.textContent = et.glifo;
+      svg.appendChild(t);
+    }
+  }
+}
+
+function etiquetaMedida(x1, y1, x2, y2, mm){
+  const t = el('text', { x:(x1+x2)/2 + 8, y:(y1+y2)/2 - 8, fill:COLOR_PREVIA,
+    'font-size':11, 'font-family':'IBM Plex Mono, monospace', 'font-weight':600,
+    'pointer-events':'none' });
+  t.textContent = mm.toFixed(2) + ' mm';
+  svg.appendChild(t);
+}
+
+// Retícula del cursor, como el crosshair de cualquier CAD.
+function dibujarCruz(toScreen){
+  if(!cursor || currentTool === 'select') return;
+  const p = snapActual || cursor;
+  const [x, y] = toScreen(p.x, p.y);
+  const est = { stroke:'#9c9a92', 'stroke-width':0.9, 'pointer-events':'none' };
+  svg.appendChild(el('line', Object.assign({ x1:0, y1:y, x2:W, y2:y }, est)));
+  svg.appendChild(el('line', Object.assign({ x1:x, y1:0, x2:x, y2:H }, est)));
+}
+
+// ---------- relaciones automaticas ----------
+// Al aceptar una linea que se dibujo enganchada a la guia horizontal o vertical,
+// se deja puesta esa relacion: es lo que hace un CAD y evita tener que aplicarla
+// a mano despues. Si resulta incompatible, se descarta en silencio.
+function aplicarRestriccionAuto(tipo, entityId){
+  if(!autoRestricciones || !tipo || !entityId) return;
+  if(tipo !== 'horizontal' && tipo !== 'vertical') return;
+  const copia = JSON.stringify(points);
+  const c = { id:'c' + (constraintCounter++), type:tipo, entities:[entityId], points:[] };
+  constraints.push(c);
+  const r = resolverSketch();
+  if(!r.ok || sketchDegenerado()){
+    constraints.pop();
+    constraintCounter--;
+    points = JSON.parse(copia);
+  }
+}
+
+// ---------- atajos de teclado ----------
+const ATAJOS = { l:'line', r:'rect', c:'circleCR', t:'circle3', a:'arc',
+                 d:'dimDist', s:'select', e:'erase' };
+
+function cancelarDibujo(){
+  if(toolClickBuffer.length){
+    toolClickBuffer = [];
+    updateLineInputPanel();
+    updateRectInputPanel();
+    updateHint();
+    setStatus('Dibujo cancelado.', '');
+  } else if(currentTool !== 'select'){
+    setTool('select');
+  } else {
+    selection = []; selectedEntityId = null; selectedPointId = null; selectedDimId = null;
+    renderConstraintUI(); renderPropPanel();
+  }
+  updateLiveView();
+}
+
+// ================= GENERADOR DE G-CODE =================
+// A diferencia del generador de puntos de soldadura, que se para en cada punto
+// y controla la energia con esperas (G04 P), aqui el haz va encendido en
+// movimiento continuo y la energia la marca el AVANCE. Por eso hay dos F:
+//   - F de corte:    velocidad con el laser encendido (entre M07 y M09)
+//   - F de traslado: velocidad de posicionamiento, con el laser apagado
+//
+// El sentido de corte no se deja al azar del orden en que se dibujo: el
+// contorno exterior sale HORARIO y los agujeros ANTIHORARIO, que es la
+// convencion que ya usan tus archivos y la que deja la sangria del lado bueno.
+
+let materiales = [];        // {id, name, variables:[{id, name, value}]}
+let contMaterial = 0, contVariable = 0;
+let cfgGcode = { workCoord:'G54', fCorte:200, fTraslado:400, materialId:null, variableId:null };
+
+const COORDS_TRABAJO = ['G54','G55','G56','G57','G58','G59'];
+
+// Numero limpio: 3.4850 -> 3.485
+function gnum(v){
+  let s = (+v).toFixed(4);
+  if(s.indexOf('.') >= 0) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return (s === '-0') ? '0' : s;
+}
+function numOr(v, porDefecto){
+  const n = parseFloat(v);
+  return isFinite(n) ? n : porDefecto;
+}
+
+// ---------- recorrer un trazo en orden ----------
+function cadenaOrdenada(entityIds, puntoInicio){
+  const restantes = entityIds.slice();
+  let actual = puntoInicio;
+  const cadena = [];
+  while(restantes.length){
+    let idx = -1, ent = null;
+    for(let i = 0; i < restantes.length; i++){
+      const cand = entities.find(function(x){ return x.id === restantes[i]; });
+      if(!cand) continue;
+      const ext = entityEndpoints(cand);
+      if(ext[0] === actual || ext[1] === actual){ idx = i; ent = cand; break; }
+    }
+    if(idx < 0) return null;                 // el trazo esta roto
+    restantes.splice(idx, 1);
+    const ext = entityEndpoints(ent);
+    const invertida = (ext[1] === actual);
+    const hasta = invertida ? ext[0] : ext[1];
+    cadena.push({ e:ent, desde:actual, hasta:hasta, invertida:invertida });
+    actual = hasta;
+  }
+  return cadena;
+}
+
+function invertirCadena(cadena){
+  return cadena.slice().reverse().map(function(s){
+    return { e:s.e, desde:s.hasta, hasta:s.desde, invertida:!s.invertida };
+  });
+}
+
+// Barrido con signo del tramo tal y como se recorre (+ = antihorario).
+function barridoDelTramo(seg){
+  const c = getPoint(seg.e.center);
+  const s = getPoint(seg.e.startPt), f = getPoint(seg.e.endPt);
+  const a0 = Math.atan2(s.y-c.y, s.x-c.x);
+  const a1 = Math.atan2(f.y-c.y, f.x-c.x);
+  let b = computeArcSweep(a0, a1, !!seg.e.longArc);
+  return seg.invertida ? -b : b;
+}
+
+// Poligono aproximado del trazo, para saber su sentido y su caja.
+function puntosDeCadena(cadena, pasos){
+  const pts = [];
+  cadena.forEach(function(seg){
+    const desde = getPoint(seg.desde);
+    if(seg.e.type === 'line'){ pts.push([desde.x, desde.y]); return; }
+    const c = getPoint(seg.e.center);
+    const r = Math.hypot(desde.x-c.x, desde.y-c.y);
+    const a0 = Math.atan2(desde.y-c.y, desde.x-c.x);
+    const b = barridoDelTramo(seg);
+    for(let k = 0; k < pasos; k++){
+      const a = a0 + b*(k/pasos);
+      pts.push([c.x + r*Math.cos(a), c.y + r*Math.sin(a)]);
+    }
+  });
+  return pts;
+}
+
+function areaFirmada(pts){
+  let a = 0;
+  for(let i = 0; i < pts.length; i++){
+    const p = pts[i], q = pts[(i+1) % pts.length];
+    a += p[0]*q[1] - q[0]*p[1];
+  }
+  return a/2;   // positiva = antihorario
+}
+
+// ---------- que se corta y en que orden ----------
+function trayectoriasParaCorte(){
+  const subs = detectSubpaths();
+  const lista = [];
+
+  subs.forEach(function(s){
+    if(s.isCircle){
+      const e = entities.find(function(x){ return x.id === s.entityIds[0]; });
+      const g = e ? circleGeom(e) : null;
+      if(!g) return;
+      lista.push({ tipo:'circulo', clave:s.key, g:g, cerrado:true,
+                   caja:[g.cx-g.r, g.cy-g.r, g.cx+g.r, g.cy+g.r] });
+    } else {
+      const cadena = cadenaOrdenada(s.entityIds, s.startPointId);
+      if(!cadena) return;
+      const pts = puntosDeCadena(cadena, 16);
+      const xs = pts.map(function(p){return p[0];}), ys = pts.map(function(p){return p[1];});
+      lista.push({ tipo:'contorno', clave:s.key, cadena:cadena, cerrado:s.closed,
+                   area:areaFirmada(pts),
+                   caja:[Math.min.apply(null,xs), Math.min.apply(null,ys),
+                         Math.max.apply(null,xs), Math.max.apply(null,ys)] });
+    }
+  });
+
+  // El exterior es el trazo cuya caja contiene a todos los demas.
+  let exterior = null;
+  if(lista.length > 1){
+    lista.forEach(function(a){
+      const contieneATodos = lista.every(function(b){
+        return a === b || (a.caja[0] <= b.caja[0] && a.caja[1] <= b.caja[1] &&
+                           a.caja[2] >= b.caja[2] && a.caja[3] >= b.caja[3]);
+      });
+      if(contieneATodos) exterior = a;
+    });
+  }
+  lista.forEach(function(t){ t.esExterior = (t === exterior); });
+
+  // Se respeta tu orden de traslado, pero el exterior siempre va el ULTIMO:
+  // si se corta el perimetro antes, la pieza se suelta y lo demas sale mal.
+  lista.sort(function(a, b){
+    if(a.esExterior !== b.esExterior) return a.esExterior ? 1 : -1;
+    const ia = moveOrder.indexOf(a.clave), ib = moveOrder.indexOf(b.clave);
+    return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+  });
+  return lista;
+}
+
+// ---------- emision ----------
+function construirGcode(fCorteEfectivo, etiqueta){
+  const trays = trayectoriasParaCorte();
+  if(!trays.length) return '; No hay geometria en la capa Láser para cortar.';
+
+  const fC = numOr(fCorteEfectivo, numOr(cfgGcode.fCorte, 200));
+  const fT = numOr(cfgGcode.fTraslado, 400);
+  const gw = cfgGcode.workCoord || 'G54';
+  const pieza = (document.getElementById('partName').value || '').trim() || 'pieza';
+
+  const L = [];
+  L.push('; ' + pieza);
+  if(etiqueta) L.push('; ' + etiqueta);
+  L.push('; F corte ' + gnum(fC) + '   ·   F traslado ' + gnum(fT));
+  L.push('');
+  L.push('G21');
+  L.push('G90 ' + gw + ' X0 Y0 Z0 A0 F' + gnum(fT));
+
+  let nCirc = 0, nCont = 0, abiertos = 0;
+
+  trays.forEach(function(t){
+    L.push('');
+    if(t.tipo === 'circulo'){
+      nCirc++;
+      const g = t.g;
+      // Se arranca por el extremo izquierdo; I,J apuntan del arranque al centro.
+      const x0 = g.cx - g.r, y0 = g.cy;
+      const sentido = t.esExterior ? 'G02' : 'G03';   // agujeros antihorario
+      L.push('; --- Circulo ' + nCirc + ' (r ' + gnum(g.r) + ') ---');
+      L.push('G01 X' + gnum(x0) + ' Y' + gnum(y0) + ' F' + gnum(fT));
+      L.push('M08');
+      L.push('M07');
+      L.push(sentido + ' X' + gnum(x0) + ' Y' + gnum(y0) +
+             ' I' + gnum(g.r) + ' J0 F' + gnum(fC));
+      L.push('M09');
+      return;
+    }
+
+    nCont++;
+    let cadena = t.cadena;
+    if(t.cerrado){
+      // exterior horario (area negativa); agujeros antihorario (area positiva)
+      const quiereAntihorario = !t.esExterior;
+      const esAntihorario = t.area > 0;
+      if(quiereAntihorario !== esAntihorario) cadena = invertirCadena(cadena);
+    } else {
+      abiertos++;
+    }
+
+    const ini = getPoint(cadena[0].desde);
+    L.push('; --- ' + (t.esExterior ? 'Contorno exterior' : 'Contorno interior') +
+           ' ' + nCont + (t.cerrado ? '' : ' (ABIERTO)') + ' ---');
+    L.push('G01 X' + gnum(ini.x) + ' Y' + gnum(ini.y) + ' F' + gnum(fT));
+    L.push('M08');
+    L.push('M07');
+    cadena.forEach(function(seg){
+      const p = getPoint(seg.hasta);
+      if(seg.e.type === 'line'){
+        L.push('G01 X' + gnum(p.x) + ' Y' + gnum(p.y) + ' F' + gnum(fC));
+      } else {
+        const c = getPoint(seg.e.center), d = getPoint(seg.desde);
+        const sentido = barridoDelTramo(seg) > 0 ? 'G03' : 'G02';
+        L.push(sentido + ' X' + gnum(p.x) + ' Y' + gnum(p.y) +
+               ' I' + gnum(c.x-d.x) + ' J' + gnum(c.y-d.y) + ' F' + gnum(fC));
+      }
+    });
+    L.push('M09');
+  });
+
+  L.push('');
+  L.push('M30');
+
+  if(abiertos){
+    L.splice(3, 0, '; AVISO: ' + abiertos + ' trazo(s) sin cerrar. Se cortan de punta a punta.');
+  }
+  return L.join('\n');
+}
+
+// ---------- material y variable ----------
+function materialActivo(){
+  return materiales.find(function(m){ return m.id === cfgGcode.materialId; }) || null;
+}
+function variableActiva(){
+  const m = materialActivo();
+  if(!m || !cfgGcode.variableId || cfgGcode.variableId === 'all') return null;
+  return m.variables.find(function(v){ return v.id === cfgGcode.variableId; }) || null;
+}
+
+function textoPreviaGcode(){
+  const m = materialActivo();
+  if(m && cfgGcode.variableId === 'all'){
+    if(!m.variables.length) return '; El material "' + m.name + '" no tiene variables.';
+    return construirGcode(m.variables[0].value,
+             m.name + ' · plantilla (se genera un archivo por variable: ' +
+             m.variables.map(function(v){ return v.name; }).join(', ') + ')');
+  }
+  const v = variableActiva();
+  return construirGcode(v ? v.value : cfgGcode.fCorte, v ? (m.name + ' · ' + v.name) : null);
+}
+
+function refrescarPreviaGcode(){
+  const ta = document.getElementById('gcodePreview');
+  if(ta) ta.value = textoPreviaGcode();
+  const badge = document.getElementById('gcodeResumen');
+  if(badge){
+    const t = trayectoriasParaCorte();
+    const ext = t.filter(function(x){ return x.esExterior; }).length;
+    badge.textContent = t.length + ' trayectoria(s) · ' + (t.length - ext) + ' interior(es) · ' +
+                        ext + ' exterior';
+  }
+}
+
+function exportarGcode(){
+  const base = sanitizeFilename(document.getElementById('fileName').value) || 'contorno';
+  const m = materialActivo();
+
+  if(m && cfgGcode.variableId === 'all'){
+    if(!m.variables.length){ setStatus('Ese material no tiene variables.', 'err'); return; }
+    const carpeta = base + '_' + sanitizeFilename(m.name);
+    const archivos = m.variables.map(function(v){
+      return { name: carpeta + '/' + base + '_' + sanitizeFilename(v.name) + '.txt',
+               content: construirGcode(v.value, m.name + ' · ' + v.name) };
+    });
+    downloadBlob(crearZipBlob(archivos), carpeta + '.zip');
+    setStatus('Exportado "' + carpeta + '.zip" con ' + archivos.length + ' archivo(s).', 'ok');
+    return;
+  }
+
+  const v = variableActiva();
+  const nombre = base + (v ? '_' + sanitizeFilename(m.name) + '_' + sanitizeFilename(v.name) : '');
+  downloadTextFile(construirGcode(v ? v.value : cfgGcode.fCorte,
+                                  v ? (m.name + ' · ' + v.name) : null), nombre + '.txt');
+  setStatus('G-code exportado como "' + nombre + '.txt".', 'ok');
+}
+
+// ---------- ZIP minimo, sin dependencias (mismo metodo que el otro programa) ----------
+function crc32Texto(str){
+  const bytes = new TextEncoder().encode(str);
+  let crc = ~0;
+  for(let i = 0; i < bytes.length; i++){
+    crc ^= bytes[i];
+    for(let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+  }
+  return (~crc) >>> 0;
+}
+
+function crearZipBlob(archivos){
+  const cod = new TextEncoder();
+  const locales = [], centrales = [];
+  let desplaz = 0;
+
+  archivos.forEach(function(f){
+    const nombre = cod.encode(f.name);
+    const datos = cod.encode(f.content);
+    const crc = crc32Texto(f.content);
+
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint16(8, 0, true); lh.setUint16(10, 0, true); lh.setUint16(12, 0, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, datos.length, true);
+    lh.setUint32(22, datos.length, true); lh.setUint16(26, nombre.length, true);
+    lh.setUint16(28, 0, true);
+    locales.push(new Uint8Array(lh.buffer), nombre, datos);
+
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true); ch.setUint16(12, 0, true);
+    ch.setUint16(14, 0, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, datos.length, true); ch.setUint32(24, datos.length, true);
+    ch.setUint16(28, nombre.length, true); ch.setUint16(30, 0, true); ch.setUint16(32, 0, true);
+    ch.setUint16(34, 0, true); ch.setUint16(36, 0, true); ch.setUint32(38, 0, true);
+    ch.setUint32(42, desplaz, true);
+    centrales.push(new Uint8Array(ch.buffer), nombre);
+
+    desplaz += 30 + nombre.length + datos.length;
+  });
+
+  let tamCentral = 0;
+  centrales.forEach(function(p){ tamCentral += p.length; });
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true); eocd.setUint16(4, 0, true); eocd.setUint16(6, 0, true);
+  eocd.setUint16(8, archivos.length, true); eocd.setUint16(10, archivos.length, true);
+  eocd.setUint32(12, tamCentral, true); eocd.setUint32(16, desplaz, true);
+  eocd.setUint16(20, 0, true);
+
+  return new Blob(locales.concat(centrales, [new Uint8Array(eocd.buffer)]),
+                  { type:'application/zip' });
+}
+
+// ---------- interfaz ----------
+function nodoG(tag, clase, texto){
+  const e = document.createElement(tag);
+  if(clase) e.className = clase;
+  if(texto !== undefined) e.textContent = texto;
+  return e;
+}
+
+function filaCampo(etiqueta, input){
+  const row = nodoG('div', 'prop-row');
+  row.appendChild(nodoG('span', 'k', etiqueta));
+  row.appendChild(input);
+  return row;
+}
+
+function renderPanelGcode(){
+  const cont = document.getElementById('gcodeParams');
+  if(!cont) return;
+  cont.innerHTML = '';
+
+  const selG = document.createElement('select');
+  COORDS_TRABAJO.forEach(function(g){
+    const o = document.createElement('option'); o.value = g; o.textContent = g;
+    if(cfgGcode.workCoord === g) o.selected = true;
+    selG.appendChild(o);
+  });
+  selG.addEventListener('change', function(){ cfgGcode.workCoord = selG.value; refrescarPreviaGcode(); });
+  cont.appendChild(filaCampo('Coordenadas', selG));
+
+  ['fCorte','fTraslado'].forEach(function(campo){
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any'; inp.value = cfgGcode[campo];
+    inp.disabled = (campo === 'fCorte') && !!variableActiva();
+    inp.title = inp.disabled ? 'Lo fija la variable del material seleccionada' : '';
+    inp.addEventListener('input', function(){ cfgGcode[campo] = inp.value; refrescarPreviaGcode(); });
+    cont.appendChild(filaCampo(campo === 'fCorte' ? 'F corte (mm/min)' : 'F traslado (mm/min)', inp));
+  });
+
+  const selM = document.createElement('select');
+  const oNada = document.createElement('option'); oNada.value = ''; oNada.textContent = '— sin material —';
+  selM.appendChild(oNada);
+  materiales.forEach(function(m){
+    const o = document.createElement('option'); o.value = m.id; o.textContent = m.name;
+    if(cfgGcode.materialId === m.id) o.selected = true;
+    selM.appendChild(o);
+  });
+  selM.addEventListener('change', function(){
+    cfgGcode.materialId = selM.value || null; cfgGcode.variableId = null;
+    renderPanelGcode(); refrescarPreviaGcode();
+  });
+  cont.appendChild(filaCampo('Material', selM));
+
+  const m = materialActivo();
+  if(m){
+    const selV = document.createElement('select');
+    const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '— usar F de arriba —';
+    selV.appendChild(o0);
+    m.variables.forEach(function(v){
+      const o = document.createElement('option'); o.value = v.id;
+      o.textContent = v.name + ' (F' + v.value + ')';
+      if(cfgGcode.variableId === v.id) o.selected = true;
+      selV.appendChild(o);
+    });
+    const oAll = document.createElement('option'); oAll.value = 'all'; oAll.textContent = 'Todas (un archivo por variable)';
+    if(cfgGcode.variableId === 'all') oAll.selected = true;
+    selV.appendChild(oAll);
+    selV.addEventListener('change', function(){
+      cfgGcode.variableId = selV.value || null; renderPanelGcode(); refrescarPreviaGcode();
+    });
+    cont.appendChild(filaCampo('Variable', selV));
+  }
+}
+
+function renderMateriales(){
+  const cont = document.getElementById('materialList');
+  if(!cont) return;
+  cont.innerHTML = '';
+  if(!materiales.length){
+    cont.appendChild(nodoG('div', 'prop-empty', 'Sin materiales. Cada variable es un avance de corte.'));
+    return;
+  }
+  materiales.forEach(function(m){
+    const caja = nodoG('div', 'mat-card');
+
+    const cab = nodoG('div', 'mat-head');
+    const nom = document.createElement('input');
+    nom.type = 'text'; nom.value = m.name; nom.className = 'mat-name';
+    nom.addEventListener('input', function(){ m.name = nom.value; renderPanelGcode(); refrescarPreviaGcode(); });
+    cab.appendChild(nom);
+    const bAdd = nodoG('button', 'btn-tiny', '+ variable');
+    bAdd.addEventListener('click', function(){
+      m.variables.push({ id:'v'+(contVariable++), name:'V'+(m.variables.length+1), value:200 });
+      renderMateriales(); renderPanelGcode(); refrescarPreviaGcode();
+    });
+    cab.appendChild(bAdd);
+    const bDel = nodoG('button', 'btn-tiny', '✕');
+    bDel.addEventListener('click', function(){
+      materiales = materiales.filter(function(x){ return x.id !== m.id; });
+      if(cfgGcode.materialId === m.id){ cfgGcode.materialId = null; cfgGcode.variableId = null; }
+      renderMateriales(); renderPanelGcode(); refrescarPreviaGcode();
+    });
+    cab.appendChild(bDel);
+    caja.appendChild(cab);
+
+    m.variables.forEach(function(v){
+      const fila = nodoG('div', 'mat-var');
+      const n = document.createElement('input');
+      n.type = 'text'; n.value = v.name;
+      n.addEventListener('input', function(){ v.name = n.value; renderPanelGcode(); refrescarPreviaGcode(); });
+      const val = document.createElement('input');
+      val.type = 'number'; val.step = 'any'; val.value = v.value;
+      val.title = 'Avance de corte (mm/min)';
+      val.addEventListener('input', function(){ v.value = val.value; renderPanelGcode(); refrescarPreviaGcode(); });
+      const x = nodoG('button', 'btn-tiny', '✕');
+      x.addEventListener('click', function(){
+        m.variables = m.variables.filter(function(y){ return y.id !== v.id; });
+        if(cfgGcode.variableId === v.id) cfgGcode.variableId = null;
+        renderMateriales(); renderPanelGcode(); refrescarPreviaGcode();
+      });
+      fila.appendChild(n); fila.appendChild(val); fila.appendChild(x);
+      caja.appendChild(fila);
+    });
+
+    cont.appendChild(caja);
+  });
+}
+
+function nuevoMaterial(){
+  materiales.push({ id:'m'+(contMaterial++), name:'Material '+(materiales.length+1), variables:[] });
+  renderMateriales(); renderPanelGcode(); refrescarPreviaGcode();
+}
+
+// ---------- CÁMARA (zoom/pan persistente) ----------
+function computeContentBounds(){
+  let xs = [], ys = [];
+  points.forEach(p => { xs.push(p.x); ys.push(p.y); });
+  entities.forEach(e=>{
+    if(e.type === 'circle'){ const g = circleGeom(e); if(g){ xs.push(g.cx-g.r, g.cx+g.r); ys.push(g.cy-g.r, g.cy+g.r); } }
+    if(e.type === 'arc'){ const g = arcGeom(e); if(g){ xs.push(g.cx-g.r, g.cx+g.r); ys.push(g.cy-g.r, g.cy+g.r); } }
+  });
+  if(xs.length === 0) return null;
+  const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+  const spanX = Math.max(maxX-minX, 0.5), spanY = Math.max(maxY-minY, 0.5);
+  const span = Math.max(spanX, spanY);
+  const scale = (Math.min(W,H) - PAD*2) / span;
+  return { cx:(minX+maxX)/2, cy:(minY+maxY)/2, scale };
+}
+
+function fitView(){
+  const bounds = computeContentBounds();
+  if(!bounds){ setStatus('No hay nada que ajustar todavía.', ''); return; }
+  camera = bounds; cameraInitialized = true;
+  updateLiveView();
+}
+
+function zoomBy(factor){
+  if(!camera) return;
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*factor));
+  updateLiveView();
+}
+
+function startPan(e){
+  if(!camera) return;
+  if(draggingPointId) return;
+  isPanning = true; panMoved = false;
+  svg.classList.add('panning');
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  panStartPt = clientToSvgPoint(cx, cy);
+  panStartCamera = { cx:camera.cx, cy:camera.cy };
+  window.addEventListener('mousemove', onPanMove);
+  window.addEventListener('mouseup', endPan);
+  window.addEventListener('touchmove', onPanMove, { passive:false });
+  window.addEventListener('touchend', endPan);
+}
+function onPanMove(e){
+  if(!isPanning) return;
+  e.preventDefault();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  const cur = clientToSvgPoint(cx, cy);
+  const dx = cur.x-panStartPt.x, dy = cur.y-panStartPt.y;
+  if(Math.hypot(dx,dy) > 3) panMoved = true;
+  camera.cx = panStartCamera.cx - dx/camera.scale;
+  camera.cy = panStartCamera.cy + dy/camera.scale;
+  updateLiveView();
+}
+function endPan(){
+  isPanning = false;
+  svg.classList.remove('panning');
+  window.removeEventListener('mousemove', onPanMove);
+  window.removeEventListener('mouseup', endPan);
+  window.removeEventListener('touchmove', onPanMove);
+  window.removeEventListener('touchend', endPan);
+}
+function onWheelZoom(e){
+  if(!camera) return;
+  e.preventDefault();
+  const pt = clientToSvgPoint(e.clientX, e.clientY);
+  const worldX = camera.cx + (pt.x-W/2)/camera.scale;
+  const worldY = camera.cy - (pt.y-H/2)/camera.scale;
+  const factor = e.deltaY < 0 ? 1.12 : (1/1.12);
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*factor));
+  camera.cx = worldX - (pt.x-W/2)/camera.scale;
+  camera.cy = worldY + (pt.y-H/2)/camera.scale;
+  updateLiveView();
+}
+
+function onCanvasClick(e){
+  if(panMoved) return;
+  const svgPt = clientToSvgPoint(e.clientX, e.clientY);
+  if(!camera){
+    // primer clic: sembrar una cámara por defecto centrada ahí
+    camera = { cx:0, cy:0, scale:20 }; cameraInitialized = true;
+  }
+  const wx = camera.cx + (svgPt.x-W/2)/camera.scale;
+  const wy = camera.cy - (svgPt.y-H/2)/camera.scale;
+  // El clic no cae donde esta el raton, sino donde el programa engancho:
+  // ese es el punto exacto que el usuario esta viendo marcado.
+  const s = calcularSnap(wx, wy, e.altKey);
+  handleToolClick(s.x, s.y, s.tipo);
+}
+
+// ---------- GRID / REGLAS (mm) ----------
+function niceScaleValue(raw){
+  if(!isFinite(raw) || raw <= 0) return 1;
+  const exponent = Math.floor(Math.log10(raw));
+  const base = raw / Math.pow(10, exponent);
+  let niceBase;
+  if(base < 1.5) niceBase = 1; else if(base < 3.5) niceBase = 2; else if(base < 7.5) niceBase = 5; else niceBase = 10;
+  return niceBase * Math.pow(10, exponent);
+}
+
+function drawGridMm(scale, cxMid, cyMid){
+  const worldXatScreen = sx => cxMid + (sx-W/2)/scale;
+  const worldYatScreen = sy => cyMid - (sy-H/2)/scale;
+  const xMinV = worldXatScreen(0), xMaxV = worldXatScreen(W);
+  const yMinV = worldYatScreen(H), yMaxV = worldYatScreen(0);
+  let minorStep = 1, majorEvery = 5;
+  if(scale < 4){ minorStep = niceScaleValue(6/scale); }
+  const g = el('g', {});
+  const startKx = Math.floor(xMinV/minorStep), endKx = Math.ceil(xMaxV/minorStep);
+  for(let k=startKx; k<=endKx; k++){
+    const xw = k*minorStep, sx = W/2 + (xw-cxMid)*scale;
+    const isMajor = (Math.round(xw/minorStep) % majorEvery === 0);
+    g.appendChild(el('line', { x1:sx, y1:0, x2:sx, y2:H, stroke: isMajor?'#cbc7b9':'#e3e0d6', 'stroke-width':1 }));
+  }
+  const startKy = Math.floor(yMinV/minorStep), endKy = Math.ceil(yMaxV/minorStep);
+  for(let k=startKy; k<=endKy; k++){
+    const yw = k*minorStep, sy = H/2 - (yw-cyMid)*scale;
+    const isMajor = (Math.round(yw/minorStep) % majorEvery === 0);
+    g.appendChild(el('line', { x1:0, y1:sy, x2:W, y2:sy, stroke: isMajor?'#cbc7b9':'#e3e0d6', 'stroke-width':1 }));
+  }
+
+  // Ejes X=0 e Y=0 remarcados: dan referencia inmediata de donde esta el origen.
+  const sx0 = W/2 + (0-cxMid)*scale;
+  const sy0 = H/2 - (0-cyMid)*scale;
+  if(sx0 >= 0 && sx0 <= W)
+    g.appendChild(el('line', { x1:sx0, y1:0, x2:sx0, y2:H, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  if(sy0 >= 0 && sy0 <= H)
+    g.appendChild(el('line', { x1:0, y1:sy0, x2:W, y2:sy0, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  svg.appendChild(g);
+}
+
+const RULER_H = 26;
+function drawRulers(scale, cxMid, cyMid){
+  const step = niceScaleValue(70/scale);
+  const decimals = step < 1 ? 2 : (step < 10 ? 1 : 0);
+  const fontSize = 12;
+  const worldXatScreen = sx => cxMid + (sx-W/2)/scale;
+  const worldYatScreen = sy => cyMid - (sy-H/2)/scale;
+  const baseGuess = 26;
+  const yMinV0 = worldYatScreen(H-RULER_H), yMaxV0 = worldYatScreen(0);
+  const startKy = Math.ceil(yMinV0/step), endKy = Math.floor(yMaxV0/step);
+  const yLabels = [];
+  for(let k=startKy; k<=endKy; k++) yLabels.push((k*step).toFixed(decimals));
+  const maxLen = yLabels.reduce((m,s) => Math.max(m,s.length), 0);
+  const RULER_W = Math.max(baseGuess, maxLen*fontSize*0.62 + 14);
+  const xMinV = worldXatScreen(RULER_W), xMaxV = worldXatScreen(W);
+
+  // Fuera del lienzo: con preserveAspectRatio "meet" el elemento SVG puede ser
+  // mas ancho que el viewBox, y overflow:hidden recorta a la CAJA, no al
+  // viewBox. En ese margen se seguia viendo el dibujo. Se tapa, y las reglas
+  // se extienden hasta el borde real para quedar pegadas al lado.
+  const FUERA = 4000;
+  [ { x:W, y:-FUERA, width:FUERA, height:H+2*FUERA },        // margen derecho
+    { x:-FUERA, y:-FUERA, width:W+2*FUERA, height:FUERA }    // margen superior
+  ].forEach(function(a){
+    const m = el('rect', Object.assign({ fill:'#ffffff' }, a));
+    m.style.pointerEvents = 'none';
+    svg.appendChild(m);
+  });
+
+  const bandH = el('rect', { x:-FUERA, y:H-RULER_H, width:W+2*FUERA, height:RULER_H+FUERA, fill:'#ffffff' }); bandH.style.pointerEvents='none';
+  const bandV = el('rect', { x:-FUERA, y:-FUERA, width:RULER_W+FUERA, height:H+2*FUERA, fill:'#ffffff' }); bandV.style.pointerEvents='none';
+  svg.appendChild(bandH); svg.appendChild(bandV);
+  svg.appendChild(el('line', { x1:-FUERA, y1:H-RULER_H, x2:W+FUERA, y2:H-RULER_H, stroke:'#20221f', 'stroke-width':1.5 }));
+  svg.appendChild(el('line', { x1:RULER_W, y1:-FUERA, x2:RULER_W, y2:H+FUERA, stroke:'#20221f', 'stroke-width':1.5 }));
+
+  const startKx = Math.ceil(xMinV/step), endKx = Math.floor(xMaxV/step);
+  for(let k=startKx; k<=endKx; k++){
+    const xw = k*step, sx = W/2 + (xw-cxMid)*scale;
+    if(sx < RULER_W) continue;
+    svg.appendChild(el('line', { x1:sx, y1:H-RULER_H, x2:sx, y2:H-RULER_H+6, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:sx, y:H-6, 'text-anchor':'middle', 'font-size':fontSize, 'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = xw.toFixed(decimals); svg.appendChild(t);
+  }
+  for(let k=startKy; k<=endKy; k++){
+    const yw = k*step, sy = H/2 - (yw-cyMid)*scale;
+    if(sy > H-RULER_H) continue;
+    svg.appendChild(el('line', { x1:RULER_W-6, y1:sy, x2:RULER_W, y2:sy, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:RULER_W-9, y:sy+3, 'text-anchor':'end', 'font-size':fontSize, 'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = yw.toFixed(decimals); svg.appendChild(t);
+  }
+  const corner = el('text', { x:8, y:H-8, 'font-size':13, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:'#d9541f' });
+  corner.textContent = 'mm'; svg.appendChild(corner);
+}
+
+// ---------- DETECCIÓN DE SUBTRAZOS (para el trazo de traslado) ----------
+function entityEndpoints(e){
+  return e.type === 'arc' ? [e.startPt, e.endPt] : [e.p1, e.p2];
+}
+
+function detectSubpaths(){
+  const laserLE = entities.filter(e => e.layer === 'laser' && (e.type === 'line' || e.type === 'arc'));
+  const parent = {};
+  function find(x){ if(!(x in parent)) parent[x] = x; while(parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+  function union(a,b){ parent[find(a)] = find(b); }
+  laserLE.forEach(e=>{ const [a,b] = entityEndpoints(e); find(a); find(b); union(a,b); });
+
+  const groups = {};
+  laserLE.forEach(e=>{ const [a] = entityEndpoints(e); const r = find(a); (groups[r] = groups[r] || []).push(e); });
+
+  const subpaths = [];
+  Object.values(groups).forEach(list=>{
+    const key = 'grp-' + list.map(e => e.id).sort().join('_');
+    const deg = {};
+    list.forEach(e=>{ const [a,b] = entityEndpoints(e); deg[a] = (deg[a]||0)+1; deg[b] = (deg[b]||0)+1; });
+    const openPts = Object.keys(deg).filter(p => deg[p] === 1);
+    const closed = openPts.length === 0;
+    const [firstA] = entityEndpoints(list[0]);
+    const startPointId = closed ? firstA : openPts[0];
+    const endPointId = closed ? firstA : openPts[1];
+    subpaths.push({ key, entityIds:list.map(e=>e.id), startPointId, endPointId, closed, count:list.length, isCircle:false });
+  });
+
+  entities.filter(e => e.layer === 'laser' && e.type === 'circle').forEach(c=>{
+    subpaths.push({ key:'circ-'+c.id, entityIds:[c.id], startPointId:null, endPointId:null, closed:true, count:1, isCircle:true });
+  });
+
+  return subpaths;
+}
+
+function subpathConnectionPoint(sub, which){
+  if(sub.isCircle){
+    const c = entities.find(e => e.id === sub.entityIds[0]);
+    const g = circleGeom(c);
+    return g ? { x:g.cx+g.r, y:g.cy } : { x:0, y:0 };
+  }
+  const pid = which === 'start' ? sub.startPointId : sub.endPointId;
+  const p = getPoint(pid);
+  return p ? { x:p.x, y:p.y } : { x:0, y:0 };
+}
+
+function regenerateMoveOrder(){
+  if(typeof refrescarPreviaGcode === 'function') setTimeout(refrescarPreviaGcode, 0);
+  const subs = detectSubpaths();
+  const keep = moveOrder.filter(k => subs.some(s => s.key === k));
+  const fresh = subs.map(s => s.key).filter(k => !keep.includes(k));
+  moveOrder = [...keep, ...fresh];
+  renderSubpathList();
+}
+
+function commitRect(a, b){
+  const p1 = a.id, p3 = b.id;
+  const p2 = getOrCreatePoint(b.x, a.y);
+  const p4 = getOrCreatePoint(a.x, b.y);
+  const gid = 'grp' + (entityCounter);
+  addEntity({ type:'line', layer:activeLayer, groupId:gid, p1, p2 });
+  addEntity({ type:'line', layer:activeLayer, groupId:gid, p1:p2, p2:p3 });
+  addEntity({ type:'line', layer:activeLayer, groupId:gid, p1:p3, p2:p4 });
+  addEntity({ type:'line', layer:activeLayer, groupId:gid, p1:p4, p2:p1 });
+  regenerateMoveOrder();
+}
+
+// ---------- MANEJO DE HERRAMIENTAS (clic en el lienzo) ----------
+function handleToolClick(wx, wy, tipoSnap){
+  if(currentTool === 'select' || currentTool === 'erase') return; // se manejan por elemento, no por clic vacío
+
+  if(currentTool === 'line'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 2){
+      pushUndo();
+      const eid = addEntity({ type:'line', layer:activeLayer, p1:toolClickBuffer[0], p2:toolClickBuffer[1] });
+      aplicarRestriccionAuto(tipoSnap, eid);
+      // Encadenado: el final de esta linea es el principio de la siguiente,
+      // como en cualquier CAD. Esc corta la cadena.
+      toolClickBuffer = [toolClickBuffer[1]];
+      regenerateMoveOrder();
+      renderConstraintUI();
+    }
+    updateLineInputPanel();
+  } else if(currentTool === 'rect'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push({ id:pid, x:wx, y:wy });
+    if(toolClickBuffer.length === 2){
+      pushUndo();
+      commitRect(toolClickBuffer[0], toolClickBuffer[1]);
+      toolClickBuffer = [];
+    }
+    updateRectInputPanel();
+  } else if(currentTool === 'circle3'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 3){
+      pushUndo();
+      addEntity({ type:'circle', method:'3pt', layer:activeLayer, p1:toolClickBuffer[0], p2:toolClickBuffer[1], p3:toolClickBuffer[2] });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'circleCR'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 2){
+      pushUndo();
+      addEntity({ type:'circle', method:'cr', layer:activeLayer, center:toolClickBuffer[0], radiusPt:toolClickBuffer[1] });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'arc'){
+    const pid = getOrCreatePoint(wx, wy);
+    toolClickBuffer.push(pid);
+    if(toolClickBuffer.length === 3){
+      pushUndo();
+      addEntity({ type:'arc', layer:activeLayer, center:toolClickBuffer[0], startPt:toolClickBuffer[1], endPt:toolClickBuffer[2] });
+      toolClickBuffer = [];
+      regenerateMoveOrder();
+    }
+  } else if(currentTool === 'dimDist'){
+    const pt = findNearbyPoint(wx, wy);
+    if(!pt){ setStatus('La cota de distancia debe apoyarse en un punto ya existente.', 'err'); return; }
+    toolClickBuffer.push(pt.id);
+    if(toolClickBuffer.length === 2){
+      if(toolClickBuffer[0] !== toolClickBuffer[1]){
+        pushUndo();
+        addDimension({ type:'distance', p1:toolClickBuffer[0], p2:toolClickBuffer[1], drivenPoint:toolClickBuffer[1] });
+        renderPropPanel();
+      }
+      toolClickBuffer = [];
+    }
+  }
+  updateHint();
+  updateLiveView();
+}
+
+function updateHint(){
+  const hint = document.getElementById('hintBar');
+  const need = { line:2, rect:2, circle3:3, circleCR:2, arc:3, dimDist:2 }[currentTool];
+  if(need){
+    hint.innerHTML = 'Clic ' + (toolClickBuffer.length+1) + ' de ' + need + ' — <b>' + toolLabel(currentTool) + '</b>'
+      + (currentTool === 'line' && toolClickBuffer.length ? ' · <b>Esc</b> corta la cadena' : '');
+  } else if(currentTool === 'select'){
+    hint.innerHTML = 'Arrastra un punto para moverlo. Clic en una entidad para ver/editar sus propiedades.';
+  } else if(currentTool === 'erase'){
+    hint.innerHTML = 'Clic sobre una línea, círculo, arco o cota para eliminarla.';
+  } else if(currentTool === 'dimRad'){
+    hint.innerHTML = 'Clic sobre un círculo o arco para acotar su radio.';
+  }
+}
+function toolLabel(t){
+  return { line:'Línea', rect:'Rectángulo', circle3:'Círculo 3pt', circleCR:'Círculo C+R', arc:'Arco', dimDist:'Cota distancia' }[t] || t;
+}
+
+function setTool(tool){
+  currentTool = tool;
+  svg.classList.toggle('modo-seleccion', tool === 'select');
+  toolClickBuffer = [];
+  snapActual = null; hoverEntityId = null;
+  document.querySelectorAll('#toolGrid .tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  updateLineInputPanel();
+  updateRectInputPanel();
+  updateHint();
+  updateLiveView();
+}
+
+// ---------- ENTRADA NUMÉRICA DE DISTANCIA/ÁNGULO PARA LÍNEAS ----------
+function updateLineInputPanel(){
+  const block = document.getElementById('lineInputBlock');
+  if(currentTool === 'line' && toolClickBuffer.length === 1){
+    block.style.display = 'flex';
+    const startId = toolClickBuffer[0];
+    const refAngle = findReferenceAngleAt(startId, null);
+    const relCheckbox = document.getElementById('lineAngleRelative');
+    relCheckbox.disabled = (refAngle === null);
+    if(refAngle === null) relCheckbox.checked = false;
+    document.getElementById('lineDistInput').value = '';
+    document.getElementById('lineAngleInput').value = '0';
+    document.getElementById('lineDistInput').focus();
+  } else {
+    block.style.display = 'none';
+  }
+}
+
+function commitLineFromInputs(){
+  if(toolClickBuffer.length !== 1) return;
+  const startId = toolClickBuffer[0];
+  const p1 = getPoint(startId);
+  const dist = parseFloat(document.getElementById('lineDistInput').value);
+  let angle = parseFloat(document.getElementById('lineAngleInput').value);
+  if(!(dist > 0) || Number.isNaN(angle)){ setStatus('Ingresa una distancia mayor a 0 y un ángulo válido.', 'err'); return; }
+
+  if(document.getElementById('lineAngleRelative').checked){
+    const refAngle = findReferenceAngleAt(startId, null);
+    if(refAngle !== null) angle = refAngle + angle;
+  }
+
+  const rad = angle * Math.PI/180;
+  const wx = p1.x + dist*Math.cos(rad);
+  const wy = p1.y + dist*Math.sin(rad);
+  const p2id = getOrCreatePoint(wx, wy);
+  pushUndo();
+  addEntity({ type:'line', layer:activeLayer, p1:startId, p2:p2id });
+
+  toolClickBuffer = [];
+  regenerateMoveOrder();
+  updateLineInputPanel();
+  updateHint();
+  updateLiveView();
+  setStatus('Línea colocada: ' + dist.toFixed(2) + ' mm a ' + angle.toFixed(2) + '°.', 'ok');
+}
+
+function updateRectInputPanel(){
+  const block = document.getElementById('rectInputBlock');
+  if(currentTool === 'rect' && toolClickBuffer.length === 1){
+    block.style.display = 'flex';
+    document.getElementById('rectWidthInput').value = '';
+    document.getElementById('rectHeightInput').value = '';
+    document.getElementById('rectWidthInput').focus();
+  } else {
+    block.style.display = 'none';
+  }
+}
+
+function commitRectFromInputs(){
+  if(toolClickBuffer.length !== 1) return;
+  const a = toolClickBuffer[0];
+  const width = parseFloat(document.getElementById('rectWidthInput').value);
+  const height = parseFloat(document.getElementById('rectHeightInput').value);
+  if(!(width > 0) || !(height > 0)){ setStatus('Ingresa un ancho y un alto mayores a 0.', 'err'); return; }
+
+  const bx = a.x + width, by = a.y + height;
+  const b = { id: getOrCreatePoint(bx, by), x:bx, y:by };
+  pushUndo();
+  commitRect(a, b);
+
+  toolClickBuffer = [];
+  updateRectInputPanel();
+  updateHint();
+  updateLiveView();
+  setStatus('Rectángulo colocado: ' + width.toFixed(2) + ' × ' + height.toFixed(2) + ' mm.', 'ok');
+}
+
+function setActiveLayer(l){
+  activeLayer = l;
+  document.getElementById('activeLayerLaserBtn').classList.toggle('active', l === 'laser');
+  document.getElementById('activeLayerConstrBtn').classList.toggle('active', l === 'constr');
+}
+
+// ---------- PANEL DE CAPAS ----------
+function renderLayerList(){
+  const wrap = document.getElementById('layerList');
+  wrap.innerHTML = '';
+  Object.keys(layers).forEach(key=>{
+    const L = layers[key];
+    const row = document.createElement('div');
+    row.className = 'layer-row';
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch'; swatch.style.background = L.color;
+    const name = document.createElement('span');
+    name.className = 'name'; name.textContent = L.name;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = L.visible;
+    cb.addEventListener('change', ()=>{ L.visible = cb.checked; updateLiveView(); });
+    row.appendChild(swatch); row.appendChild(name); row.appendChild(cb);
+    wrap.appendChild(row);
+  });
+}
+
+// ---------- PANEL DE PROPIEDADES ----------
+function renderPropPanel(){
+  const panel = document.getElementById('propPanel');
+  panel.innerHTML = '';
+
+  if(selectedDimId){
+    const dim = dimensions.find(d => d.id === selectedDimId);
+    if(!dim){ panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>'; return; }
+    let value = 0, label = '';
+    if(dim.type === 'distance'){
+      const p1 = getPoint(dim.p1), p2 = getPoint(dim.p2);
+      value = p1 && p2 ? Math.hypot(p2.x-p1.x, p2.y-p1.y) : 0;
+      label = 'Distancia';
+    } else {
+      const entity = entities.find(e => e.id === dim.entityId);
+      const g = entity ? (entity.type==='circle' ? circleGeom(entity) : arcGeom(entity)) : null;
+      value = g ? g.r : 0;
+      label = 'Radio';
+    }
+    const row = document.createElement('div');
+    row.className = 'prop-row';
+    const editable = dim.type === 'distance' || (dim.type === 'radius' && entities.find(e=>e.id===dim.entityId) && entities.find(e=>e.id===dim.entityId).method !== '3pt');
+    row.innerHTML = '<span class="k">' + label + ' (mm)</span>';
+    const input = document.createElement('input');
+    input.type = 'number'; input.step = 'any'; input.value = value.toFixed(4);
+    input.disabled = !editable;
+    input.title = editable ? '' : 'El círculo por 3 puntos no admite radio editable (queda definido por sus 3 puntos)';
+    input.addEventListener('change', ()=>{ pushUndo(); setDimensionValue(dim, parseFloat(input.value)); });
+    row.appendChild(input);
+    panel.appendChild(row);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-tiny'; delBtn.style.marginTop = '8px'; delBtn.textContent = 'Eliminar cota';
+    delBtn.addEventListener('click', ()=>{ pushUndo(); dimensions = dimensions.filter(d => d.id !== dim.id); selectedDimId = null; renderPropPanel(); updateLiveView(); });
+    panel.appendChild(delBtn);
+    return;
+  }
+
+  if(selectedPointId){
+    const p = getPoint(selectedPointId);
+    if(!p){ panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>'; return; }
+    ['x','y'].forEach(axis=>{
+      const row = document.createElement('div');
+      row.className = 'prop-row';
+      row.innerHTML = '<span class="k">Punto ' + axis.toUpperCase() + '</span>';
+      const input = document.createElement('input');
+      input.type = 'number'; input.step = 'any'; input.value = p[axis].toFixed(4);
+      input.addEventListener('change', ()=>{ pushUndo(); p[axis] = parseFloat(input.value); regenerateMoveOrder(); updateLiveView(); });
+      row.appendChild(input);
+      panel.appendChild(row);
+    });
+    return;
+  }
+
+  if(selectedEntityId){
+    const entity = entities.find(e => e.id === selectedEntityId);
+    if(!entity){ panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>'; return; }
+    const row = document.createElement('div');
+    row.className = 'prop-row';
+    row.innerHTML = '<span class="k">Tipo</span><span class="mono" style="font-size:11px;">' + entity.type + (entity.method?(' · '+entity.method):'') + '</span>';
+    panel.appendChild(row);
+    const layerRow = document.createElement('div');
+    layerRow.className = 'prop-row';
+    layerRow.innerHTML = '<span class="k">Capa</span><span class="mono" style="font-size:11px;">' + layers[entity.layer].name + '</span>';
+    panel.appendChild(layerRow);
+
+    if(isRectGroup(entity.groupId)){
+      const b = getRectBounds(entity.groupId);
+      const width = b.maxX - b.minX, height = b.maxY - b.minY;
+
+      const wRow = document.createElement('div');
+      wRow.className = 'prop-row';
+      wRow.innerHTML = '<span class="k">Ancho (mm)</span>';
+      const wInput = document.createElement('input');
+      wInput.type = 'number'; wInput.step = 'any'; wInput.value = width.toFixed(4);
+      wInput.addEventListener('change', ()=>{ pushUndo(); setRectWidth(entity.groupId, parseFloat(wInput.value)); regenerateMoveOrder(); updateLiveView(); renderPropPanel(); });
+      wRow.appendChild(wInput);
+      panel.appendChild(wRow);
+
+      const hRow = document.createElement('div');
+      hRow.className = 'prop-row';
+      hRow.innerHTML = '<span class="k">Alto (mm)</span>';
+      const hInput = document.createElement('input');
+      hInput.type = 'number'; hInput.step = 'any'; hInput.value = height.toFixed(4);
+      hInput.addEventListener('change', ()=>{ pushUndo(); setRectHeight(entity.groupId, parseFloat(hInput.value)); regenerateMoveOrder(); updateLiveView(); renderPropPanel(); });
+      hRow.appendChild(hInput);
+      panel.appendChild(hRow);
+
+      const rectNote = document.createElement('div');
+      rectNote.className = 'route-empty-hint';
+      rectNote.style.marginTop = '4px';
+      rectNote.textContent = 'La esquina inferior-izquierda queda fija; el rectángulo crece hacia arriba y la derecha.';
+      panel.appendChild(rectNote);
+
+      const rectDelBtn = document.createElement('button');
+      rectDelBtn.className = 'btn-tiny'; rectDelBtn.style.marginTop = '8px'; rectDelBtn.textContent = 'Eliminar rectángulo';
+      rectDelBtn.addEventListener('click', ()=>{ pushUndo(); deleteEntity(entity.id); });
+      panel.appendChild(rectDelBtn);
+      return;
+    }
+
+    if(entity.type === 'line'){
+      const la = getLineLengthAngle(entity);
+
+      const lenRow = document.createElement('div');
+      lenRow.className = 'prop-row';
+      lenRow.innerHTML = '<span class="k">Longitud (mm)</span>';
+      const lenInput = document.createElement('input');
+      lenInput.type = 'number'; lenInput.step = 'any'; lenInput.value = la.length.toFixed(4);
+      lenInput.addEventListener('change', ()=>{ pushUndo(); setLineLength(entity, parseFloat(lenInput.value)); regenerateMoveOrder(); updateLiveView(); renderPropPanel(); });
+      lenRow.appendChild(lenInput);
+      panel.appendChild(lenRow);
+
+      const angRow = document.createElement('div');
+      angRow.className = 'prop-row';
+      angRow.innerHTML = '<span class="k">Ángulo (°)</span>';
+      const angInput = document.createElement('input');
+      angInput.type = 'number'; angInput.step = 'any'; angInput.value = la.angleDeg.toFixed(2);
+      angInput.addEventListener('change', ()=>{ pushUndo(); setLineAngle(entity, parseFloat(angInput.value)); regenerateMoveOrder(); updateLiveView(); renderPropPanel(); });
+      angRow.appendChild(angInput);
+      panel.appendChild(angRow);
+
+      const note = document.createElement('div');
+      note.className = 'route-empty-hint';
+      note.style.marginTop = '2px';
+      note.textContent = 'El primer punto de la línea queda fijo; el segundo se mueve. Ángulo medido desde el eje X (horizontal), sentido antihorario.';
+      panel.appendChild(note);
+    }
+
+    if(entity.type === 'arc'){
+      const g = arcGeom(entity);
+      const radRow = document.createElement('div');
+      radRow.className = 'prop-row';
+      radRow.innerHTML = '<span class="k">Radio (mm)</span>';
+      const radInput = document.createElement('input');
+      radInput.type = 'number'; radInput.step = 'any'; radInput.value = g ? g.r.toFixed(4) : '';
+      radInput.addEventListener('change', ()=>{ pushUndo(); setEntityRadius(entity, parseFloat(radInput.value)); regenerateMoveOrder(); updateLiveView(); renderPropPanel(); });
+      radRow.appendChild(radInput);
+      panel.appendChild(radRow);
+
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-top:6px;';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !!entity.longArc;
+      cb.addEventListener('change', ()=>{ entity.longArc = cb.checked; updateLiveView(); });
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode('Usar el arco largo (reflejo, >180°)'));
+      panel.appendChild(label);
+
+      const note = document.createElement('div');
+      note.className = 'route-empty-hint';
+      note.style.marginTop = '4px';
+      note.textContent = 'Por defecto se dibuja el arco más corto entre los puntos de inicio y fin, sin importar en qué orden hiciste los clics.';
+      panel.appendChild(note);
+    }
+
+    if(entity.type === 'circle'){
+      const g = circleGeom(entity);
+      const editable = entity.method !== '3pt';
+
+      const radRow = document.createElement('div');
+      radRow.className = 'prop-row';
+      radRow.innerHTML = '<span class="k">Radio (mm)</span>';
+      const radInput = document.createElement('input');
+      radInput.type = 'number'; radInput.step = 'any'; radInput.value = g ? g.r.toFixed(4) : '';
+      radInput.disabled = !editable;
+      radInput.addEventListener('change', ()=>{ pushUndo(); setEntityRadius(entity, parseFloat(radInput.value)); regenerateMoveOrder(); updateLiveView(); renderPropPanel(); });
+      radRow.appendChild(radInput);
+      panel.appendChild(radRow);
+
+      const diaRow = document.createElement('div');
+      diaRow.className = 'prop-row';
+      diaRow.innerHTML = '<span class="k">Diámetro (mm)</span>';
+      const diaInput = document.createElement('input');
+      diaInput.type = 'number'; diaInput.step = 'any'; diaInput.value = g ? (g.r*2).toFixed(4) : '';
+      diaInput.disabled = !editable;
+      diaInput.addEventListener('change', ()=>{ pushUndo(); setEntityRadius(entity, parseFloat(diaInput.value)/2); regenerateMoveOrder(); updateLiveView(); renderPropPanel(); });
+      diaRow.appendChild(diaInput);
+      panel.appendChild(diaRow);
+
+      const note = document.createElement('div');
+      note.className = 'route-empty-hint';
+      note.style.marginTop = '4px';
+      note.textContent = editable
+        ? 'El centro queda fijo; el punto que define el radio se mueve en su misma dirección.'
+        : 'Este círculo se definió por 3 puntos — el radio queda determinado por ellos y no se puede editar directamente. Arrastra alguno de sus 3 puntos, o bórralo y créalo con "Círculo C+R" si necesitas un radio exacto editable.';
+      panel.appendChild(note);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-tiny'; delBtn.style.marginTop = '8px'; delBtn.textContent = 'Eliminar';
+    delBtn.addEventListener('click', ()=>{ pushUndo(); deleteEntity(entity.id); });
+    panel.appendChild(delBtn);
+    return;
+  }
+
+  panel.innerHTML = '<div class="prop-empty">Nada seleccionado.</div>';
+}
+
+// ---------- LISTA DE SUBTRAZOS / TRASLADO ----------
+function renderSubpathList(){
+  const listEl = document.getElementById('subpathList');
+  const subs = detectSubpaths();
+  document.getElementById('subpathTitle').textContent = 'Trazo de traslado (' + subs.length + ' tramos)';
+  if(subs.length === 0){
+    listEl.innerHTML = '<div class="prop-empty">Aún no hay trazo láser dibujado.</div>';
+    return;
+  }
+  const ordered = moveOrder.map(k => subs.find(s => s.key === k)).filter(Boolean);
+  listEl.innerHTML = '';
+  ordered.forEach((sub, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'subpath-row';
+    const seq = document.createElement('span'); seq.className = 'seq'; seq.textContent = idx+1;
+    const info = document.createElement('span'); info.className = 'info';
+    info.textContent = (sub.isCircle ? 'Círculo' : (sub.closed ? 'Cerrado' : 'Abierto')) + ' · ' + sub.count + ' entidad(es)';
+    const up = document.createElement('button'); up.className='step-btn'; up.innerHTML='↑'; up.disabled = idx===0;
+    up.addEventListener('click', ()=>{ [moveOrder[idx-1],moveOrder[idx]]=[moveOrder[idx],moveOrder[idx-1]]; renderSubpathList(); updateLiveView(); });
+    const down = document.createElement('button'); down.className='step-btn'; down.innerHTML='↓'; down.disabled = idx===ordered.length-1;
+    down.addEventListener('click', ()=>{ [moveOrder[idx+1],moveOrder[idx]]=[moveOrder[idx],moveOrder[idx+1]]; renderSubpathList(); updateLiveView(); });
+    row.appendChild(seq); row.appendChild(info); row.appendChild(up); row.appendChild(down);
+    listEl.appendChild(row);
+  });
+}
+
+// ---------- INTERACCIÓN POR ENTIDAD / PUNTO ----------
+function attachEntityInteraction(shapeEl, entity){
+  shapeEl.style.pointerEvents = 'stroke';
+  if(currentTool === 'select'){
+    shapeEl.style.cursor = 'pointer';
+    shapeEl.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(e.ctrlKey || e.metaKey || e.shiftKey){
+        alternarSeleccion('entity', entity.id);
+      } else {
+        selection = [{ kind:'entity', id:entity.id }];
+        selectedEntityId = entity.id; selectedPointId=null; selectedDimId=null;
+      }
+      renderConstraintUI(); renderPropPanel(); updateLiveView();
+    });
+  } else if(currentTool === 'erase'){
+    shapeEl.style.cursor = 'pointer';
+    shapeEl.addEventListener('click', (e)=>{ e.stopPropagation(); pushUndo(); deleteEntity(entity.id); updateLiveView(); });
+  } else if(currentTool === 'dimRad' && (entity.type === 'circle' || entity.type === 'arc')){
+    shapeEl.style.cursor = 'pointer';
+    shapeEl.addEventListener('click', (e)=>{ e.stopPropagation(); pushUndo(); addDimension({ type:'radius', entityId:entity.id }); renderPropPanel(); updateLiveView(); });
+  }
+}
+
+function drawPointHandle(p, sx, sy){
+  const isSelected = selectedPointId === p.id;
+  const handle = el('circle', { cx:sx, cy:sy, r:5, fill: isSelected ? '#2563eb' : '#ffffff', stroke:'#2563eb', 'stroke-width':1.6, opacity: currentTool==='select'||currentTool==='erase' ? '1' : '0.55' });
+  handle.style.pointerEvents = 'none'; // el visual no captura clics; el hit-target de abajo sí
+  svg.appendChild(handle);
+
+  if(currentTool !== 'select' && currentTool !== 'erase') return;
+
+  // hit-target invisible más grande, para no tener que acertar el pixel exacto
+  // (y con prioridad sobre líneas/círculos que converjan en el mismo punto,
+  // porque se dibuja después de todas las entidades)
+  const hit = el('circle', { cx:sx, cy:sy, r:12, fill:'transparent', stroke:'none' });
+  if(currentTool === 'select'){
+    hit.style.cursor = 'move';
+    hit.addEventListener('mousedown', (e)=>{
+      e.stopPropagation();
+      // Ctrl+clic sobre un punto es "anadir a la seleccion", no arrastrar.
+      if(e.ctrlKey || e.metaKey || e.shiftKey){
+        alternarSeleccion('point', p.id);
+        renderConstraintUI(); renderPropPanel(); updateLiveView();
+        return;
+      }
+      selection = [{ kind:'point', id:p.id }];
+      selectedPointId = p.id; selectedEntityId = null; selectedDimId = null;
+      renderConstraintUI();
+      renderPropPanel();
+      pushUndo(); // una sola foto al INICIO del arrastre, no en cada pixel de movimiento
+      draggingPointId = p.id;
+      window.addEventListener('mousemove', onPointDragMove);
+      window.addEventListener('mouseup', endPointDrag);
+    });
+  } else if(currentTool === 'erase'){
+    hit.style.cursor = 'pointer';
+    hit.addEventListener('click', (e)=>{ e.stopPropagation(); pushUndo(); deletePoint(p.id); updateLiveView(); });
+  }
+  svg.appendChild(hit);
+}
+
+function onPointDragMove(e){
+  if(!draggingPointId) return;
+  e.preventDefault();
+  const svgPt = clientToSvgPoint(e.clientX, e.clientY);
+  const wx = camera.cx + (svgPt.x-W/2)/camera.scale;
+  const wy = camera.cy - (svgPt.y-H/2)/camera.scale;
+  const p = getPoint(draggingPointId);
+  if(p){
+    p.x = wx; p.y = wy;
+    // El punto que arrastras manda: se ancla y el resto se reacomoda.
+    resolverSketch([draggingPointId]);
+    updateLiveView();
+  }
+}
+function endPointDrag(){
+  draggingPointId = null;
+  refrescarPreviaGcode();
+  window.removeEventListener('mousemove', onPointDragMove);
+  window.removeEventListener('mouseup', endPointDrag);
+}
+
+function drawArrowHead(from, to, color){
+  const angle = Math.atan2(to[1]-from[1], to[0]-from[0]);
+  const midX = (from[0]+to[0])/2, midY = (from[1]+to[1])/2;
+  const size = 6;
+  const p1 = [midX - size*Math.cos(angle-Math.PI/7), midY - size*Math.sin(angle-Math.PI/7)];
+  const p2 = [midX - size*Math.cos(angle+Math.PI/7), midY - size*Math.sin(angle+Math.PI/7)];
+  const d = `M ${midX},${midY} L ${p1[0]},${p1[1]} M ${midX},${midY} L ${p2[0]},${p2[1]}`;
+  const arrow = el('path', { d, stroke:color, 'stroke-width':1.8, fill:'none', 'stroke-linecap':'round' });
+  arrow.style.pointerEvents = 'none';
+  svg.appendChild(arrow);
+}
+
+// ---------- DIBUJO DE ENTIDADES / CAPA DE TRASLADO / COTAS ----------
+function drawEntity(entity, toScreen, scale, color){
+  const isSelected = selectedEntityId === entity.id || estaSeleccionado('entity', entity.id);
+  const isHover = hoverEntityId === entity.id && !isSelected;
+  const strokeColor = isSelected ? '#2563eb' : (isHover ? '#7aa7ff' : color);
+  const strokeWidth = isSelected ? 2.6 : (isHover ? 2.4 : 1.8);
+
+  if(entity.type === 'line'){
+    const p1 = getPoint(entity.p1), p2 = getPoint(entity.p2);
+    if(!p1 || !p2) return;
+    const [x1,y1] = toScreen(p1.x,p1.y), [x2,y2] = toScreen(p2.x,p2.y);
+    const line = el('line', { x1,y1,x2,y2, stroke:strokeColor, 'stroke-width':strokeWidth, 'stroke-linecap':'round' });
+    attachEntityInteraction(line, entity);
+    svg.appendChild(line);
+  } else if(entity.type === 'circle'){
+    const g = circleGeom(entity);
+    if(!g) return;
+    const [cx,cy] = toScreen(g.cx,g.cy);
+    const circle = el('circle', { cx,cy, r:g.r*scale, fill:'none', stroke:strokeColor, 'stroke-width':strokeWidth });
+    attachEntityInteraction(circle, entity);
+    svg.appendChild(circle);
+  } else if(entity.type === 'arc'){
+    const c = getPoint(entity.center), s = getPoint(entity.startPt), en = getPoint(entity.endPt);
+    if(!c || !s || !en) return;
+    const r = Math.hypot(s.x-c.x, s.y-c.y);
+    const a0 = Math.atan2(s.y-c.y, s.x-c.x);
+    const a1raw = Math.atan2(en.y-c.y, en.x-c.x);
+    const sweep = computeArcSweep(a0, a1raw, !!entity.longArc);
+    const steps = 32, pts = [];
+    for(let i=0;i<=steps;i++){
+      const a = a0 + sweep*(i/steps);
+      pts.push(toScreen(c.x+r*Math.cos(a), c.y+r*Math.sin(a)));
+    }
+    const d = 'M ' + pts.map(p=>p[0]+','+p[1]).join(' L ');
+    const path = el('path', { d, fill:'none', stroke:strokeColor, 'stroke-width':strokeWidth, 'stroke-linecap':'round' });
+    attachEntityInteraction(path, entity);
+    svg.appendChild(path);
+  }
+}
+
+function drawMoveLayer(toScreen, scale){
+  const subs = detectSubpaths();
+  const ordered = moveOrder.map(k => subs.find(s => s.key === k)).filter(Boolean);
+  for(let i=0; i<ordered.length-1; i++){
+    const endPt = subpathConnectionPoint(ordered[i], 'end');
+    const startPt = subpathConnectionPoint(ordered[i+1], 'start');
+    const [x1,y1] = toScreen(endPt.x, endPt.y);
+    const [x2,y2] = toScreen(startPt.x, startPt.y);
+    const line = el('line', { x1,y1,x2,y2, stroke:layers.move.color, 'stroke-width':1.6, 'stroke-dasharray':'5 4', opacity:'0.85' });
+    line.style.pointerEvents = 'none';
+    svg.appendChild(line);
+    drawArrowHead([x1,y1], [x2,y2], layers.move.color);
+  }
+  ordered.forEach((sub, idx)=>{
+    const pt = subpathConnectionPoint(sub, 'start');
+    const [bx,by] = toScreen(pt.x, pt.y);
+    const badge = el('circle', { cx:bx-14, cy:by-14, r:8, fill:layers.move.color, stroke:'#fff', 'stroke-width':1.5 });
+    badge.style.pointerEvents = 'none';
+    svg.appendChild(badge);
+    const t = el('text', { x:bx-14, y:by-11, 'text-anchor':'middle', 'font-size':8.5, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:'#fff' });
+    t.textContent = idx+1; t.style.pointerEvents = 'none';
+    svg.appendChild(t);
+  });
+}
+
+function drawDimension(dim, toScreen, scale){
+  const color = selectedDimId === dim.id ? '#2563eb' : layers.dim.color;
+  if(dim.type === 'distance'){
+    const p1 = getPoint(dim.p1), p2 = getPoint(dim.p2);
+    if(!p1 || !p2) return;
+    const [x1,y1] = toScreen(p1.x,p1.y), [x2,y2] = toScreen(p2.x,p2.y);
+    const line = el('line', { x1,y1,x2,y2, stroke:color, 'stroke-width':1, 'stroke-dasharray':'4 3', opacity:'0.8' });
+    svg.appendChild(line);
+    const dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+    const label = el('text', { x:(x1+x2)/2, y:(y1+y2)/2-6, 'text-anchor':'middle', 'font-size':10, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:color });
+    label.textContent = dist.toFixed(2) + ' mm';
+    label.style.cursor = 'pointer';
+    label.addEventListener('click', (e)=>{ e.stopPropagation(); selectedDimId=dim.id; selectedPointId=null; selectedEntityId=null; renderPropPanel(); updateLiveView(); });
+    svg.appendChild(label);
+  } else {
+    const entity = entities.find(e => e.id === dim.entityId);
+    if(!entity) return;
+    const g = entity.type === 'circle' ? circleGeom(entity) : arcGeom(entity);
+    if(!g) return;
+    const [cx,cy] = toScreen(g.cx,g.cy);
+    const label = el('text', { x:cx, y:cy-g.r*scale-8, 'text-anchor':'middle', 'font-size':10, 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:color });
+    label.textContent = 'R' + g.r.toFixed(2);
+    label.style.cursor = 'pointer';
+    label.addEventListener('click', (e)=>{ e.stopPropagation(); selectedDimId=dim.id; selectedPointId=null; selectedEntityId=null; renderPropPanel(); updateLiveView(); });
+    svg.appendChild(label);
+  }
+}
+
+function placeholderState(){
+  clearSvg();
+  const g = el('g', {});
+  const step = 40;
+  for(let x=0;x<=W;x+=step) g.appendChild(el('line', { x1:x,y1:0,x2:x,y2:H, stroke:'#eeece5', 'stroke-width':1 }));
+  for(let y=0;y<=H;y+=step) g.appendChild(el('line', { x1:0,y1:y,x2:W,y2:y, stroke:'#eeece5', 'stroke-width':1 }));
+  svg.appendChild(g);
+  const t = el('text', { x:W/2, y:H/2, fill:'#c4c1b8', 'font-size':14, 'text-anchor':'middle', 'font-family':'IBM Plex Mono, monospace' });
+  t.textContent = 'CLIC EN EL LIENZO PARA EMPEZAR';
+  svg.appendChild(t);
+  document.getElementById('badgeState').textContent = 'en espera';
+  document.getElementById('scaleLabel').textContent = '';
+}
+
+function renderScene(){
+  clearSvg();
+  const hasContent = points.length > 0;
+
+  if(!cameraInitialized || !camera){
+    if(!hasContent){ placeholderState(); return; }
+    const bounds = computeContentBounds();
+    if(bounds){ camera = bounds; cameraInitialized = true; } else { placeholderState(); return; }
+  }
+
+  const scale = camera.scale, cxMid = camera.cx, cyMid = camera.cy;
+  drawGridMm(scale, cxMid, cyMid);
+  function toScreen(x,y){ return [ W/2 + (x-cxMid)*scale, H/2 - (y-cyMid)*scale ]; }
+  document.getElementById('scaleLabel').textContent = '1 mm = ' + scale.toFixed(2) + ' px';
+
+  ['constr','laser'].forEach(layerKey=>{
+    if(!layers[layerKey].visible) return;
+    entities.filter(e => e.layer === layerKey).forEach(entity => drawEntity(entity, toScreen, scale, layers[layerKey].color));
+  });
+
+  if(layers.move.visible) drawMoveLayer(toScreen, scale);
+  if(layers.dim.visible) dimensions.forEach(dim => drawDimension(dim, toScreen, scale));
+
+  points.forEach(p=>{
+    const [sx,sy] = toScreen(p.x, p.y);
+    drawPointHandle(p, sx, sy);
+  });
+
+  if(constraints.length) dibujarGlifosRestriccion(toScreen);
+  dibujarCruz(toScreen);
+  dibujarPrevisualizacion(toScreen, scale);
+  drawRulers(scale, cxMid, cyMid);
+  document.getElementById('badgeState').textContent = entities.length>0 ? (entities.length + ' entidad' + (entities.length>1?'es':'')) : (hasContent ? 'dibujando' : 'en espera');
+}
+
+function updateLiveView(){ renderScene(); }
+
+// ---------- GUARDAR / CARGAR ----------
+function saveToFile(){
+  if(points.length === 0){ setStatus('No hay nada que guardar todavía.', 'err'); return; }
+  const partName = document.getElementById('partName').value.trim();
+  const fname = sanitizeFilename(document.getElementById('fileName').value) || 'contorno';
+  const state = { partName, points, entities, dimensions, constraints, moveOrder, layers, pointCounter, entityCounter, dimCounter, constraintCounter, materiales, cfgGcode };
+  const text = '# Diseñador de Contornos — ' + (partName || fname) + '\n' +
+               '# No editar a mano salvo que sepas lo que haces (es JSON).\n' +
+               JSON.stringify(state, null, 2);
+  downloadTextFile(text, fname + '.txt');
+  setStatus('Archivo "' + fname + '.txt" guardado (' + entities.length + ' entidad(es)).', 'ok');
+}
+
+function loadFromFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const text = e.target.result;
+      const jsonStart = text.indexOf('{');
+      if(jsonStart === -1) throw new Error('sin JSON');
+      const state = JSON.parse(text.slice(jsonStart));
+
+      points = state.points || [];
+      entities = state.entities || [];
+      dimensions = state.dimensions || [];
+      moveOrder = state.moveOrder || [];
+      if(state.layers){ Object.keys(layers).forEach(k=>{ if(state.layers[k]) layers[k].visible = state.layers[k].visible; }); }
+      pointCounter = state.pointCounter || 0;
+      entityCounter = state.entityCounter || 0;
+      dimCounter = state.dimCounter || 0;
+      constraints = state.constraints || [];
+      constraintCounter = state.constraintCounter || 0;
+      materiales = state.materiales || [];
+      if(state.cfgGcode) cfgGcode = state.cfgGcode;
+      selection = [];
+
+      document.getElementById('partName').value = state.partName || '';
+      document.getElementById('fileName').value = file.name.replace(/\.txt$/i,'') || 'contorno';
+
+      selectedPointId = null; selectedEntityId = null; selectedDimId = null;
+      cameraInitialized = false;
+      undoStack = []; redoStack = [];
+      updateUndoRedoButtons();
+      renderLayerList();
+      renderConstraintUI();
+      renderMateriales();
+      renderPanelGcode();
+      renderPropPanel();
+      regenerateMoveOrder();
+      updateLiveView();
+      setStatus('Pieza cargada correctamente (' + entities.length + ' entidad(es)).', 'ok');
+    }catch(err){
+      setStatus('No se pudo leer el archivo (formato no reconocido).', 'err');
+    }
+  };
+  reader.onerror = ()=> setStatus('No se pudo leer el archivo.', 'err');
+  reader.readAsText(file);
+}
+
+function clearAll(){
+  pushUndo();
+  points = []; entities = []; dimensions = []; moveOrder = [];
+  pointCounter = 0; entityCounter = 0; dimCounter = 0;
+  selectedPointId = null; selectedEntityId = null; selectedDimId = null;
+  toolClickBuffer = [];
+  cameraInitialized = false; camera = null;
+  renderPropPanel();
+  renderSubpathList();
+  updateLiveView();
+  setStatus('Lienzo limpio.', '');
+}
+
+// ---------- EVENTOS ----------
+document.querySelectorAll('#toolGrid .tool-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> setTool(btn.dataset.tool));
+});
+document.getElementById('activeLayerLaserBtn').addEventListener('click', ()=> setActiveLayer('laser'));
+document.getElementById('activeLayerConstrBtn').addEventListener('click', ()=> setActiveLayer('constr'));
+
+document.getElementById('regenMoveBtn').addEventListener('click', ()=>{ regenerateMoveOrder(); updateLiveView(); setStatus('Trazo de traslado actualizado.', 'ok'); });
+
+document.getElementById('linePlaceBtn').addEventListener('click', commitLineFromInputs);
+document.getElementById('lineCancelBtn').addEventListener('click', ()=>{ toolClickBuffer = []; updateLineInputPanel(); updateHint(); updateLiveView(); });
+['lineDistInput','lineAngleInput'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e => { if(e.key === 'Enter') commitLineFromInputs(); });
+});
+
+document.getElementById('rectPlaceBtn').addEventListener('click', commitRectFromInputs);
+document.getElementById('rectCancelBtn').addEventListener('click', ()=>{ toolClickBuffer = []; updateRectInputPanel(); updateHint(); updateLiveView(); });
+['rectWidthInput','rectHeightInput'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e => { if(e.key === 'Enter') commitRectFromInputs(); });
+});
+
+document.getElementById('saveBtn').addEventListener('click', saveToFile);
+document.getElementById('loadBtn').addEventListener('click', ()=> document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(file) loadFromFile(file);
+  e.target.value = '';
+});
+document.getElementById('clearAllBtn').addEventListener('click', clearAll);
+
+document.getElementById('undoBtn').addEventListener('click', undo);
+document.getElementById('redoBtn').addEventListener('click', redo);
+document.addEventListener('keydown', (e)=>{
+  const tag = (e.target.tagName || '').toLowerCase();
+  const enCampo = (tag === 'input' || tag === 'textarea');
+  const key = e.key.toLowerCase();
+
+  // Esc es la salida de emergencia: funciona incluso escribiendo en un campo.
+  if(key === 'escape'){
+    e.preventDefault();
+    if(enCampo) e.target.blur();
+    cancelarDibujo();
+    return;
+  }
+  if(enCampo) return; // el resto de atajos no debe estorbar al escribir
+  if((e.ctrlKey || e.metaKey) && !e.shiftKey && key === 'z'){ e.preventDefault(); undo(); }
+  else if((e.ctrlKey || e.metaKey) && (key === 'y' || (e.shiftKey && key === 'z'))){ e.preventDefault(); redo(); }
+  else if(key === 'delete'){
+    if(selectedEntityId){ pushUndo(); deleteEntity(selectedEntityId); updateLiveView(); }
+    else if(selectedPointId){ pushUndo(); deletePoint(selectedPointId); updateLiveView(); }
+  }
+  else if(!e.ctrlKey && !e.metaKey && !e.altKey && ATAJOS[key]){ e.preventDefault(); setTool(ATAJOS[key]); }
+});
+
+document.getElementById('zoomInBtn').addEventListener('click', ()=> zoomBy(1.25));
+document.getElementById('zoomOutBtn').addEventListener('click', ()=> zoomBy(1/1.25));
+document.getElementById('zoomFitBtn').addEventListener('click', fitView);
+svg.addEventListener('wheel', onWheelZoom, { passive:false });
+svg.addEventListener('mousedown', startPan);
+svg.addEventListener('touchstart', startPan, { passive:false });
+svg.addEventListener('click', onCanvasClick);
+svg.addEventListener('mousemove', onCanvasMove);
+svg.addEventListener('mouseleave', onCanvasLeave);
+document.getElementById('autoRestr').addEventListener('change', function(e){
+  autoRestricciones = e.target.checked;
+});
+
+document.getElementById('gcodeRefreshBtn').addEventListener('click', function(){
+  refrescarPreviaGcode(); setStatus('Vista previa del G-code actualizada.', 'ok');
+});
+document.getElementById('gcodeExportBtn').addEventListener('click', exportarGcode);
+document.getElementById('matAddBtn').addEventListener('click', nuevoMaterial);
+
+// ---------- INIT ----------
+renderLayerList();
+renderConstraintUI();
+renderMateriales();
+renderPanelGcode();
+refrescarPreviaGcode();
+renderPropPanel();
+renderSubpathList();
+placeholderState();
+updateHint();
+updateUndoRedoButtons();
+
+</script>
+
+</body>
+</html>
+<!-- Diseñado por Rolando Ordoñez Rodriguez A01177301 -->

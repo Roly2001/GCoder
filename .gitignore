@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.log
+.env
+node_modules/
+venv/
+.venv/
+bin/
+obj/
+build/
+dist/
+graphify-out/
+EBWebView/

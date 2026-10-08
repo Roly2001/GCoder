@@ -1,0 +1,91 @@
+; GCODER v1 tipo=recorrido-soldadura proyecto=Prueba fecha=2026-09-07
+; Recorrido: Zig Zag (absoluto)
+
+G21
+G90 G58 G01 X-1.5016 Y-1.1356 Z0 A0 F400   ; -> Punto 1
+G90
+
+G04 P100                         ; espera
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera (sirve también de apertura del siguiente punto)
+
+G01 X-3.6417 Y-1.3806   ; -> Punto 2
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X-5.8093 Y-1.1126   ; -> Punto 3
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X-6.1518 Y-5.5886   ; -> Punto 4
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X-7.0488 Y-10.5316   ; -> Punto 5
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+M30
+
+; ; ==================================================================
+; ; MEDIDAS DE ORIGEN — no las lee la maquina, las lee el programa de
+; ; puntos de soldadura. Son las que hicieron falta para sacar estos
+; ; puntos; sin ellas, de este archivo solo se pueden recuperar los
+; ; centros, no los diametros.
+; ; ==================================================================
+; [GCODE]
+; ;OFFSET -7.993122236150905,-2.3947138897660727
+; ============ CONTORNO ============
+; G01 X0 Y0 F200
+; M08
+; M07
+; G02 X3.83 Y3.33 I3.9438 J-0.6684 F200
+; G01 X4.89 Y3.33 F200
+; G02 X8.72 Y0 I-0.1138 J-3.9984 F200
+; G01 X9.58 Y-5.99 F200
+; G02 X5.74 Y-10.413 I-3.9773 J-0.4254 F200
+; G01 X2.98 Y-10.413 F200
+; G02 X-0.86 Y-5.99 I0.1373 J3.9976 F200
+; G01 X0 Y0 F200
+; M09
+
+; M30
+; [/GCODE]
+; [CIRCULOS]
+; # Punto 1 — C(-1.5016, -1.1356)  R 0.7650  D 1.5300  A 1.8385
+; Punto 1 | 6P | -0.8246,-0.7886 | -2.1746,-0.7886 | -1.4996,-0.3586 | -1.4996,-1.9126 | -0.7426,-1.1356 | -2.2606,-1.1356 | CX:cx2
+; # Punto 2 — C(-3.6417, -1.3806)  R 0.6917  D 1.3834  A 1.5030
+; Punto 2 | 6P | -2.9016,-1.1356 | -4.3616,-1.1356 | -3.6316,-0.8356 | -3.6316,-1.9256 | -4.4016,-1.3806 | -2.8817,-1.3806 | CX:cx2
+; # Punto 3 — C(-5.8093, -1.1126)  R 0.7729  D 1.5458  A 1.8767
+; Punto 3 | 6P | -5.0767,-1.3806 | -6.5217,-1.3806 | -5.7992,-0.3506 | -5.7992,-1.8746 | -5.0233,-1.1126 | -6.5953,-1.1126 | CX:cx2
+; # Punto 4 — C(-6.1518, -5.5886)  R 0.6384  D 1.2769  A 1.2805
+; Punto 4 | 6P | -5.6393,-6.1126 | -6.6903,-6.1126 | -6.1648,-5.0126 | -6.1648,-6.1647 | -5.5548,-5.5886 | -6.7488,-5.5886 | CX:cx2
+; # Punto 5 — C(-7.0488, -10.5316)  R 0.7200  D 1.4400  A 1.6285
+; Punto 5 | 6P | -6.3488,-10.2916 | -7.7488,-10.2916 | -7.0488,-9.8716 | -7.0488,-11.1916 | -7.8088,-10.5316 | -6.2889,-10.5316 | CX:cx2
+; # Punto 6 — C(-3.7688, -10.6066)  R 0.7163  D 1.4326  A 1.6119
+; Punto 6 | 6P | -4.4888,-10.5316 | -3.0288,-10.5316 | -3.7588,-9.9316 | -3.7588,-11.2816 | -3.0288,-10.6066 | -4.5088,-10.6066 | CX:cx2
+; # Punto 7 — C(-0.6088, -10.7216)  R 0.6619  D 1.3238  A 1.3765
+; Punto 7 | 6P | 0.0512,-10.6066 | -1.2188,-10.6066 | -0.5838,-9.9866 | -0.5838,-11.4566 | -0.0038,-10.7216 | -1.2138,-10.7216 | CX:cx2
+; # Punto 8 — C(-1.1338, -5.8216)  R 0.5798  D 1.1597  A 1.0562
+; Punto 8 | 6P | -0.6138,-5.7216 | -1.6938,-5.7216 | -1.1538,-5.1416 | -1.1538,-6.5016 | -0.6238,-5.8216 | -1.6438,-5.8216 | CX:cx2
+; [/CIRCULOS]
+; [MATERIALES]
+; Nitinol | Capas 1,2:18 | Capas 2,3:8 | Capas 3,4:20
+; Acero | Capas 1,2:50 | Capas 2,3:45 | Capas 3,4:50
+; [/MATERIALES]
+; # Lámina: CervicalSoldadurav3

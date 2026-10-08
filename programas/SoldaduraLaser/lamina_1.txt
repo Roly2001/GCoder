@@ -1,0 +1,84 @@
+# Lámina: lamina_1
+# Los valores de centro en los comentarios son solo referencia; se recalculan siempre desde los puntos al cargar.
+
+[GCODE]
+;OFFSET 129.84188741058432,254.155320590963
+; ------------------------------------------------------------
+;  CUADRADO REDONDEADO · 20 x 20 · RADIO 3 (ESQUINAS CONVEXAS HACIA FUERA)
+;  Lado recto = 14
+;  Perfil exterior (contorno sólido)
+;  Unidades: mm  |  Coordenadas absolutas (G90)
+;  Herramienta: fresa / punta
+;  Origen (0,0) en la esquina inferior izquierda de la pieza
+;  Sentido de avance: ANTIHORARIO (para fresado exterior convencional)
+; ------------------------------------------------------------
+
+G90 G21 G17 G40 G49 G80    ; Absoluto, mm, plano XY, cancelar compensaciones
+G54                       ; Sistema de coordenadas
+
+; --- Subida a altura de seguridad ---
+G00 Z5.000
+
+; --- Posicionarse en el punto de inicio (esquina inferior izquierda, justo antes del radio) ---
+G00 X3.000 Y0.000
+
+; --- Bajar a la profundidad de corte (ej: -0.5 mm) ---
+G01 Z-0.500 F200
+
+; ------------------------------------------------------------
+;  RECORRIDO DEL PERFIL (sentido antihorario)
+;  Los arcos G03 son los que curvan "hacia fuera" (convexos)
+; ------------------------------------------------------------
+
+; 1. Lado recto inferior (de X=3 a X=17, largo 14)
+G01 X17.000 Y0.000 F300
+
+; 2. Esquina inferior derecha (radio 3, centro en X=17, Y=3)
+;    Arco convexo hacia afuera (abajo-derecha)
+G03 X20.000 Y3.000 I0.000 J3.000
+
+; 3. Lado recto derecho (de Y=3 a Y=17, largo 14)
+G01 X20.000 Y17.000
+
+; 4. Esquina superior derecha (radio 3, centro en X=17, Y=17)
+;    Arco convexo hacia afuera (arriba-derecha)
+G03 X17.000 Y20.000 I-3.000 J0.000
+
+; 5. Lado recto superior (de X=17 a X=3, largo 14)
+G01 X3.000 Y20.000
+
+; 6. Esquina superior izquierda (radio 3, centro en X=3, Y=17)
+;    Arco convexo hacia afuera (arriba-izquierda)
+G03 X0.000 Y17.000 I0.000 J-3.000
+
+; 7. Lado recto izquierdo (de Y=17 a Y=3, largo 14)
+G01 X0.000 Y3.000
+
+; 8. Esquina inferior izquierda (radio 3, centro en X=3, Y=3)
+;    Arco convexo hacia afuera (abajo-izquierda)
+G03 X3.000 Y0.000 I3.000 J0.000
+
+; ------------------------------------------------------------
+;  FIN DEL PERFIL
+; ------------------------------------------------------------
+
+; --- Retirar herramienta ---
+G00 Z5.000
+
+; --- Apagar husillo y refrigerante (opcional) ---
+M05
+M09
+
+; --- Fin de programa ---
+M30
+%
+[/GCODE]
+
+[CIRCULOS]
+# Agujero 1 — C(133.9985, 270.3432)  R 1.4808  D 2.9617  A 6.8892
+Agujero 1 | NP | 135.4786,270.2935 | 132.5186,270.2935 | 133.9586,271.8235
+# Agujero 2 — C(143.9986, 270.3433)  R 1.4808  D 2.9616  A 6.8889
+Agujero 2 | NP | 145.4786,270.2935 | 142.5186,270.2935 | 143.9586,271.8235
+# Agujero 3 — C(138.9986, 270.3432)  R 1.4808  D 2.9617  A 6.8891
+Agujero 3 | NP | 140.4786,270.2935 | 137.5186,270.2935 | 138.9586,271.8235
+[/CIRCULOS]

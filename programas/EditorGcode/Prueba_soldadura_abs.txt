@@ -1,0 +1,49 @@
+; Recorrido: Recorrido 1 (absoluto) — Material 1 · Capas 1
+
+G21
+G90 G58 G01 X4.0000 Y6.0000 Z0 A0 F400   ; -> S1
+G90
+
+G04 P100                         ; espera
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera (sirve también de apertura del siguiente punto)
+
+G01 X11.5000 Y10.0000   ; -> S2
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X22.7500 Y14.0000   ; -> S3
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X6.0000 Y16.0000   ; -> S4
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X15.0000 Y3.0000   ; -> S5
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X26.0000 Y6.0000   ; -> S6
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+M30

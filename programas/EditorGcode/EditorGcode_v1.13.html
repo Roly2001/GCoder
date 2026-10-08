@@ -1,0 +1,3225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editor de G-code (v1.13)</title>
+<!-- VERSION: 1.11 — incrementar en cada cambio, aquí y en <title>/insignia, y renombrar el archivo -->
+<style>
+  :root{
+    --bg:#f4f2ee; --panel:#ffffff; --panel-2:#f0ede7;
+    --line:#dcd8d0; --line-soft:#e9e5dd; --text:#1e2320; --muted:#7d817a;
+    --accent:#2563eb; --accent-dim:#2563eb33;
+    --laser:#d9541f; --move:#1f8f84; --ok:#2e8f4f; --warn:#c1462f;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background: radial-gradient(1200px 600px at 80% -10%, rgba(122,85,194,.055) 0%, transparent 62%), linear-gradient(180deg, var(--bg) 0%, #eeebe4 100%);
+    color:var(--text); font-family:'IBM Plex Sans', -apple-system, Segoe UI, sans-serif;
+  }
+  .mono{ font-family:'IBM Plex Mono', 'Consolas', monospace; }
+  .app-shell{ display:grid; grid-template-rows:auto 1fr; height:100vh; }
+
+  /* ---- barra superior ---- */
+  .topbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--panel); border-bottom:1px solid var(--line); padding:10px 20px;
+  }
+  .brand{ display:flex; align-items:baseline; gap:9px; margin-right:8px; }
+  .brand .dot{
+    width:8px; height:8px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 10px 2px var(--accent-dim); flex-shrink:0;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.5; transform:scale(.8);} }
+  .brand h1{ font-size:13px; margin:0; letter-spacing:.05em; text-transform:uppercase; font-weight:700; white-space:nowrap; }
+  .version-tag{
+    font-size:9.5px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:4px; padding:1px 6px; letter-spacing:.03em; margin-left:2px;
+  }
+  .topbar-field{ display:flex; flex-direction:column; gap:2px; }
+  .topbar-field label{ font-size:9px; color:var(--muted); letter-spacing:.05em; text-transform:uppercase; }
+  .topbar-field input{
+    background:#ffffff; border:1px solid var(--line); border-radius:6px; color:var(--text);
+    padding:6px 9px; font-size:12.5px; outline:none; width:210px;
+  }
+  .topbar-field input:focus{ border-color:var(--accent); }
+  .topbar-spacer{ flex:1; }
+  .topbar-actions{ display:flex; gap:8px; }
+
+  .btn-secondary{
+    background:#ffffff; color:var(--text); border:1px solid var(--line); border-radius:7px;
+    padding:8px 12px; font-size:11.5px; font-weight:600; letter-spacing:.02em;
+    cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center;
+    gap:6px; white-space:nowrap;
+  }
+  .btn-secondary:hover:not(:disabled){ border-color:#c7c4bb; background:var(--panel-2); }
+  .btn-secondary:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-secondary.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .btn-tiny{
+    background:#ffffff; color:var(--muted); border:1px solid var(--line); border-radius:6px;
+    padding:5px 9px; font-size:10.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .btn-tiny:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+  .btn-tiny:disabled{ opacity:.35; cursor:not-allowed; }
+  .link-btn{ background:none; border:none; color:var(--muted); font-size:11px; text-decoration:underline; cursor:pointer; padding:0; }
+  .link-btn:hover{ color:var(--accent); }
+
+  /* ---- estructura ---- */
+  .app-body{ display:grid; grid-template-columns: 250px 1fr 330px; min-height:0; }
+  .col{ background:var(--panel); overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .col-left{ border-right:1px solid var(--line); }
+  .col-right{ border-left:1px solid var(--line); }
+  .col > *{ flex-shrink:0; }
+  .col::-webkit-scrollbar{ width:7px; }
+  .col::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+
+  .section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .divider{ height:1px; background:var(--line); margin:2px 0; }
+  .status{ font-size:11.5px; color:var(--muted); line-height:1.5; min-height:16px; }
+  .status.err{ color:var(--warn); }
+  .status.ok{ color:var(--ok); }
+  .vacio{ font-size:11.5px; color:#a6a89f; padding:10px 4px; font-style:italic; line-height:1.5; }
+
+  /* ---- lienzo ---- */
+  .col-center{ position:relative; padding:16px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .stage-frame{
+    position:relative; width:100%; height:100%; max-width:1200px;
+    background:#ffffff; border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow: inset 0 0 40px #00000008;
+  }
+  .stage-badge{
+    position:absolute; top:14px; left:16px; font-size:10.5px; color:var(--muted);
+    letter-spacing:.08em; text-transform:uppercase; z-index:5; display:flex; gap:6px; align-items:center;
+    pointer-events:none;
+  }
+  .stage-badge b{ color:var(--text); font-weight:600; }
+  .stage-scale{ position:absolute; top:14px; right:16px; font-size:10px; color:#a6a89f; z-index:5; pointer-events:none; }
+  svg{ width:100%; height:100%; display:block; }
+  svg.panning{ cursor:grabbing; }
+  #canvas, #canvas *{ cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="25" height="25"><g stroke="%23ffffff" stroke-width="3.2" stroke-linecap="round"><line x1="12.5" y1="1" x2="12.5" y2="8"/><line x1="12.5" y1="17" x2="12.5" y2="24"/><line x1="1" y1="12.5" x2="8" y2="12.5"/><line x1="17" y1="12.5" x2="24" y2="12.5"/></g><g stroke="%23111111" stroke-width="1.3" stroke-linecap="round"><line x1="12.5" y1="1" x2="12.5" y2="8"/><line x1="12.5" y1="17" x2="12.5" y2="24"/><line x1="1" y1="12.5" x2="8" y2="12.5"/><line x1="17" y1="12.5" x2="24" y2="12.5"/></g><circle cx="12.5" cy="12.5" r="2.6" fill="%232563eb" stroke="%23ffffff" stroke-width="1.1"/></svg>') 12 12, crosshair !important; }
+
+  .zoom-controls{
+    position:absolute; bottom:16px; right:16px; z-index:6;
+    display:flex; flex-direction:column; gap:4px; background:#ffffff;
+    border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 2px 8px #00000012;
+  }
+  .zoom-btn{
+    width:30px; height:30px; border:none; background:#ffffff; color:var(--text);
+    font-size:16px; font-weight:700; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-btn:hover{ background:var(--panel-2); }
+  .zoom-fit-btn{
+    width:30px; height:24px; border:none; background:#ffffff; color:var(--muted);
+    font-size:13px; cursor:pointer; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  }
+  .zoom-fit-btn:hover{ background:var(--panel-2); color:var(--accent); }
+  .hint-bar{
+    position:absolute; bottom:16px; left:16px; z-index:6; background:#fff; border:1px solid var(--line);
+    border-radius:7px; padding:6px 11px; font-size:11px; color:var(--muted); max-width:62%;
+  }
+  .hint-bar b{ color:var(--accent); }
+
+  /* ---- variables del programa ---- */
+  .nat{
+    display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.05em;
+    text-transform:uppercase; padding:3px 8px; border-radius:5px; border:1px solid;
+  }
+  .nat.corte{ color:var(--laser); border-color:#f0cdbb; background:#fdf1eb; }
+  .nat.puntos{ color:var(--accent); border-color:#c9d8f7; background:#eef3fe; }
+  .nat.otro{ color:var(--muted); border-color:var(--line); background:var(--panel-2); }
+  .var-fila{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:6px 8px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:6px; margin-top:5px;
+  }
+  .var-fila .k{ font-size:10.5px; color:var(--muted); }
+  .var-fila input, .var-fila select{
+    width:86px; font-size:11px; padding:4px 6px; border:1px solid var(--line);
+    border-radius:5px; background:#fff; color:var(--text); outline:none;
+    font-family:'IBM Plex Mono', monospace; text-align:right;
+  }
+  .var-fila input:focus, .var-fila select:focus{ border-color:var(--accent); }
+  .var-fila input::placeholder{ font-style:italic; color:#b9b7ae; }
+  /* La G va fuera del campo: se teclea solo el numero. */
+  .conG{ display:flex; align-items:center; gap:3px; }
+  .conG .g{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:700;
+    color:var(--muted);
+  }
+  .conG input{ width:52px; }
+  .var-nota{ font-size:9.5px; color:var(--muted); line-height:1.5; padding:5px 2px 0; }
+  .var-nota b{ color:var(--text); }
+  .modo-fila{ display:flex; gap:6px; margin-top:5px; }
+  .modo-opt{
+    flex:1; text-align:center; padding:5px 4px; border:1px solid var(--line);
+    border-radius:6px; background:#fff; color:var(--muted); font-size:10px;
+    font-weight:600; cursor:pointer; user-select:none;
+  }
+  .modo-opt:hover{ border-color:#c7c4bb; }
+  .modo-opt.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+  .modo-opt small{
+    display:block; font-family:'IBM Plex Mono', monospace; font-size:9px;
+    opacity:.75; font-weight:500;
+  }
+
+  /* ---- simulacion ---- */
+  .sim-fila{ display:flex; gap:6px; }
+  .sim-fila .btn-secondary{ flex:1; padding:9px 6px; }
+  .sim-barra{
+    height:7px; background:var(--panel-2); border:1px solid var(--line); border-radius:4px;
+    overflow:hidden; margin-top:2px;
+  }
+  .sim-barra > div{ height:100%; background:var(--accent); width:0%; transition:width .05s linear; }
+  .sim-datos{
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:1px 8px;
+    font-size:10px; color:var(--muted);
+  }
+  .vel-fila{ display:flex; gap:5px; }
+  .vel-opt{
+    flex:1; text-align:center; padding:5px 3px; border:1px solid var(--line); border-radius:5px;
+    background:#fff; color:var(--muted); font-size:10.5px; font-weight:600; cursor:pointer; user-select:none;
+  }
+  .vel-opt:hover{ border-color:#c7c4bb; }
+  .vel-opt.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+
+  /* ---- capas ---- */
+  .capa-row{
+    display:flex; align-items:center; gap:8px; padding:7px 9px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:7px; font-size:11.5px;
+    cursor:pointer; user-select:none;
+  }
+  .capa-row .swatch{ width:14px; height:0; border-top-width:2.5px; border-top-style:solid; flex-shrink:0; }
+  .capa-row .name{ flex:1; font-weight:600; }
+  .capa-row input[type=checkbox]{ cursor:pointer; width:14px; height:14px; accent-color:var(--accent); }
+
+  .datos-lista{ display:flex; flex-direction:column; gap:4px; }
+  .dato{
+    display:flex; justify-content:space-between; gap:8px; font-size:10.5px;
+    padding:5px 8px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+  }
+  .dato .k{ color:var(--muted); }
+  .dato .v{ font-family:'IBM Plex Mono', monospace; font-weight:600; }
+
+  /* ---- codificacion por bloques ----
+     Cada pieza cerrada puede ABRAZAR a las que lleva dentro. La forma de C no
+     es decoracion: lo que esta en la boca se corta ANTES que la pieza que lo
+     rodea, que es justo la regla del corte. Asi el orden se lee en el dibujo
+     del bloque, sin tener que acordarse de nada. */
+  .bloques{ display:flex; flex-direction:column; }
+  .nodo{ --col:#d9541f; }
+  .nodo.contenedor{
+    border:1px solid var(--line); border-left:4px solid var(--col);
+    border-radius:8px; background:var(--panel-2); overflow:hidden;
+  }
+  .bloque{
+    display:flex; align-items:center; gap:7px; padding:7px 8px; background:var(--panel-2);
+    cursor:grab; transition:background .12s;
+  }
+  .nodo.hoja > .bloque{
+    border:1px solid var(--line); border-left:4px solid var(--col); border-radius:7px;
+  }
+  .nodo.contenedor > .bloque{ background:#ffffff; border-bottom:1px solid var(--line-soft); }
+  .bloque:hover{ background:#eeece6; }
+  .bloque.sel{ box-shadow: inset 0 0 0 2px var(--accent); }
+  .bloque.arrastrando{ opacity:.35; }
+  /* Desactivado: sigue estando, pero apagado. */
+  .nodo.off > .bloque .tit{ color:var(--muted); text-decoration:line-through; }
+  .nodo.off{ opacity:.72; }
+  .nodo.off.hoja > .bloque, .nodo.off.contenedor{ border-left-color:#c3c0b8; }
+  .interruptor{
+    width:13px; height:13px; flex-shrink:0; cursor:pointer; accent-color:var(--ok); margin:0;
+  }
+  .etq.off{ color:var(--muted); border-color:var(--line); background:#efeee9; }
+  .boca{
+    margin:4px 8px 4px 12px; padding-left:9px;
+    border-left:3px solid var(--col); border-radius:2px;
+  }
+  .boca.vacia, .boca.plegada{ display:none; }
+  /* Mientras se arrastra se abren todas las bocas: no se puede soltar dentro
+     de algo que no se ve. */
+  body.arrastrando .boca.vacia, body.arrastrando .boca.plegada{ display:block; }
+  body.arrastrando .boca.vacia{ min-height:20px; border-left-style:dashed; }
+  body.arrastrando .boca.vacia::after{
+    content:'soltar aqui dentro'; display:block; font-size:9px; color:var(--muted);
+    font-style:italic; padding:3px 0 3px 4px;
+  }
+  .pie{
+    font-size:9.5px; color:var(--muted); padding:2px 10px 6px 16px; font-style:italic;
+  }
+  /* Franjas de insercion: aparecen entre pieza y pieza mientras se arrastra. */
+  .zona{ height:5px; margin:1px 0; border-radius:3px; }
+  .zona.activa{ background:var(--accent); height:9px; box-shadow:0 0 0 2px var(--accent-dim); }
+  .bloque .num{
+    width:20px; height:20px; border-radius:50%; flex-shrink:0; color:#fff; font-size:10px;
+    font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .bloque .cuerpo{ flex:1; min-width:0; }
+  .bloque .tit{ font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bloque .sub{ font-size:9.5px; color:var(--muted); font-family:'IBM Plex Mono', monospace;
+                white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bloque .acc{ display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+  .bloque .acc button{
+    width:19px; height:15px; border:1px solid var(--line); background:#fff; border-radius:4px;
+    font-size:9px; line-height:1; cursor:pointer; color:var(--muted); padding:0;
+  }
+  .bloque .acc button:hover:not(:disabled){ border-color:var(--accent); color:var(--accent); }
+  .bloque .acc button:disabled{ opacity:.3; cursor:not-allowed; }
+  .bloque .acc button.girar{ height:14px; font-size:8.5px; }
+  .aviso .accion{
+    display:inline-block; margin-top:5px; padding:3px 8px; font-size:10px; font-weight:700;
+    border:1px solid currentColor; border-radius:5px; background:#fff; cursor:pointer;
+    color:inherit;
+  }
+  .aviso .accion:hover{ background:#ffffffcc; }
+  .plegar{
+    background:none; border:none; cursor:pointer; color:var(--muted);
+    font-size:10px; padding:0 2px; line-height:1; flex-shrink:0; width:14px;
+  }
+  .plegar:hover{ color:var(--accent); }
+  .dentro{ font-size:9.5px; color:var(--muted); white-space:nowrap; }
+  .arbol-acciones{ display:flex; gap:6px; }
+  .arbol-acciones button{ flex:1; }
+  .etq{
+    font-size:8.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    padding:1px 5px; border-radius:4px; border:1px solid transparent; white-space:nowrap;
+  }
+  .etq.ext{ color:var(--laser); border-color:#f0cdbb; background:#fdf1eb; }
+  .etq.int{ color:var(--accent); border-color:#c9d8f7; background:#eef3fe; }
+  .etq.abierto{ color:var(--warn); border-color:#f0c4bb; background:#fdeeeb; }
+  .etq.punto{ color:#7c3aed; border-color:#d8ccf7; background:#f4f0fe; }
+
+  /* ---- revision ---- */
+  .aviso{
+    font-size:10.5px; line-height:1.5; padding:7px 9px; border-radius:6px;
+    border:1px solid; margin-bottom:5px;
+  }
+  .aviso.mal{ color:#8c3423; border-color:#f0c4bb; background:#fdeeeb; }
+  .aviso.bien{ color:#1f6b3c; border-color:#c2e2cd; background:#eefaf1; }
+  .aviso.info{ color:#5f625a; border-color:var(--line); background:var(--panel-2); }
+  .aviso b{ font-weight:700; }
+
+  /* ---- texto del g-code ---- */
+  .gcode-fila{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .gcode-nota{ font-size:9.5px; color:var(--muted); }
+  .gcode-nota.sucio{ color:var(--warn); font-weight:600; }
+  /* Siempre estirado: el programa entero a la vista, sin barra propia. El que
+     desplaza es el panel. Se reajusta en cada cambio. */
+  #gcodeTexto{
+    width:100%; min-height:90px; resize:none; background:#fbfbf9;
+    border:1px solid var(--line); border-radius:6px; color:var(--text);
+    font-family:'IBM Plex Mono', Consolas, monospace; font-size:10.5px;
+    line-height:1.5; padding:8px; white-space:pre; overflow:hidden; outline:none;
+  }
+  #gcodeTexto:focus{ border-color:var(--accent); }
+  .gcode-acciones{ display:flex; gap:6px; }
+  .gcode-acciones button{ flex:1; }
+  .footer-note{ font-size:10.3px; color:#5b6167; line-height:1.5; padding-top:10px; border-top:1px solid var(--line-soft); margin-top:auto; }
+
+  @media (max-width: 1180px){
+    .app-body{ grid-template-columns: 215px 1fr 285px; }
+  }
+
+  /* ===================================================================
+     Retoque visual de GCoder. Solo color y relieve: ni un cambio de
+     maquetacion, y ningun color con significado (--accent, --laser,
+     --move, --ok, --warn) se toca, porque aqui un color dice algo.
+
+     --ident es el tono de este programa, el mismo de su pestana en el
+     hub: asi se sabe donde se esta sin leer el titulo.
+     =================================================================== */
+  :root{
+    --ident:#7a55c2;
+    --sombra:0 1px 2px rgba(31,28,22,.05), 0 2px 5px rgba(31,28,22,.045);
+  }
+
+  /* Las columnas eran blanco puro, que es de donde venia la sensacion de
+     plano. Un hueso muy claro las separa del lienzo, que sigue blanco. */
+  .col-left, .col-right{
+    background:linear-gradient(180deg,#fbf9f6 0%,#f7f4ef 100%);
+  }
+
+  .topbar{
+    position:relative;
+    background:linear-gradient(180deg,#ffffff 0%,#faf8f5 100%);
+  }
+  /* Hilo de identidad, igual que en el hub. */
+  .topbar::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--ident),
+               color-mix(in srgb, var(--ident) 40%, #ffffff));
+  }
+  .brand .dot{
+    background:var(--ident);
+    box-shadow:0 0 10px 2px color-mix(in srgb, var(--ident) 34%, transparent);
+  }
+
+  /* Los rotulos de seccion llevan el tono: ordenan la columna de un vistazo. */
+  .section-title{ color:color-mix(in srgb, var(--ident) 62%, #6b6f68); }
+
+  .btn-secondary, .btn-tiny{ box-shadow:var(--sombra); }
+  .btn-secondary:hover, .btn-tiny:hover{
+    border-color:var(--ident);
+    color:color-mix(in srgb, var(--ident) 80%, #000000);
+  }
+
+  /* El simbolo del programa, el mismo que lleva su pestana en el hub. */
+  .brand{ align-items:center; }
+  .marca-svg{
+    width:19px; height:19px; color:var(--ident); flex-shrink:0;
+    filter:drop-shadow(0 0 5px color-mix(in srgb, var(--ident) 30%, transparent));
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <svg class="marca-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.7 18.3 8.9 10.7 14.2 14 20.3 5.7"/><circle cx="3.7" cy="18.3" r="1.75" fill="currentColor" stroke="none"/><circle cx="8.9" cy="10.7" r="1.75" fill="currentColor" stroke="none"/><circle cx="14.2" cy="14" r="1.75" fill="currentColor" stroke="none"/><circle cx="20.3" cy="5.7" r="1.75" fill="currentColor" stroke="none"/></svg>
+      <h1>Editor de G-code</h1>
+      <span class="version-tag mono">v1.13</span>
+    </div>
+    <div class="topbar-field">
+      <label>Nombre de archivo</label>
+      <input type="text" id="nombreArchivo" value="programa" spellcheck="false">
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-actions">
+      <button class="btn-secondary" id="deshacerBtn" disabled>↶ Deshacer</button>
+      <button class="btn-secondary" id="rehacerBtn" disabled>↷ Rehacer</button>
+      <button class="btn-secondary" id="abrirBtn">📂 Abrir .txt</button>
+      <button class="btn-secondary" id="guardarBtn">💾 Guardar .txt</button>
+      <button class="btn-secondary" id="ordenOriginalBtn" disabled
+        title="Devuelve las piezas al orden en que venían en el archivo y deshace los encajes. No toca las variables ni los interruptores: para eso, Ctrl+Z.">↺ Orden del archivo</button>
+    </div>
+    <input type="file" id="fileInput" accept=".txt,.nc,.gcode,.tap,.cnc" style="display:none">
+  </div>
+
+  <div class="app-body">
+
+    <!-- ==================== IZQUIERDA ==================== -->
+    <div class="col col-left">
+      <div class="section-title">Programa</div>
+      <div class="datos-lista" id="datosPrograma">
+        <div class="vacio">Abre un .txt de G-code para empezar.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Variables</div>
+      <div id="variables"><div class="vacio">Abre un programa para ver sus variables.</div></div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Prueba en vivo</div>
+      <div class="sim-fila">
+        <button class="btn-secondary" id="simPlayBtn" disabled>▶ Probar</button>
+        <button class="btn-secondary" id="simResetBtn" disabled title="Volver al principio">↺</button>
+      </div>
+      <div class="vel-fila" id="velFila"></div>
+      <div class="sim-barra"><div id="simBarra"></div></div>
+      <div class="sim-datos">
+        <span id="simTiempo" class="mono">0.0 s</span>
+        <span id="simPaso" class="mono">—</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Capas</div>
+      <div id="capasLista"></div>
+
+      <div class="footer-note">
+        Las piezas de la derecha encajan unas dentro de otras: lo que está en la
+        <b>boca</b> de un contorno se corta <b>antes</b> que él. Al moverlas, el
+        traslado de entrada de cada una se recalcula solo.<br><br>
+        El <b>interruptor</b> de cada pieza la desactiva sin borrarla: sale en el
+        archivo comentada con <b>;OFF</b> y en el dibujo a trazos grises, para
+        poder volver a activarla. <b>Ctrl+Z</b> deshace cualquier cambio.
+      </div>
+    </div>
+
+    <!-- ==================== CENTRO ==================== -->
+    <div class="col-center">
+      <div class="stage-frame">
+        <div class="stage-badge">Vista · <b id="badgeEstado">sin programa</b></div>
+        <div class="stage-scale mono" id="etiquetaEscala"></div>
+        <svg id="canvas" viewBox="0 0 900 820" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="hint-bar" id="hintBar">Arrastra para desplazar, rueda para acercar.</div>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomInBtn" title="Acercar">+</button>
+          <button class="zoom-fit-btn" id="zoomFitBtn" title="Ajustar vista">⤢</button>
+          <button class="zoom-btn" id="zoomOutBtn" title="Alejar">−</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== DERECHA ==================== -->
+    <div class="col col-right">
+      <div class="section-title" id="tituloOrden">Orden de corte</div>
+      <div class="arbol-acciones" id="arbolAcciones" style="display:none;">
+        <button class="btn-tiny" id="plegarBtn">⊟ Plegar todo</button>
+        <button class="btn-tiny" id="desplegarBtn">⊞ Desplegar todo</button>
+      </div>
+      <div class="bloques" id="listaBloques">
+        <div class="vacio">Sin bloques todavía.</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-title">Revisión</div>
+      <div id="revision"><div class="vacio">Nada que revisar.</div></div>
+      <button class="btn-secondary" id="ordenarBtn" style="width:100%;" disabled>⤵ Encajar por geometría</button>
+      <button class="btn-secondary" id="evitarBtn" style="width:100%; margin-top:6px;" disabled
+        title="Reordena buscando que el cabezal no pase sobre piezas ya sueltas. No rompe el encaje: lo abrazado sigue cortándose antes.">↝ Evitar lo cortado</button>
+
+      <div class="divider"></div>
+
+      <div class="section-title">G-code</div>
+      <div class="gcode-fila">
+        <div class="gcode-nota" id="gcodeNota">—</div>
+      </div>
+      <textarea id="gcodeTexto" spellcheck="false" placeholder="Aquí aparece el G-code. Puedes editarlo a mano y pulsar «Aplicar texto»."></textarea>
+      <div class="gcode-acciones">
+        <button class="btn-secondary" id="aplicarBtn">✓ Aplicar texto</button>
+        <button class="btn-secondary" id="revertirBtn">↺ Descartar</button>
+      </div>
+
+      <div class="divider"></div>
+      <div class="status mono" id="status">Listo.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const svg = document.getElementById('canvas');
+const NS = 'http://www.w3.org/2000/svg';
+const W = 900, H = 820;
+const PAD = 90;
+
+// ---------------------------------------------------------------- ESTADO
+// prog es TODO el programa leido: las lineas tal cual, los bloques de corte
+// que se han reconocido y el orden en que se ejecutan. El orden vive en
+// prog.bloques (el array), no dentro de cada bloque: mover un bloque es
+// mover un elemento del array.
+let prog = null;
+let ordenOriginal = null;      // copia del orden recien leido, para el boton de deshacer
+let seleccionado = -1;
+let textoSucio = false;        // el textarea se edito a mano y no se ha aplicado
+
+let camera = null;
+let camaraLista = false;
+let isPanning = false, panStartPt = null, panStartCamera = null;
+
+const capas = {
+  cortes:   { nombre:'Cortes',            color:'#d9541f', visible:true },
+  traslado: { nombre:'Traslados',         color:'#1f8f84', visible:true },
+  numeros:  { nombre:'Números de orden',  color:'#20221f', visible:true },
+  sentido:  { nombre:'Sentido de corte',  color:'#8b8f86', visible:true }
+};
+
+// Un color por bloque, para poder seguirlos entre la lista y el dibujo.
+const PALETA = ['#d9541f','#2563eb','#2e8f4f','#a16207','#8e44ad','#0e7490',
+                '#be123c','#4d7c0f','#b45309','#1f8f84','#7c3aed','#0369a1'];
+
+// Casi todo se mide en la unidad del archivo. Si viene en G20 no hay que
+// convertir nada: basta con dejar de llamarlo milimetros.
+function unidad(){ return (prog && prog.unidades === 'in') ? 'in' : 'mm'; }
+function porUnidad(mm){ return (prog && prog.unidades === 'in') ? mm/25.4 : mm; }
+
+const VELOCIDADES = [1, 5, 20];
+let velocidad = 5;
+
+// ------------------------------------------------------------- UTILIDADES
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function nodo(tag, clase, texto){
+  const e = document.createElement(tag);
+  if(clase) e.className = clase;
+  if(texto !== undefined) e.textContent = texto;
+  return e;
+}
+function limpiarSvg(){ svg.innerHTML = ''; }
+
+// Un numero, o el de reserva si lo que hay no vale. Se usaba desde v1.3 en el
+// escritor sin estar definida: solo saltaba en un caso que nunca se dio.
+function numOr(v, porDefecto){
+  const n = parseFloat(v);
+  return isFinite(n) ? n : porDefecto;
+}
+
+// Numero limpio: 3.4850 -> 3.485
+function gnum(v){
+  let s = (+v).toFixed(4);
+  if(s.indexOf('.') >= 0) s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return (s === '-0') ? '0' : s;
+}
+function fmt2(n){ return (+n).toFixed(2); }
+
+function setStatus(msg, tipo){
+  const s = document.getElementById('status');
+  s.textContent = msg;
+  s.className = 'status mono' + (tipo ? ' ' + tipo : '');
+}
+/* El punto NO se quita: es lo que separa la pieza del tipo en
+   Pieza.tipo-etiqueta.txt. Sin el, "Cervical.lamina-2026-09-03" queda en
+   "Cervicallamina-2026-09-03", un nombre que ya no dice ni de que pieza
+   es ni que lleva dentro. */
+function sanitizeFilename(name){
+  return (name || '').replace(/[^a-zA-Z0-9_.\-áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
+}
+function downloadTextFile(text, filename){
+  const blob = new Blob([text], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================== LECTURA
+// Se separa el comentario (";" hasta el final, o "(...)" en medio) y lo que
+// queda se parte en palabras tipo letra+numero: G01, X3.5, I-0.87...
+// Prefijo con el que se guarda un bloque desactivado. Se quita al leer, asi
+// que el resto del programa no se entera: para todo lo demas es una linea
+// normal, solo que marcada.
+const MARCA_OFF = ';OFF';
+
+function tokenizar(raw){
+  let cuerpo = raw, comentario = '', off = false;
+  const mo = cuerpo.match(/^(\s*);OFF ?/);
+  if(mo){ off = true; cuerpo = mo[1] + cuerpo.slice(mo[0].length); raw = cuerpo; }
+  const iPC = cuerpo.indexOf(';');
+  if(iPC >= 0){ comentario = cuerpo.slice(iPC+1).trim(); cuerpo = cuerpo.slice(0, iPC); }
+  cuerpo = cuerpo.replace(/\(([^)]*)\)/g, function(_, c){
+    if(!comentario) comentario = c.trim();
+    return ' ';
+  });
+  const palabras = [];
+  const re = /([A-Za-z])\s*(-?\d*\.?\d+)/g;
+  let m;
+  while((m = re.exec(cuerpo))) palabras.push({ letra:m[1].toUpperCase(), valor:parseFloat(m[2]) });
+  return { raw:raw.replace(/\s+$/,''), comentario, palabras, off:off,
+           vacia:cuerpo.trim() === '' && comentario === '' };
+}
+
+function palabra(it, letra){
+  for(let i=0;i<it.palabras.length;i++) if(it.palabras[i].letra === letra) return it.palabras[i];
+  return null;
+}
+
+// Recorre el archivo como lo haria el control: lleva el modo (G90/G91), el
+// avance vigente, si el laser esta encendido y la posicion. De cada linea con
+// movimiento guarda su destino en coordenadas ABSOLUTAS, que es lo que permite
+// despues reordenar bloques sin que la figura se mueva de sitio.
+// Recorre las lineas como lo haria el control y deja en cada una el estado que
+// le toca. Va aparte de la lectura porque hay que poder REPETIRLO: al cambiar
+// una variable se reescribe el texto de algunas lineas, y todo lo que se
+// hereda (la F modal, sobre todo) cambia con ellas.
+function pasarModal(items){
+  // Hay posprocesadores que no encienden el laser con M07: dan por hecho que
+  // G00 posiciona y G01/G02/G03 cortan. Sin esto, uno de esos archivos se leia
+  // entero como traslado y el editor no servia para nada con el.
+  const sinMarcas = !items.some(function(it){
+    return it.palabras.some(function(w){
+      return w.letra === 'M' && (w.valor === 7 || w.valor === 3);
+    });
+  });
+
+  let modo = 'abs', laser = false, x = 0, y = 0, fAct = 0;
+  let movModal = null, trabajo = null, unidades = 'mm';
+  let vioG91 = false, vioG90 = false;
+
+  // Un tramo apagado no se ejecuta, asi que no mueve la maquina: se le deja
+  // calcular su geometria (para poder dibujarlo) y al salir se devuelve la
+  // posicion donde estaba. Esta es la lectura correcta de un archivo que ya
+  // trae ";OFF": los saltos de los bloques activos se escribieron contando con
+  // que lo apagado no se ejecuta.
+  //
+  // Para que esto siga siendo cierto, al encender o apagar hay que REANCLAR en
+  // el momento (ver reanclarBloques). Si no, los saltos que vienen detras
+  // seguirian midiendo desde el bloque que se acaba de apagar y toda la pieza
+  // se moveria.
+  let congelado = null;
+
+  items.forEach(function(it, i){
+    if(it.off && !congelado){
+      congelado = { x:x, y:y, laser:laser, fAct:fAct, modo:modo, movModal:movModal };
+    } else if(!it.off && congelado){
+      x = congelado.x; y = congelado.y; laser = congelado.laser;
+      fAct = congelado.fAct; modo = congelado.modo; movModal = congelado.movModal;
+      congelado = null;
+    }
+    it.idx = i;
+    it.antes = { x:x, y:y };      // donde esta la herramienta ANTES de esta linea
+    it.mov = null;
+    it.espera = undefined;
+    const gs = [], ms = [];
+    it.palabras.forEach(function(p){
+      if(p.letra === 'G') gs.push(p.valor);
+      if(p.letra === 'M') ms.push(p.valor);
+    });
+
+    gs.forEach(function(g){
+      if(g === 90){ modo = 'abs'; vioG90 = true; }
+      else if(g === 91){ modo = 'inc'; vioG91 = true; }
+      else if(g === 20){ unidades = 'in'; }
+      else if(g === 21){ unidades = 'mm'; }
+      else if(g >= 54 && g <= 59){ trabajo = 'G' + g; }
+      else if(g === 0 || g === 1 || g === 2 || g === 3){ movModal = g; }
+    });
+    it.modo = modo;
+
+    // M07 enciende el laser, M09 lo apaga. M08/M03 valen tambien como encendido
+    // en dialectos que no usan M07.
+    ms.forEach(function(mm){
+      if(mm === 7 || mm === 3) laser = true;
+      else if(mm === 9 || mm === 5) laser = false;
+    });
+    it.laser = laser;             // encendido tras las M de esta linea
+    it.m7 = ms.indexOf(7) >= 0 || ms.indexOf(3) >= 0;
+    it.m8 = ms.indexOf(8) >= 0;
+    it.m9 = ms.indexOf(9) >= 0 || ms.indexOf(5) >= 0;
+    it.fin = ms.indexOf(30) >= 0 || ms.indexOf(2) >= 0;
+
+    if(gs.indexOf(4) >= 0){
+      const P = palabra(it, 'P');
+      it.espera = P ? P.valor : 0;      // P en milisegundos, como en tus programas
+    }
+
+    const wx = palabra(it, 'X'), wy = palabra(it, 'Y');
+    const wf = palabra(it, 'F');
+    if(wf) fAct = wf.valor;
+
+    if(wx || wy){
+      const wi = palabra(it, 'I'), wj = palabra(it, 'J');
+      let g = null;
+      for(let k=0;k<gs.length;k++) if(gs[k] === 0 || gs[k] === 1 || gs[k] === 2 || gs[k] === 3) g = gs[k];
+      const gmov = (g !== null) ? g : (movModal !== null ? movModal : 0);
+      const nx = wx ? (modo === 'inc' ? x + wx.valor : wx.valor) : x;
+      const ny = wy ? (modo === 'inc' ? y + wy.valor : wy.valor) : y;
+      it.mov = {
+        g: gmov,
+        de: { x:x, y:y }, a: { x:nx, y:ny },
+        i: wi ? wi.valor : null, j: wj ? wj.valor : null,
+        f: fAct,
+        corte: sinMarcas ? (gmov !== 0) : laser
+      };
+      x = nx; y = ny;
+    }
+  });
+
+  return { modo: vioG91 ? 'inc' : 'abs', modoMixto: vioG91 && vioG90,
+           unidades: unidades, trabajo: trabajo, sinMarcas: sinMarcas };
+}
+
+function leerPrograma(texto){
+  // Se respeta el fin de linea del archivo: hay controles que solo tragan
+  // CRLF, y no es cosa de cambiarselo por debajo al guardar.
+  const finLinea = texto.indexOf('\r\n') >= 0 ? '\r\n' : '\n';
+  const items = texto.replace(/\r\n?/g, '\n').split('\n').map(tokenizar);
+  const est = pasarModal(items);
+
+  const p = {
+    items: items,
+    sinMarcas: est.sinMarcas,
+    modo: est.modo,
+    modoMixto: est.modoMixto,
+    unidades: est.unidades,
+    trabajo: est.trabajo,
+    modoSalida: null,          // null = escribir en el modo que traia el archivo
+    finLinea: finLinea,
+    bloques: [],
+    preambulo: [],
+    cierre: []
+  };
+  agrupar(p);
+  p.bloques.forEach(function(b){ medirBloque(b, p); });
+  desambiguarTitulos(p);
+  marcarContenciones(p);
+  detectarNaturaleza(p);
+  p.raiz = p.bloques.slice();            // al abrir, todo al mismo nivel
+  recalcular(p);
+  return p;
+}
+
+// Tras tocar el texto de alguna linea hay que volver a pasar el estado modal.
+// Los bloques apuntan a los mismos objetos linea, asi que se actualizan solos:
+// no hay que rehacer el arbol ni perder el orden que haya montado el usuario.
+function remedir(){
+  // Lo apagado tiene que estar marcado antes de recorrer: el paso modal congela
+  // la maquina en esos tramos.
+  prog.bloques.forEach(function(b){
+    b.items.forEach(function(it){ it.off = !!b.off; });
+  });
+  const est = pasarModal(prog.items);
+  prog.modo = est.modo;
+  prog.modoMixto = est.modoMixto;
+  prog.unidades = est.unidades;
+  prog.trabajo = est.trabajo;
+  prog.sinMarcas = est.sinMarcas;
+  prog.bloques.forEach(function(b){ medirBloque(b, prog); });
+  detectarNaturaleza(prog);
+  recalcular(prog);
+}
+
+// ¿Que clase de programa es? Un corte mueve la herramienta con el laser
+// encendido; un punto de soldadura la para y aguanta un tiempo (G04 P). Es la
+// diferencia de fondo entre los dos programas de GCoder.
+function detectarNaturaleza(p){
+  let cortes = 0, puntos = 0;
+  p.bloques.forEach(function(b){
+    if(b.tipo === 'corte') cortes++;
+    else if(b.tipo === 'punto') puntos++;
+  });
+  p.naturaleza = (cortes && puntos) ? 'mixto' : (cortes ? 'corte' : (puntos ? 'puntos' : 'sin laser'));
+
+  // Avances y esperas que usa el programa, para poder ofrecerlos como
+  // variables. Se guarda la lista de valores distintos: si hay mas de uno,
+  // cambiar la variable los iguala todos.
+  const junta = function(fn){
+    const vistos = [];
+    p.items.forEach(function(it){
+      const v = fn(it);
+      if(v !== null && v !== undefined && vistos.indexOf(v) < 0) vistos.push(v);
+    });
+    return vistos;
+  };
+  p.fCorte = junta(function(it){
+    const w = palabra(it, 'F');
+    return (w && it.mov && it.mov.corte) ? w.valor : null;
+  });
+  p.fTraslado = junta(function(it){
+    const w = palabra(it, 'F');
+    return (w && !(it.mov && it.mov.corte)) ? w.valor : null;
+  });
+  p.pSolda = junta(function(it){
+    return (it.espera !== undefined && it.laser) ? it.espera : null;
+  });
+  p.pAsen = junta(function(it){
+    return (it.espera !== undefined && !it.laser) ? it.espera : null;
+  });
+}
+
+// ------------------------------------------------------------ arbol de piezas
+// El orden de ejecucion no se guarda en ningun sitio: se LEE del encaje.
+// Bajando por cada rama, primero sale lo que esta abrazado y al final el que
+// abraza. Es la misma regla que hay que cumplir en la maquina.
+function linealizar(p){
+  const out = [];
+  (function baja(lista){
+    lista.forEach(function(b){
+      baja(b.hijos);
+      out.push(b);
+    });
+  })(p.raiz);
+  return out;
+}
+
+function recalcular(p){
+  p.lineal = linealizar(p);
+  // El puesto es el orden REAL de ejecucion: los desactivados no ocupan sitio,
+  // porque la maquina no pasa por ellos.
+  let puesto = 0;
+  p.lineal.forEach(function(b, i){
+    b.pos = i;
+    b.puesto = b.off ? null : (++puesto);
+    b.color = PALETA[i % PALETA.length];
+    b.items.forEach(function(it){ it.off = !!b.off; });
+  });
+  // padre de cada pieza, para saber en que nivel esta cada una
+  const padres = {};
+  (function baja(lista, padre){
+    lista.forEach(function(b){ padres[b.id] = padre; baja(b.hijos, b); });
+  })(p.raiz, null);
+  p.lineal.forEach(function(b){ b.padre = padres[b.id] || null; });
+}
+
+function listaDe(p, padre){ return padre ? padre.hijos : p.raiz; }
+
+function esDescendiente(a, b){       // ¿a cuelga de b?
+  let n = a;
+  while(n){ if(n === b) return true; n = n.padre; }
+  return false;
+}
+
+function moverA(b, padreDestino, indice){
+  if(padreDestino && esDescendiente(padreDestino, b)) return false;   // no cabe en si mismo
+  const origen = listaDe(prog, b.padre);
+  const i = origen.indexOf(b);
+  if(i < 0) return false;
+  origen.splice(i, 1);
+  const destino = listaDe(prog, padreDestino);
+  if(destino === origen && i < indice) indice--;
+  destino.splice(Math.max(0, Math.min(destino.length, indice)), 0, b);
+  recalcular(prog);
+  return true;
+}
+
+// ----------------------------------------------------- corte en bloques
+// Un bloque es una seccion de corte completa: el traslado de entrada, el
+// encendido, todo lo que se corta y el apagado. Es la unidad que tiene sentido
+// mover, porque mover medio corte no significa nada.
+function agrupar(p){
+  const items = p.items;
+  const n = items.length;
+  const duenio = new Array(n).fill(-1);
+  const rangos = [];
+
+  let i = 0;
+  while(i < n){
+    if(!items[i].m7){ i++; continue; }
+
+    let fin = i;
+    while(fin < n && !items[fin].m9) fin++;
+    if(fin >= n) fin = n - 1;
+    // Detras del apagado suele venir la espera de asentamiento: es del punto
+    // que acaba, no del siguiente. Se recoge lo que siga PEGADO y no mueva.
+    while(fin + 1 < n && duenio[fin+1] === -1 && !items[fin+1].vacia &&
+          items[fin+1].palabras.length && !items[fin+1].mov && !items[fin+1].fin) fin++;
+
+    // Hacia atras, sin saltar lineas en blanco: primero las ordenes que no son
+    // movimiento (el M08 del gas, la espera de apertura) y luego el traslado
+    // de entrada, que es lo que lleva la herramienta hasta aqui.
+    let ini = i;
+    while(ini > 0 && duenio[ini-1] === -1 && !items[ini-1].vacia &&
+          items[ini-1].palabras.length && !items[ini-1].mov) ini--;
+    if(ini > 0 && duenio[ini-1] === -1 && items[ini-1].mov && !items[ini-1].mov.corte) ini--;
+    // y el comentario pegado encima, que es como se llama el bloque
+    while(ini > 0 && duenio[ini-1] === -1 &&
+          !items[ini-1].palabras.length && items[ini-1].comentario) ini--;
+
+    rangos.push({ ini:ini, fin:fin });
+    for(let t = ini; t <= fin; t++) duenio[t] = rangos.length - 1;
+    i = fin + 1;
+  }
+
+  // Sin M07/M09 no hay marcas de encendido: se corta por rapidos G00, que es
+  // como separan las secciones casi todos los posprocesadores.
+  if(!rangos.length){
+    const movs = [];
+    items.forEach(function(it, t){ if(it.mov) movs.push(t); });
+    if(movs.length){
+      let ini = movs[0];
+      for(let t = 1; t < movs.length; t++){
+        const idx = movs[t];
+        if(items[idx].mov.g === 0){
+          rangos.push({ ini:ini, fin:movs[t-1] });
+          ini = idx;
+        }
+      }
+      rangos.push({ ini:ini, fin:movs[movs.length-1] });
+      rangos.forEach(function(r, bi){ for(let t = r.ini; t <= r.fin; t++) duenio[t] = bi; });
+    }
+  }
+
+  // Lo de antes del primer bloque es preambulo; lo de despues del ultimo, cierre.
+  // Lo que quede suelto ENTRE bloques se pega al bloque anterior para no perderlo.
+  const primero = rangos.length ? rangos[0].ini : n;
+  const ultimo = rangos.length ? rangos[rangos.length-1].fin : -1;
+  const extra = rangos.map(function(){ return []; });
+
+  items.forEach(function(it, t){
+    if(duenio[t] >= 0) return;
+    if(t < primero){ p.preambulo.push(it); return; }
+    if(t > ultimo){ p.cierre.push(it); return; }
+    if(it.vacia) return;                     // los blancos se rehacen al escribir
+    let siguiente = rangos.length - 1;
+    for(let b = rangos.length - 1; b >= 0; b--) if(rangos[b].ini > t) siguiente = b;
+    extra[siguiente].push(it);
+  });
+
+  rangos.forEach(function(r, bi){
+    const lista = items.slice(r.ini, r.fin + 1).filter(function(it){ return !it.vacia; });
+    p.bloques.push({
+      id: 'b' + bi,
+      orden0: bi,
+      items: extra[bi].concat(lista),
+      // Donde esta la herramienta al empezar el bloque. Hace falta para los
+      // puntos de soldadura que no traen traslado propio: al moverlos de sitio
+      // hay que llevar la maquina hasta ellos.
+      inicio: { x: items[r.ini].antes.x, y: items[r.ini].antes.y },
+      hijos: [],                         // lo que este bloque abraza
+      color: PALETA[bi % PALETA.length]
+    });
+  });
+
+  // Los blancos del cierre los pone el escritor. Si se guardaran tambien aqui,
+  // cada vuelta de guardar y reabrir anadiria una linea en blanco mas.
+  while(p.cierre.length && p.cierre[p.cierre.length-1].vacia) p.cierre.pop();
+  while(p.cierre.length && p.cierre[0].vacia) p.cierre.shift();
+  while(p.preambulo.length && p.preambulo[p.preambulo.length-1].vacia) p.preambulo.pop();
+}
+
+// ------------------------------------------------------- geometria de arcos
+function arcoDe(mov){
+  const cx = mov.de.x + (mov.i || 0), cy = mov.de.y + (mov.j || 0);
+  const r = Math.hypot(mov.de.x - cx, mov.de.y - cy);
+  const a0 = Math.atan2(mov.de.y - cy, mov.de.x - cx);
+  const a1 = Math.atan2(mov.a.y - cy, mov.a.x - cx);
+  const horario = (mov.g === 2);
+  let barrido;
+  // Si empieza y acaba en el mismo sitio es una vuelta entera, no un arco de 0.
+  if(Math.hypot(mov.a.x - mov.de.x, mov.a.y - mov.de.y) < 1e-9){
+    barrido = horario ? -2*Math.PI : 2*Math.PI;
+  } else {
+    barrido = a1 - a0;
+    if(horario){ while(barrido >= 0) barrido -= 2*Math.PI; while(barrido < -2*Math.PI) barrido += 2*Math.PI; }
+    else { while(barrido <= 0) barrido += 2*Math.PI; while(barrido > 2*Math.PI) barrido -= 2*Math.PI; }
+  }
+  return { cx:cx, cy:cy, r:r, a0:a0, barrido:barrido };
+}
+
+function puntosDe(mov){
+  if(mov.g !== 2 && mov.g !== 3) return [mov.de, mov.a];
+  const a = arcoDe(mov);
+  if(!isFinite(a.r) || a.r < 1e-9) return [mov.de, mov.a];
+  const n = Math.max(8, Math.ceil(Math.abs(a.barrido) / (Math.PI/36)));
+  const pts = [];
+  for(let k = 0; k <= n; k++){
+    const t = a.a0 + a.barrido * (k / n);
+    pts.push({ x:a.cx + a.r*Math.cos(t), y:a.cy + a.r*Math.sin(t) });
+  }
+  return pts;
+}
+
+function largoDe(mov){
+  if(mov.g === 2 || mov.g === 3){
+    const a = arcoDe(mov);
+    if(isFinite(a.r)) return Math.abs(a.barrido) * a.r;
+  }
+  return Math.hypot(mov.a.x - mov.de.x, mov.a.y - mov.de.y);
+}
+
+// ------------------------------------------------------- medidas del bloque
+function medirBloque(b, p){
+  const cortes = b.items.filter(function(it){ return it.mov && it.mov.corte; });
+  b.nCortes = cortes.length;
+  b.entrada = b.items.find(function(it){ return it.mov && !it.mov.corte; }) || null;
+  b.tieneLaser = b.items.some(function(it){ return it.m7; });
+  // Desactivado = todas sus lineas van marcadas. Al abrir se deduce del
+  // archivo; despues lo maneja el interruptor de la lista.
+  if(b.off === undefined) b.off = b.items.length > 0 && b.items.every(function(it){ return it.off; });
+  b.items.forEach(function(it){ it.off = !!b.off; });
+
+  // Las dos esperas del dialecto de soldadura: la que cae con el laser
+  // encendido es el tiempo de SOLDADURA; las demas, de asentamiento.
+  b.esperaSolda = 0; b.esperaAsen = 0;
+  b.items.forEach(function(it){
+    if(it.espera === undefined || !(it.espera > 0)) return;
+    if(it.laser) b.esperaSolda = it.espera; else b.esperaAsen = it.espera;
+  });
+
+  // Mover la herramienta con el laser encendido es cortar; pararla y aguantar
+  // un tiempo es soldar un punto.
+  b.tipo = b.nCortes ? 'corte' : (b.tieneLaser ? 'punto' : 'otro');
+  b.punto = (b.tipo === 'punto')
+    ? (b.entrada ? { x:b.entrada.mov.a.x, y:b.entrada.mov.a.y } : b.inicio)
+    : null;
+
+  const poli = [];
+  cortes.forEach(function(it){
+    const pts = puntosDe(it.mov);
+    pts.forEach(function(p, k){
+      if(k === 0 && poli.length) return;   // no repetir el punto de union
+      poli.push(p);
+    });
+  });
+  b.poli = poli;
+  b.largo = cortes.reduce(function(s, it){ return s + largoDe(it.mov); }, 0);
+
+  if(poli.length >= 2){
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    poli.forEach(function(p){
+      if(p.x < minX) minX = p.x; if(p.x > maxX) maxX = p.x;
+      if(p.y < minY) minY = p.y; if(p.y > maxY) maxY = p.y;
+    });
+    b.caja = { minX:minX, maxX:maxX, minY:minY, maxY:maxY };
+    const d = Math.hypot(poli[poli.length-1].x - poli[0].x, poli[poli.length-1].y - poli[0].y);
+    const tam = Math.max(maxX-minX, maxY-minY, 1e-6);
+    b.cerrado = d < Math.max(1e-4, tam*0.002);
+    let a2 = 0;
+    for(let i = 0; i < poli.length; i++){
+      const p = poli[i], q = poli[(i+1) % poli.length];
+      a2 += p.x*q.y - q.x*p.y;
+    }
+    b.area = Math.abs(a2) / 2;
+    b.horario = a2 < 0;
+  } else {
+    b.caja = null; b.cerrado = false; b.area = 0; b.horario = false;
+  }
+
+  if(b.tipo === 'punto' && b.punto){
+    // Un punto no tiene caja: se le da una minuscula para que las cuentas de
+    // contencion y de encuadre lo tengan en cuenta igual.
+    b.caja = { minX:b.punto.x, maxX:b.punto.x, minY:b.punto.y, maxY:b.punto.y };
+  }
+  b.titulo = tituloDe(b, p);
+}
+
+function tituloDe(b, p){
+  // Si el archivo trae un comentario de cabecera, ese manda: lo escribio quien
+  // genero el programa y dice mas que cualquier cosa que se pueda deducir.
+  let cab = null;
+  for(let i = 0; i < b.items.length; i++){
+    const it = b.items[i];
+    if(it.palabras.length) break;              // ya empezaron las ordenes
+    if(it.comentario) cab = it;                // nos quedamos con el ultimo
+  }
+  if(cab){
+    const t = cab.comentario.replace(/^[-=*#\s]+|[-=*#\s]+$/g, '');
+    if(t) return t;
+  }
+  if(b.tipo === 'punto'){
+    // En los programas de puntos el nombre va en el comentario del traslado
+    // ("; -> A1"). Si no lo hay, se dice donde esta, que es lo util.
+    let nombre = null;
+    b.items.forEach(function(it){
+      const m = (it.comentario || '').match(/->\s*(.+)$/);
+      if(m && !nombre) nombre = m[1].trim();
+    });
+    // El primer punto no trae traslado propio: su nombre esta en la cabecera
+    // del archivo, que vive en el preambulo.
+    if(!nombre && p && p.preambulo && p.bloques[0] === b){
+      for(let k = p.preambulo.length - 1; k >= 0 && !nombre; k--){
+        const m = (p.preambulo[k].comentario || '').match(/->\s*(.+)$/);
+        if(m) nombre = m[1].trim();
+      }
+    }
+    if(nombre) return 'Punto ' + nombre;
+    return b.punto ? ('Punto ' + fmt2(b.punto.x) + ', ' + fmt2(b.punto.y)) : 'Punto de soldadura';
+  }
+
+  const cortes = b.items.filter(function(it){ return it.mov && it.mov.corte; });
+  if(cortes.length === 1 && (cortes[0].mov.g === 2 || cortes[0].mov.g === 3) && b.cerrado){
+    const a = arcoDe(cortes[0].mov);
+    return 'Círculo Ø' + gnum(a.r * 2);
+  }
+  if(!cortes.length) return 'Bloque sin corte';
+  return (b.cerrado ? 'Contorno cerrado' : 'Trazo abierto') + ' · ' + cortes.length + ' tramo(s)';
+}
+
+function centroDe(b){
+  return b.caja ? { x:(b.caja.minX + b.caja.maxX)/2, y:(b.caja.minY + b.caja.maxY)/2 }
+                : null;
+}
+
+// Con la misma pieza repetida en la chapa, todos los contornos se llaman igual
+// y el nombre deja de servir. Cuando hay repetidos se anota DONDE esta cada
+// uno, que es como se distinguen mirando el dibujo.
+function desambiguarTitulos(p){
+  const grupos = {};
+  p.bloques.forEach(function(b){ (grupos[b.titulo] = grupos[b.titulo] || []).push(b); });
+  Object.keys(grupos).forEach(function(t){
+    const g = grupos[t].filter(function(b){ return b.caja; });
+    if(g.length < 2) return;
+    const c0 = centroDe(g[0]);
+    const mismaX = g.every(function(b){ return Math.abs(centroDe(b).x - c0.x) < 0.005; });
+    g.forEach(function(b){
+      const c = centroDe(b);
+      b.donde = mismaX ? ('Y ' + fmt2(c.y)) : ('X ' + fmt2(c.x));
+    });
+  });
+}
+
+// ¿Se cruzan de verdad dos segmentos? Cruce estricto: si solo se tocan en un
+// extremo no cuenta, porque un traslado casi siempre ARRANCA sobre el contorno
+// que se acaba de cortar y eso no es pasar por encima de nada.
+function segmentosCruzan(a1, a2, b1, b2){
+  const lado = function(p, q, r){ return (q.x-p.x)*(r.y-p.y) - (q.y-p.y)*(r.x-p.x); };
+  const d1 = lado(b1,b2,a1), d2 = lado(b1,b2,a2), d3 = lado(a1,a2,b1), d4 = lado(a1,a2,b2);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+         ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+// Distancia de un punto al contorno, para saber si el traslado va por encima
+// de la ranura. Un punto justo en el borde no se puede decidir con el rayo del
+// punto-en-poligono: segun por donde entre, da una cosa u otra.
+// Por debajo de esto el traslado va sobre la ranura del corte. En pulgadas es
+// la misma distancia fisica, no el mismo numero.
+function roce(){ return (prog && prog.unidades === 'in') ? (0.1/25.4) : 0.1; }
+
+function distanciaAPoli(p, poli){
+  let min = Infinity;
+  for(let k = 0; k < poli.length; k++){
+    const a = poli[k], b = poli[(k+1) % poli.length];
+    const vx = b.x-a.x, vy = b.y-a.y;
+    const largo2 = vx*vx + vy*vy;
+    let t = largo2 > 0 ? (((p.x-a.x)*vx + (p.y-a.y)*vy) / largo2) : 0;
+    t = Math.max(0, Math.min(1, t));
+    const d = Math.hypot(p.x - (a.x + vx*t), p.y - (a.y + vy*t));
+    if(d < min) min = d;
+  }
+  return min;
+}
+
+// Traslados que pasan sobre una pieza que YA esta suelta. Solo cuentan los
+// contornos exteriores ya cortados: un agujero ya cortado es un hueco, y pasar
+// por encima de un hueco no engancha nada.
+function trasladosSobreLoCortado(){
+  const malos = [];
+  if(!prog) return malos;
+  const ROCE_ACT = roce();
+  const pasos = construirPasos();
+
+  pasos.forEach(function(paso){
+    if(paso.tipo !== 'mov' || !paso.pts || paso.pts.length < 2) return;
+    const b = prog.lineal[paso.bloque];
+    if(!b || b.puesto === null) return;
+
+    const p0 = paso.pts[0], p1 = paso.pts[paso.pts.length-1];
+    const minX = Math.min(p0.x,p1.x), maxX = Math.max(p0.x,p1.x);
+    const minY = Math.min(p0.y,p1.y), maxY = Math.max(p0.y,p1.y);
+
+    prog.lineal.forEach(function(c){
+      if(c === b || c.off || !c.cerrado || !c.caja || c.esInterior) return;
+      if(c.puesto === null || c.puesto >= b.puesto) return;      // aun no se ha cortado
+      if(maxX < c.caja.minX - ROCE_ACT || minX > c.caja.maxX + ROCE_ACT ||
+         maxY < c.caja.minY - ROCE_ACT || minY > c.caja.maxY + ROCE_ACT) return;
+
+      // Se muestrea por dentro del traslado. Los extremos no cuentan: casi
+      // siempre arranca sobre el contorno que se acaba de cortar, y eso no es
+      // pasar por encima de nada.
+      let encima = false, roce = false;
+      for(let t = 0.05; t <= 0.951 && !encima; t += 0.05){
+        const q = { x: p0.x + (p1.x-p0.x)*t, y: p0.y + (p1.y-p0.y)*t };
+        const d = distanciaAPoli(q, c.poli);
+        if(d < ROCE_ACT){ roce = true; continue; }        // va sobre la ranura
+        if(puntoDentro(q.x, q.y, c.poli)) encima = true;
+      }
+      if(!encima && !roce){
+        // Una pieza muy estrecha podria colarse entre dos muestras.
+        for(let k = 0; k < c.poli.length && !encima; k++){
+          const u = c.poli[k], v = c.poli[(k+1) % c.poli.length];
+          if(segmentosCruzan(p0, p1, u, v)) encima = true;
+        }
+      }
+      if(encima || roce) malos.push({ deBloque: c, haciaBloque: b, encima: encima,
+                                      clave: claveTraslado(p0, p1) });
+    });
+  });
+  return malos;
+}
+
+function claveTraslado(p0, p1){
+  return p0.x.toFixed(4)+','+p0.y.toFixed(4)+'>'+p1.x.toFixed(4)+','+p1.y.toFixed(4);
+}
+
+// ¿El bloque a queda dentro del bloque b? Primero la caja (barato) y luego un
+// punto contra el poligono. Es lo que distingue un agujero de un perimetro.
+function puntoDentro(px, py, poli){
+  let dentro = false;
+  for(let i = 0, j = poli.length - 1; i < poli.length; j = i++){
+    const xi = poli[i].x, yi = poli[i].y, xj = poli[j].x, yj = poli[j].y;
+    if(((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) dentro = !dentro;
+  }
+  return dentro;
+}
+
+function marcarContenciones(p){
+  p.bloques.forEach(function(b){ b.dentroDe = []; });
+  p.bloques.forEach(function(a){
+    if(!a.cerrado || !a.caja) return;
+    p.bloques.forEach(function(b){
+      if(a === b || !b.cerrado || !b.caja) return;
+      // Lo que esta dentro es mas pequeño: se descarta antes de mirar cajas.
+      if(a.area >= b.area) return;
+      if(a.caja.minX < b.caja.minX || a.caja.maxX > b.caja.maxX ||
+         a.caja.minY < b.caja.minY || a.caja.maxY > b.caja.maxY) return;
+      // varios puntos, por si uno cae justo en el borde
+      let dentro = 0, probados = 0;
+      for(let k = 0; k < a.poli.length && probados < 5; k += Math.max(1, Math.floor(a.poli.length/5))){
+        probados++;
+        if(puntoDentro(a.poli[k].x, a.poli[k].y, b.poli)) dentro++;
+      }
+      if(dentro > probados/2) a.dentroDe.push(b.id);
+    });
+  });
+  p.bloques.forEach(function(b){
+    b.esInterior = b.dentroDe.length > 0;
+    b.profundidad = b.dentroDe.length;
+  });
+}
+
+// ============================================================== RECORRIDO
+// La lista de pasos en el orden actual. Aqui es donde el reordenar surte
+// efecto: el traslado de entrada de cada bloque arranca de donde acabo el
+// bloque anterior, no de donde arrancaba en el archivo original.
+function construirPasos(){
+  const pasos = [];
+  if(!prog) return pasos;
+
+  let px = 0, py = 0;
+  prog.preambulo.forEach(function(it){
+    if(it.mov){ px = it.mov.a.x; py = it.mov.a.y; }
+  });
+
+  prog.lineal.forEach(function(b, bi){
+    if(b.off) return;                    // desactivado: la maquina no va
+    let primerMov = true;
+    b.items.forEach(function(it){
+      if(it.espera !== undefined && it.espera > 0){
+        pasos.push({ tipo:'espera', ms:it.espera, bloque:bi, x:px, y:py });
+      }
+      if(!it.mov) return;
+      const mov = {
+        g: it.mov.g,
+        de: primerMov ? { x:px, y:py } : { x:it.mov.de.x, y:it.mov.de.y },
+        a: { x:it.mov.a.x, y:it.mov.a.y },
+        i: it.mov.i, j: it.mov.j, f: it.mov.f, corte: it.mov.corte
+      };
+      primerMov = false;
+      const L = largoDe(mov);
+      const f = mov.f > 0 ? mov.f : 400;
+      pasos.push({
+        tipo: mov.corte ? 'corte' : 'mov',
+        mov: mov, bloque: bi, pts: puntosDe(mov),
+        largo: L, f: f, ms: (L / f) * 60000
+      });
+      px = mov.a.x; py = mov.a.y;
+    });
+  });
+  return pasos;
+}
+
+// Los trazos de un bloque, se ejecute o no. Sirve para pintar en gris lo
+// desactivado, que sigue viendose para saber que esta ahi.
+function trazosDe(b){
+  const out = [];
+  b.items.forEach(function(it){
+    if(it.mov && it.mov.corte) out.push(puntosDe(it.mov));
+  });
+  return out;
+}
+
+// ------------------------------------------------------- sentido de corte
+// El exterior va HORARIO y los agujeros ANTIHORARIO: es lo que deja la sangria
+// del lado que no forma parte de la pieza. Un trazo abierto no tiene lados, asi
+// que no se le exige nada.
+function sentidoEsperado(b){
+  if(!b.cerrado || !b.nCortes) return null;
+  return !b.esInterior;                 // true = deberia ir horario
+}
+
+function sentidoCorrecto(b){
+  const esp = sentidoEsperado(b);
+  return esp === null ? true : (b.horario === esp);
+}
+
+// Invertir NO es cambiar una letra: hay que recorrer la cadena al reves, y en
+// cada arco cambiar G02 por G03 y recalcular I,J, que van del arranque NUEVO al
+// centro (el centro es el mismo, el arranque no).
+function invertirBloque(b){
+  if(!prog) return false;
+  const cortes = b.items.filter(function(it){ return it.mov && it.mov.corte; });
+  if(cortes.length < 1) return false;
+
+  // Geometria absoluta de la cadena, tal como esta ahora.
+  const tramos = cortes.map(function(it){
+    const c = (it.mov.g === 2 || it.mov.g === 3)
+      ? { x: it.mov.de.x + (it.mov.i || 0), y: it.mov.de.y + (it.mov.j || 0) }
+      : null;
+    return { g: it.mov.g, de: { x:it.mov.de.x, y:it.mov.de.y }, a: { x:it.mov.a.x, y:it.mov.a.y },
+             centro: c, f: it.mov.f, comentario: it.comentario, modo: it.modo };
+  });
+
+  // Al reves: el ultimo tramo pasa a ser el primero, recorrido de a hacia de.
+  let px = tramos[tramos.length-1].a.x, py = tramos[tramos.length-1].a.y;
+  const nuevas = [];
+  for(let k = tramos.length - 1; k >= 0; k--){
+    const t = tramos[k];
+    const destino = t.de;
+    let linea;
+    if(t.g === 2 || t.g === 3){
+      const g = (t.g === 2) ? 'G03' : 'G02';        // el sentido se da la vuelta
+      const i = t.centro.x - px, j = t.centro.y - py;
+      linea = g + xyTexto(t.modo, px, py, destino.x, destino.y) +
+              ' I' + gnum(i) + ' J' + gnum(j);
+    } else {
+      linea = 'G01' + xyTexto(t.modo, px, py, destino.x, destino.y);
+    }
+    if(t.f > 0) linea += ' F' + gnum(t.f);
+    if(t.comentario) linea += '   ; ' + t.comentario;
+    nuevas.push(linea);
+    px = destino.x; py = destino.y;
+  }
+
+  // El traslado de entrada tiene que llevar al arranque nuevo. Lo recoloca el
+  // escritor, pero el modelo se actualiza aqui para que el dibujo cuadre ya.
+  let n = 0;
+  b.items.forEach(function(it){
+    if(it.mov && it.mov.corte){ it.raw = nuevas[n++]; reTokenizar(it); }
+  });
+  const entrada = b.items.find(function(it){ return it.mov && !it.mov.corte; });
+  if(entrada){
+    const arranque = tramos[tramos.length-1].a;
+    entrada.raw = fijarXY(entrada.raw,
+      entrada.modo === 'inc' ? (arranque.x - entrada.mov.de.x) : arranque.x,
+      entrada.modo === 'inc' ? (arranque.y - entrada.mov.de.y) : arranque.y,
+      entrada.modo === 'inc');
+    reTokenizar(entrada);
+  }
+  return true;
+}
+
+// Las cifras de un destino, en el modo que use esa linea.
+function xyTexto(modo, px, py, x, y){
+  return (modo === 'inc')
+    ? (' X' + gnum(x - px) + ' Y' + gnum(y - py))
+    : (' X' + gnum(x) + ' Y' + gnum(y));
+}
+
+// ============================================================== ESCRITURA
+// Se reescribe respetando el texto original linea a linea. Lo unico que cambia
+// es el destino del traslado de entrada de cada bloque, porque al reordenar
+// arranca desde otro sitio. En absoluto sale el mismo numero de siempre; en
+// incremental cambia el salto, que es justo lo que hay que recalcular.
+function fijarXY(raw, x, y, inc){
+  let s = raw;
+  const mx = raw.match(/[Xx]\s*(-?\d*\.?\d+)/);
+  const my = raw.match(/[Yy]\s*(-?\d*\.?\d+)/);
+  const tieneX = !!mx, tieneY = !!my;
+  // Si la cifra que ya hay dice lo mismo, no se toca. Reescribirla cambiaria
+  // "X11.5000" por "X11.5" sin motivo, y abrir y guardar un archivo que no se
+  // ha editado tiene que devolverlo igual.
+  const distinto = function(m, v){ return Math.abs(parseFloat(m[1]) - v) > 5e-5; };
+  if(tieneX && distinto(mx, x)) s = s.replace(/([Xx])\s*-?\d*\.?\d+/, '$1' + gnum(x));
+  if(tieneY && distinto(my, y)) s = s.replace(/([Yy])\s*-?\d*\.?\d+/, '$1' + gnum(y));
+  if(!tieneX || !tieneY){
+    // En incremental hace falta decir los dos ejes: omitir uno significa "no te
+    // muevas en el", y al cambiar de sitio el bloque eso ya no es cierto.
+    const falta = (!tieneX ? ' X' + gnum(x) : '') + (!tieneY ? ' Y' + gnum(y) : '');
+    if(inc || !tieneX || !tieneY){
+      const mG = s.match(/[Gg]\s*\d+/);
+      if(mG) s = s.replace(mG[0], mG[0] + falta);
+      else s = s.replace(/^(\s*)/, '$1' + falta.trim() + ' ');
+    }
+  }
+  return s;
+}
+
+// Una linea que SOLO fija el modo (un "G90" o un "G91" sueltos) la coloca el
+// escritor donde toca. Las que llevan el modo junto a otras ordenes -- la
+// cabecera de posicionamiento -- se dejan tal cual: son absolutas siempre.
+function soloModo(it){
+  return it.palabras.length > 0 && it.palabras.every(function(w){
+    return w.letra === 'G' && (w.valor === 90 || w.valor === 91);
+  });
+}
+
+// La palabra nueva va al FINAL de las ordenes, antes del comentario, que es
+// donde la pondria cualquiera. Metida detras de la G quedaba un "G00 F200 X20".
+function anadirPalabra(raw, letra, valor){
+  const trozo = ' ' + letra + valor;
+  const i = raw.indexOf(';');
+  if(i < 0) return raw.replace(/\s*$/, '') + trozo;
+  const cuerpo = raw.slice(0, i);
+  const separacion = (cuerpo.match(/\s*$/) || [''])[0];
+  return cuerpo.replace(/\s*$/, '') + trozo + separacion + raw.slice(i);
+}
+
+// Al convertir, un comentario que diga "Coordenadas absolutas (G90)" en un
+// archivo que ya es incremental es peor que no decir nada: a la cabecera es a
+// lo primero que se mira.
+function comentarioDelModo(it, inc){
+  if(it.palabras.length) return it.raw;             // solo lineas de comentario
+  if(!/coordenadas/i.test(it.raw)) return it.raw;
+  if(!/(absolut|incremental|G9[01])/i.test(it.raw)) return it.raw;
+  return it.raw.replace(/(coordenadas\s+)\S+(\s*\(G9[01]\))?/i,
+                        '$1' + (inc ? 'INCREMENTALES (G91)' : 'absolutas (G90)'));
+}
+
+function escribirPrograma(){
+  if(!prog) return '';
+  const modo = prog.modoSalida || prog.modo;
+  const inc = (modo === 'inc');
+  // Solo se tocan las lineas de modo sueltas cuando de verdad se convierte.
+  // Si no, el archivo tiene que salir tal como entro.
+  const convirtiendo = modo !== prog.modo;
+  const out = [];
+  let px = 0, py = 0, fAct = null;
+
+  // Escribe una linea de movimiento dejando claro lo que al reordenar deja de
+  // estar claro: el destino (si cambia el modo o el bloque arranca en otro
+  // sitio) y la F cuando venia heredada de un bloque que ya no va delante.
+  function movimiento(it, forzarXY){
+    let s = it.raw;
+    if(forzarXY || inc !== (it.modo === 'inc')){
+      s = fijarXY(s, inc ? (it.mov.a.x - px) : it.mov.a.x,
+                     inc ? (it.mov.a.y - py) : it.mov.a.y, inc);
+    }
+    // En un rapido el avance no pinta nada, y ademas dejaria el modal cambiado
+    // para lo que venga detras. No se toca.
+    if(it.mov.g !== 0 && !palabra(it, 'F') && it.mov.f > 0 && fAct !== it.mov.f){
+      s = anadirPalabra(s, 'F', gnum(it.mov.f));
+      fAct = it.mov.f;
+    } else {
+      const wf = palabra(it, 'F');
+      if(wf) fAct = wf.valor;
+    }
+    px = it.mov.a.x; py = it.mov.a.y;
+    return s;
+  }
+
+  // ---- preambulo ----
+  let corteMarcador = -1;
+  let modoPre = 'abs';
+  prog.preambulo.forEach(function(it){
+    if(convirtiendo && soloModo(it)) return;   // el marcador lo pone el escritor
+    out.push(convirtiendo ? comentarioDelModo(it, inc) : it.raw);
+    if(it.palabras.length) corteMarcador = out.length;
+    it.palabras.forEach(function(w){
+      if(w.letra === 'G' && w.valor === 90) modoPre = 'abs';
+      if(w.letra === 'G' && w.valor === 91) modoPre = 'inc';
+    });
+    if(it.mov){ px = it.mov.a.x; py = it.mov.a.y; }
+    const wf = palabra(it, 'F');
+    if(wf) fAct = wf.valor;
+  });
+  // El posicionamiento inicial va siempre en absoluto; solo despues se cambia.
+  if(convirtiendo && modo !== modoPre){
+    const marca = inc ? 'G91' : 'G90';
+    if(corteMarcador >= 0) out.splice(corteMarcador, 0, marca);
+    else out.push(marca);
+  }
+
+  // ---- bloques ----
+  prog.lineal.forEach(function(b){
+    out.push('');
+    if(b.off){
+      // No se borra: se queda comentado, con su prefijo, para poder volver a
+      // activarlo aqui o a mano. Y no toca la posicion: la maquina no va.
+      b.items.forEach(function(it){ out.push(MARCA_OFF + ' ' + it.raw); });
+      return;
+    }
+    const tieneMov = b.items.some(function(it){ return it.mov; });
+    if(!tieneMov && b.inicio &&
+       (Math.abs(px - b.inicio.x) > 1e-9 || Math.abs(py - b.inicio.y) > 1e-9)){
+      // Este bloque no traia traslado propio (su posicion venia de la cabecera
+      // del archivo). Al cambiarlo de sitio hay que llevar la maquina hasta el.
+      const fT = numOr((prog.fTraslado || [])[0], 400);
+      out.push('G01 X' + gnum(inc ? b.inicio.x - px : b.inicio.x) +
+               ' Y' + gnum(inc ? b.inicio.y - py : b.inicio.y) +
+               (fAct === fT ? '' : ' F' + gnum(fT)) +
+               '   ; traslado anadido al reordenar');
+      px = b.inicio.x; py = b.inicio.y; fAct = fT;
+    }
+    let primerMov = true;
+    b.items.forEach(function(it){
+      if(convirtiendo && soloModo(it)) return;
+      if(!it.mov){ out.push(it.raw); return; }
+      out.push(movimiento(it, primerMov));
+      primerMov = false;
+    });
+  });
+
+  // ---- cierre ----
+  if(prog.cierre.length || (convirtiendo && inc)){
+    out.push('');
+    // Al convertir a incremental se vuelve a G90 al final, para no dejar la
+    // maquina en incremental para el siguiente programa.
+    if(convirtiendo && inc) out.push('G90');
+    let primerMov = true;
+    prog.cierre.forEach(function(it){
+      if(convirtiendo && soloModo(it)) return;
+      if(!it.mov){ out.push(it.raw); return; }
+      out.push(movimiento(it, primerMov));
+      primerMov = false;
+    });
+  }
+  const fl = prog.finLinea || '\n';
+  return out.join(fl) + fl;
+}
+
+// ============================================================== REVISION
+// El motivo de todo esto: un agujero cortado DESPUES de su perimetro sale mal,
+// porque al soltarse la pieza ya no esta sujeta donde deberia.
+function revisar(){
+  const cont = document.getElementById('revision');
+  cont.innerHTML = '';
+  if(!prog || !prog.bloques.length){
+    cont.appendChild(nodo('div', 'vacio', 'Nada que revisar.'));
+    return;
+  }
+
+  // Lo desactivado no se corta: no puede soltar nada ni quedarse suelto.
+  const activos = prog.lineal.filter(function(b){ return !b.off; });
+  const porId = {};
+  activos.forEach(function(b, i){ porId[b.id] = i; });
+
+  const malos = [];
+  activos.forEach(function(b, i){
+    b.dentroDe.forEach(function(idContenedor){
+      const j = porId[idContenedor];
+      if(j !== undefined && j < i) malos.push({ dentro:i, fuera:j });
+    });
+  });
+
+  const abiertos = activos.filter(function(b){ return b.nCortes && !b.cerrado; }).length;
+
+  // Un arco cuyo final no cae al mismo radio del centro es imposible: el
+  // control lo para con alarma. Sale de un G-code editado a mano o mal hecho.
+  const arcosMalos = [];
+  activos.forEach(function(b){
+    b.items.forEach(function(it){
+      if(!it.mov || (it.mov.g !== 2 && it.mov.g !== 3)) return;
+      const cx = it.mov.de.x + (it.mov.i || 0), cy = it.mov.de.y + (it.mov.j || 0);
+      const r0 = Math.hypot(it.mov.de.x - cx, it.mov.de.y - cy);
+      const r1 = Math.hypot(it.mov.a.x - cx, it.mov.a.y - cy);
+      if(Math.abs(r1 - r0) > Math.max(0.002, r0 * 0.001)){
+        arcosMalos.push({ b:b, r0:r0, r1:r1 });
+      }
+    });
+  });
+  arcosMalos.forEach(function(m){
+    const d = nodo('div', 'aviso mal');
+    d.innerHTML = 'Arco imposible en <b>' + m.b.titulo + '</b>: desde el centro que marcan I,J el ' +
+      'arranque queda a <b>' + fmt2(m.r0) + ' mm</b> y el final a <b>' + fmt2(m.r1) + ' mm</b>. ' +
+      'La máquina lo parará con alarma.';
+    d.innerHTML = d.innerHTML.replace(/ mm<\/b>/g, ' ' + unidad() + '</b>');
+    cont.appendChild(d);
+  });
+
+  // Sentido de corte: el exterior horario, los agujeros antihorario.
+  activos.forEach(function(b){
+    if(sentidoCorrecto(b)) return;
+    const d = nodo('div', 'aviso mal');
+    const quiere = b.esInterior ? 'antihorario' : 'horario';
+    d.innerHTML = '<b>' + b.titulo + '</b> se corta en sentido <b>' +
+      (b.horario ? 'horario' : 'antihorario') + '</b>. Siendo ' +
+      (b.esInterior ? 'un agujero' : 'un contorno exterior') + ' debería ir <b>' + quiere +
+      '</b>, o la sangría se come el lado de la pieza.';
+    const bt = nodo('button', 'accion', '⇄ Invertir ' + b.titulo);
+    bt.addEventListener('click', function(){ girarBloque(b); });
+    d.appendChild(document.createElement('br'));
+    d.appendChild(bt);
+    cont.appendChild(d);
+  });
+
+  // Traslados por encima de piezas ya sueltas.
+  const cruces = trasladosSobreLoCortado();
+  prog.trasladosMalos = {};
+  cruces.forEach(function(m){ prog.trasladosMalos[m.clave] = true; });
+  const yaDicho = {};
+  cruces.forEach(function(m){
+    const k = m.deBloque.id + '>' + m.haciaBloque.id;
+    if(yaDicho[k]) return;
+    yaDicho[k] = true;
+    const d = nodo('div', 'aviso mal');
+    d.innerHTML = 'El traslado hacia <b>' + m.haciaBloque.titulo + '</b> (puesto ' +
+      m.haciaBloque.puesto + ') pasa ' +
+      (m.encima
+        ? '<b>por encima de ' + m.deBloque.titulo + '</b>, que ya se cortó en el puesto ' +
+          m.deBloque.puesto + ' y está suelta: el cabezal puede engancharla si se ha levantado.'
+        : '<b>rozando el corte de ' + m.deBloque.titulo + '</b> (puesto ' + m.deBloque.puesto +
+          '), que ya está suelta: si se ladea, el cabezal se mete en la ranura.') +
+      ' Se ve en rojo en el dibujo.';
+    cont.appendChild(d);
+  });
+
+  const conCorte = activos.filter(function(b){ return b.nCortes; }).length;
+  const conContencion = activos.some(function(b){ return b.dentroDe.length; });
+
+  const to = document.getElementById('tituloOrden');
+  if(to) to.textContent = (prog.naturaleza === 'puntos') ? 'Orden de soldadura' : 'Orden de corte';
+
+  if(prog.naturaleza === 'puntos'){
+    const vacio = construirPasos().filter(function(x){ return x.tipo === 'mov'; })
+                                  .reduce(function(sm, x){ return sm + x.largo; }, 0);
+    const d = nodo('div', 'aviso info');
+    d.innerHTML = 'Son <b>puntos de soldadura</b>: aquí el orden no decide si la pieza se ' +
+      'suelta, solo el camino en vacío — ahora <b>' + fmt2(vacio) + ' ' + unidad() + '</b>. ' +
+      'Reordena para acortarlo, o para repartir el calor y que la chapa no se deforme.';
+    cont.appendChild(d);
+    document.getElementById('ordenarBtn').disabled = true;
+    return;
+  }
+
+  if(!conCorte){
+    const d = nodo('div', 'aviso info');
+    d.textContent = 'No se ha reconocido ningún corte en este archivo, así que no hay orden que revisar.';
+    cont.appendChild(d);
+  } else if(!conContencion){
+    const d = nodo('div', 'aviso info');
+    d.textContent = 'Ninguna figura queda dentro de otra: aquí el orden no decide si la pieza se suelta.';
+    cont.appendChild(d);
+  } else if(malos.length){
+    malos.forEach(function(m){
+      const d = nodo('div', 'aviso mal');
+      // Con varias piezas iguales, citarlas por el nombre no basta: va el puesto.
+      const dentro = activos[m.dentro], fuera = activos[m.fuera];
+      const nombre = function(b, i){
+        return '<b>' + (b.puesto || (i+1)) + '</b> (' + b.titulo + (b.donde ? ', ' + b.donde : '') + ')';
+      };
+      d.innerHTML = 'La pieza ' + nombre(dentro, m.dentro) + ' está <b>dentro</b> de la ' +
+        nombre(fuera, m.fuera) + ', pero se corta después. Al cortar antes el contorno ' +
+        'que la rodea, la pieza queda suelta y el interior sale movido. ' +
+        'Arrástrala a la boca de la pieza <b>' + (fuera.puesto || (m.fuera+1)) + '</b>.';
+      cont.appendChild(d);
+    });
+  } else {
+    const d = nodo('div', 'aviso bien');
+    d.innerHTML = '<b>Orden correcto.</b> Cada figura interior se corta antes que el contorno que la contiene.';
+    cont.appendChild(d);
+  }
+
+  if(abiertos){
+    const d = nodo('div', 'aviso info');
+    d.textContent = abiertos + ' trazo(s) sin cerrar: no se puede decidir si están dentro o fuera de nada, así que quedan fuera de la revisión.';
+    cont.appendChild(d);
+  }
+
+  // El boton sirve siempre que haya algo que encajar, no solo cuando falla.
+  const hayContencion = prog.bloques.some(function(b){ return b.dentroDe.length; });
+  document.getElementById('ordenarBtn').disabled = !hayContencion;
+}
+
+// Encajar por geometria: cada pieza se mete en la boca de la MAS PEQUENA que
+// la contiene. Con figuras anidadas (un agujero dentro de una isla dentro del
+// contorno) el arbol sale solo, y con el el orden de corte.
+function encajarPorGeometria(){
+  if(!prog) return;
+  guardarTextoSiSucio();
+  pushUndo();
+  const porId = {};
+  prog.bloques.forEach(function(b){ porId[b.id] = b; b.hijos = []; });
+
+  const raiz = [];
+  prog.bloques.forEach(function(b){
+    let padre = null;
+    b.dentroDe.forEach(function(id){
+      const c = porId[id];
+      if(!c) return;
+      if(!padre || c.area < padre.area) padre = c;   // la mas ajustada
+    });
+    if(padre) padre.hijos.push(b); else raiz.push(b);
+  });
+
+  const porArchivo = function(x, y){ return x.orden0 - y.orden0; };
+  raiz.sort(porArchivo);
+  prog.bloques.forEach(function(b){ b.hijos.sort(porArchivo); });
+
+  prog.raiz = raiz;
+  recalcular(prog);
+  seleccionado = -1;
+  trasCambiarOrden('Encajado por geometría: cada figura dentro de la que la rodea.');
+}
+
+// ============================================================== DESHACER
+// Foto completa del estado que se puede tocar: el texto de cada linea, la
+// forma del arbol y que hay apagado. Es mas simple y fiable que rastrear cada
+// cambio, igual que en el diseñador de contornos.
+let undoStack = [], redoStack = [];
+const MAX_UNDO = 60;
+
+function foto(){
+  if(!prog) return null;
+  return {
+    raws: prog.items.map(function(it){ return it.raw; }),
+    modoSalida: prog.modoSalida,
+    arbol: (function baja(lista){
+      return lista.map(function(b){
+        return { id:b.id, off:!!b.off, plegado:!!b.plegado, hijos:baja(b.hijos) };
+      });
+    })(prog.raiz)
+  };
+}
+
+function restaurar(f){
+  if(!f || !prog) return;
+  f.raws.forEach(function(r, i){
+    if(!prog.items[i]) return;
+    prog.items[i].raw = r;
+    reTokenizar(prog.items[i]);
+  });
+  prog.modoSalida = f.modoSalida;
+  const porId = {};
+  prog.bloques.forEach(function(b){ porId[b.id] = b; b.hijos = []; });
+  prog.raiz = (function sube(nodos){
+    const out = [];
+    nodos.forEach(function(nd){
+      const b = porId[nd.id];
+      if(!b) return;
+      b.off = nd.off; b.plegado = nd.plegado;
+      b.hijos = sube(nd.hijos);
+      out.push(b);
+    });
+    return out;
+  })(f.arbol);
+  remedir();
+}
+
+function pushUndo(){
+  const f = foto();
+  if(!f) return;
+  undoStack.push(f);
+  if(undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = [];
+  actualizarUndo();
+}
+
+// Si la accion no acabo cambiando nada, la foto sobra: dejarla haria que
+// Ctrl+Z pareciera averiado (se pulsa y no pasa nada visible).
+function podarUndo(){
+  if(!undoStack.length) return;
+  if(JSON.stringify(undoStack[undoStack.length-1]) === JSON.stringify(foto())){
+    undoStack.pop();
+    actualizarUndo();
+  }
+}
+
+function actualizarUndo(){
+  document.getElementById('deshacerBtn').disabled = !undoStack.length;
+  document.getElementById('rehacerBtn').disabled = !redoStack.length;
+}
+
+function trasRestaurar(msg){
+  pararSim(); prepararSim(); volcarTexto();
+  renderLista(); revisar(); renderDatos(); renderVariables(); render();
+  actualizarUndo();
+  setStatus(msg, 'ok');
+}
+
+function deshacer(){
+  if(!undoStack.length || !prog){ setStatus('No hay nada que deshacer.', ''); return; }
+  redoStack.push(foto());
+  restaurar(undoStack.pop());
+  seleccionado = -1;
+  trasRestaurar('Deshecho. Quedan ' + undoStack.length + ' paso(s) atrás.');
+}
+
+function rehacer(){
+  if(!redoStack.length || !prog){ setStatus('No hay nada que rehacer.', ''); return; }
+  undoStack.push(foto());
+  restaurar(redoStack.pop());
+  seleccionado = -1;
+  trasRestaurar('Rehecho.');
+}
+
+// ============================================================== EDICION
+// Se cambia el TEXTO de las lineas que tocan y se vuelve a pasar el estado
+// modal. Asi lo heredado (una F que venia de arriba) se recalcula solo, y el
+// arbol de bloques no se toca: sigue apuntando a las mismas lineas.
+function reTokenizar(it){
+  const t = tokenizar(it.raw);
+  it.palabras = t.palabras; it.comentario = t.comentario; it.vacia = t.vacia;
+}
+
+function trasEditar(msg){
+  pararSim();
+  remedir();
+  prepararSim();
+  volcarTexto();
+  renderLista(); revisar(); renderDatos(); renderVariables();
+  render();
+  podarUndo();
+  setStatus(msg, 'ok');
+}
+
+function cambiarTrabajo(valor){
+  if(!prog) return;
+  const num = parseInt(valor, 10);
+  // 54 a 59 son los seis ceros de pieza del control. Fuera de ahi un G no es
+  // un cero de pieza, sino otra cosa, y cambiarlo estropearia el programa.
+  if(!(num >= 54 && num <= 59)){
+    setStatus('Las coordenadas de trabajo van de 54 a 59.', 'err');
+    renderVariables();
+    return;
+  }
+  try{ guardarTextoSiSucio(); }catch(_){ return; }
+  pushUndo();
+  let n = 0;
+  prog.items.forEach(function(it){
+    // Se sustituye el codigo que se reconocio en ESTA linea, no un 5x a ciegas.
+    let w = null;
+    it.palabras.forEach(function(q){
+      if(q.letra === 'G' && q.valor >= 54 && q.valor <= 59 && !w) w = q;
+    });
+    if(!w) return;
+    const re = new RegExp('([Gg])\\s*0*' + w.valor + '(?![\\d.])');
+    it.raw = it.raw.replace(re, '$1' + num);
+    reTokenizar(it); n++;
+  });
+  if(!n){ setStatus('Este programa no fija coordenadas de trabajo.', 'err'); return; }
+  trasEditar('Coordenadas de trabajo: G' + num + ' (' + n + ' línea(s)).');
+}
+
+function cambiarF(cual, valor){
+  const v = parseFloat(valor);
+  if(!prog || !isFinite(v) || v <= 0){ setStatus('Ese avance no vale.', 'err'); return; }
+  try{ guardarTextoSiSucio(); }catch(_){ return; }
+  pushUndo();
+  let n = 0;
+  prog.items.forEach(function(it){
+    if(!palabra(it, 'F')) return;
+    // La F de una linea manda sobre el movimiento de esa misma linea.
+    const esCorte = !!(it.mov && it.mov.corte);
+    if((cual === 'corte') !== esCorte) return;
+    it.raw = it.raw.replace(/([Ff])\s*-?\d*\.?\d+/, '$1' + gnum(v));
+    reTokenizar(it); n++;
+  });
+  if(!n){ setStatus('No hay ninguna F de ese tipo en el archivo.', 'err'); return; }
+  trasEditar('F de ' + (cual === 'corte' ? 'corte' : 'traslado') + ' = ' + gnum(v) + ' (' + n + ' línea(s)).');
+}
+
+function cambiarP(cual, valor){
+  const v = parseFloat(valor);
+  if(!prog || !isFinite(v) || v < 0){ setStatus('Ese tiempo no vale.', 'err'); return; }
+  try{ guardarTextoSiSucio(); }catch(_){ return; }
+  pushUndo();
+  let n = 0;
+  prog.items.forEach(function(it){
+    if(it.espera === undefined) return;
+    if((cual === 'solda') !== !!it.laser) return;
+    it.raw = it.raw.replace(/([Pp])\s*-?\d*\.?\d+/, '$1' + gnum(v));
+    reTokenizar(it); n++;
+  });
+  if(!n){ setStatus('No hay esperas de ese tipo en el archivo.', 'err'); return; }
+  trasEditar('G04 P de ' + (cual === 'solda' ? 'soldadura' : 'asentamiento') + ' = ' + gnum(v) +
+             ' (' + n + ' línea(s)).');
+}
+
+function cambiarModo(m){
+  if(!prog) return;
+  try{ guardarTextoSiSucio(); }catch(_){ return; }
+  pushUndo();
+  prog.modoSalida = m;
+  trasEditar('Se escribe en coordenadas ' + (m === 'inc' ? 'incrementales (G91)' : 'absolutas (G90)') + '.');
+}
+
+function cajaPrograma(){
+  const pasos = construirPasos();
+  const xs = [], ys = [];
+  pasos.forEach(function(p){ if(p.pts) p.pts.forEach(function(q){ xs.push(q.x); ys.push(q.y); }); });
+  if(prog) prog.lineal.forEach(function(b){
+    if(b.punto){ xs.push(b.punto.x); ys.push(b.punto.y); }
+    if(b.off) trazosDe(b).forEach(function(t){ t.forEach(function(q){ xs.push(q.x); ys.push(q.y); }); });
+  });
+  if(!xs.length) return null;
+  return { minX:Math.min.apply(null, xs), maxX:Math.max.apply(null, xs),
+           minY:Math.min.apply(null, ys), maxY:Math.max.apply(null, ys) };
+}
+
+// Reordena buscando que ningun traslado pase sobre una pieza ya suelta. Es un
+// avaro: en cada paso escoge, de lo que queda, lo mas cercano que se pueda
+// alcanzar sin cruzar nada suelto; si nada se salva, lo mas cercano. Se hace
+// sobre el arbol, asi que lo abrazado sigue cortandose antes que quien abraza.
+function ordenarEvitandoLoCortado(){
+  if(!prog) return;
+  guardarTextoSiSucio();
+  pushUndo();
+
+  const ROCE_ACT = roce();
+  const inicio = (function(){
+    let p = { x:0, y:0 };
+    prog.preambulo.forEach(function(it){ if(it.mov) p = { x:it.mov.a.x, y:it.mov.a.y }; });
+    return p;
+  })();
+
+  const arranque = function(b){
+    const c = b.items.find(function(it){ return it.mov && it.mov.corte; });
+    if(c) return { x:c.mov.de.x, y:c.mov.de.y };
+    return b.punto || b.inicio || inicio;
+  };
+  const entrada = function(b){ return b.hijos.length ? entrada(b.hijos[0]) : arranque(b); };
+  const final = function(b){
+    let ult = null;
+    b.items.forEach(function(it){ if(it.mov) ult = it.mov; });
+    return ult ? { x:ult.a.x, y:ult.a.y } : arranque(b);
+  };
+
+  const cruza = function(p0, p1, sueltas){
+    return sueltas.some(function(c){
+      if(!c.poli || !c.caja) return false;
+      const minX = Math.min(p0.x,p1.x), maxX = Math.max(p0.x,p1.x);
+      const minY = Math.min(p0.y,p1.y), maxY = Math.max(p0.y,p1.y);
+      if(maxX < c.caja.minX - ROCE_ACT || minX > c.caja.maxX + ROCE_ACT ||
+         maxY < c.caja.minY - ROCE_ACT || minY > c.caja.maxY + ROCE_ACT) return false;
+      for(let t = 0.05; t <= 0.951; t += 0.05){
+        const q = { x: p0.x + (p1.x-p0.x)*t, y: p0.y + (p1.y-p0.y)*t };
+        if(distanciaAPoli(q, c.poli) < ROCE_ACT) return true;
+        if(puntoDentro(q.x, q.y, c.poli)) return true;
+      }
+      return false;
+    });
+  };
+
+  // Recorre el arbol colocando, de lo que queda, lo mas cercano que se pueda
+  // alcanzar sin cruzar nada suelto. `forzar` obliga a empezar por una pieza
+  // concreta del primer nivel, que es lo que el avaro no sabe elegir.
+  const recorrer = function(forzar){
+    const est = { pos: { x:inicio.x, y:inicio.y }, sueltas: [], cruces: 0, vacio: 0 };
+    const nivel = function(lista, esRaiz){
+      const pend = lista.slice(), salida = [];
+      while(pend.length){
+        let mejor = null, mejorD = Infinity, mejorSeguro = false;
+        if(esRaiz && forzar && pend.indexOf(forzar) >= 0 && salida.length === 0){
+          mejor = forzar;
+        } else {
+          pend.forEach(function(b){
+            const e = entrada(b);
+            const seguro = !cruza(est.pos, e, est.sueltas);
+            const d = Math.hypot(e.x - est.pos.x, e.y - est.pos.y);
+            if(mejor === null || (seguro && !mejorSeguro) ||
+               (seguro === mejorSeguro && d < mejorD)){
+              mejor = b; mejorD = d; mejorSeguro = seguro;
+            }
+          });
+        }
+        pend.splice(pend.indexOf(mejor), 1);
+        const e = entrada(mejor);
+        if(cruza(est.pos, e, est.sueltas)) est.cruces++;
+        est.vacio += Math.hypot(e.x - est.pos.x, e.y - est.pos.y);
+        mejor.hijos = nivel(mejor.hijos, false);     // lo abrazado, primero
+        est.pos = final(mejor);
+        if(mejor.cerrado && !mejor.esInterior && !mejor.off) est.sueltas.push(mejor);
+        salida.push(mejor);
+      }
+      return salida;
+    };
+    const raiz = nivel(prog.raiz.slice(), true);
+    return { raiz: raiz, cruces: est.cruces, vacio: est.vacio };
+  };
+
+  // Se prueba a empezar por cada pieza del primer nivel y gana la que deje
+  // menos cruces; a igualdad, la que menos vacio recorra.
+  const candidatos = prog.raiz.slice();
+  let mejor = null;
+  candidatos.forEach(function(c){
+    const r = recorrer(c);
+    if(!mejor || r.cruces < mejor.cruces ||
+       (r.cruces === mejor.cruces && r.vacio < mejor.vacio - 1e-9)){
+      mejor = { primero: c, cruces: r.cruces, vacio: r.vacio };
+    }
+  });
+  const elegido = recorrer(mejor ? mejor.primero : null);
+
+  prog.raiz = elegido.raiz;
+  recalcular(prog);
+  seleccionado = -1;
+  trasCambiarOrden('Reordenado buscando no pasar sobre lo ya cortado.');
+  const quedan = document.querySelectorAll('#revision .aviso.mal').length;
+  setStatus(quedan
+    ? ('Reordenado. Quedan ' + quedan + ' aviso(s): no hay orden que los evite todos.')
+    : ('Reordenado: ningún traslado pasa ya sobre una pieza suelta. Vacío: ' +
+       fmt2(elegido.vacio) + ' ' + unidad() + '.'),
+    quedan ? '' : 'ok');
+}
+
+// ============================================================== INTERFAZ
+function filaVar(etiqueta, control, titulo){
+  const f = nodo('div', 'var-fila');
+  const k = nodo('span', 'k', etiqueta);
+  if(titulo) k.title = titulo;
+  f.appendChild(k); f.appendChild(control);
+  return f;
+}
+
+function campoNum(valores, alCambiar, titulo){
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.step = 'any';
+  inp.value = valores && valores.length ? valores[0] : '';
+  if(valores && valores.length > 1){
+    // Varios valores distintos en el archivo: se avisa, y al escribir uno se
+    // igualan todos, que es lo que se suele querer.
+    inp.value = ''; inp.placeholder = 'varios';
+    inp.title = 'El archivo usa varios valores (' + valores.join(', ') +
+                '). Si escribes uno aquí, se igualan todos.';
+  } else if(titulo) inp.title = titulo;
+  inp.addEventListener('change', function(){ if(inp.value !== '') alCambiar(inp.value); });
+  return inp;
+}
+
+function renderVariables(){
+  const cont = document.getElementById('variables');
+  cont.innerHTML = '';
+  if(!prog){
+    cont.appendChild(nodo('div', 'vacio', 'Abre un programa para ver sus variables.'));
+    return;
+  }
+
+  const nat = prog.naturaleza;
+  const clase = nat === 'corte' ? 'corte' : (nat === 'puntos' ? 'puntos' : 'otro');
+  const texto = nat === 'corte' ? 'Corte de contornos'
+              : nat === 'puntos' ? 'Puntos de soldadura'
+              : nat === 'mixto' ? 'Corte y puntos' : 'Sin láser';
+  const cab = nodo('div');
+  const et = nodo('span', 'nat ' + clase, texto);
+  et.title = nat === 'corte' ? 'Mueve la herramienta con el láser encendido.'
+           : nat === 'puntos' ? 'Para la herramienta y aguanta un tiempo (G04 P) en cada punto.'
+           : 'No se ha reconocido encendido de láser.';
+  cab.appendChild(et);
+  cont.appendChild(cab);
+
+  const caja = nodo('div', 'conG');
+  caja.appendChild(nodo('span', 'g', 'G'));
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.step = '1'; inp.min = '54'; inp.max = '59';
+  inp.value = prog.trabajo ? prog.trabajo.slice(1) : '';
+  inp.placeholder = '—';
+  inp.title = 'Solo el número: la G se da por puesta. De 54 a 59.';
+  inp.addEventListener('change', function(){ cambiarTrabajo(inp.value); });
+  caja.appendChild(inp);
+  cont.appendChild(filaVar('Coordenadas', caja, 'El cero de pieza que usa el programa'));
+
+  const modoAct = prog.modoSalida || prog.modo;
+  const fm = nodo('div', 'modo-fila');
+  [['abs','Absolutas','G90','Cada X,Y es la posición real respecto al cero de pieza.'],
+   ['inc','Incrementales','G91','Cada X,Y es el salto desde el punto anterior.']
+  ].forEach(function(op){
+    const b = nodo('div', 'modo-opt' + (modoAct === op[0] ? ' active' : ''), op[1]);
+    b.appendChild(nodo('small', null, op[2]));
+    b.title = op[3];
+    b.addEventListener('click', function(){ cambiarModo(op[0]); });
+    fm.appendChild(b);
+  });
+  cont.appendChild(fm);
+  if(prog.modoSalida && prog.modoSalida !== prog.modo){
+    cont.appendChild(nodo('div', 'var-nota',
+      'El archivo venía en ' + (prog.modo === 'inc' ? 'G91' : 'G90') + '; se está reescribiendo convertido.'));
+  }
+
+  if(nat === 'corte' || nat === 'mixto'){
+    cont.appendChild(filaVar('F de corte', campoNum(prog.fCorte, function(v){ cambiarF('corte', v); },
+      'Avance con el láser encendido (mm/min)'), 'Avance con el láser encendido (mm/min)'));
+  }
+  cont.appendChild(filaVar('F de traslado', campoNum(prog.fTraslado, function(v){ cambiarF('traslado', v); },
+    'Avance de posicionamiento, con el láser apagado (mm/min)'),
+    'Avance de posicionamiento, con el láser apagado (mm/min)'));
+
+  if(nat === 'puntos' || nat === 'mixto'){
+    cont.appendChild(filaVar('G04 P soldar', campoNum(prog.pSolda, function(v){ cambiarP('solda', v); },
+      'Tiempo con el láser encendido en cada punto'), 'Tiempo con el láser encendido en cada punto'));
+    cont.appendChild(filaVar('G04 P asentar', campoNum(prog.pAsen, function(v){ cambiarP('asen', v); },
+      'Esperas con el láser apagado, antes y después de soldar'),
+      'Esperas con el láser apagado, antes y después de soldar'));
+    cont.appendChild(nodo('div', 'var-nota',
+      'La P se lee en milisegundos, como en el programa de puntos. Si tu control la toma en segundos, el tiempo estimado no vale (el G-code sí).'));
+  }
+
+  const acel = document.createElement('input');
+  acel.type = 'number'; acel.step = 'any'; acel.min = '0';
+  acel.value = numOr(prog.aceleracion, 0) || '';
+  acel.placeholder = 'sin contar';
+  acel.title = 'Aceleración de tu máquina, para estimar el tiempo. Déjalo vacío y el ' +
+               'tiempo será el suelo teórico (longitud entre avance).';
+  acel.addEventListener('change', function(){
+    prog.aceleracion = parseFloat(acel.value) || 0;
+    prepararSim(); renderDatos();
+    setStatus(prog.aceleracion ? ('Aceleración: ' + gnum(prog.aceleracion) + ' ' + unidad() + '/s².')
+                               : 'Sin aceleración: el tiempo vuelve a ser el suelo teórico.', 'ok');
+  });
+  cont.appendChild(filaVar('Aceleración (' + unidad() + '/s²)', acel,
+    'Solo afecta al tiempo estimado; no toca el G-code'));
+
+  cont.appendChild(nodo('div', 'var-nota',
+    'Unidades: ' + (prog.unidades === 'in' ? 'G20 pulgadas' : 'G21 milímetros') +
+    '. No se cambian desde aquí: habría que convertir todas las cifras.'));
+}
+
+// El tiempo del programa entero, agrupando los pasos en tramos continuos: la
+// herramienta solo se para al cambiar de corte a traslado (o al esperar).
+function tiempoDelPrograma(pasos){
+  const acel = numOr(prog && prog.aceleracion, 0);
+  let total = 0, largo = 0, avance = 0, tipo = null;
+  const cerrar = function(){
+    if(largo > 0) total += tiempoDeTramo(largo, avance, acel);
+    largo = 0; avance = 0; tipo = null;
+  };
+  pasos.forEach(function(p){
+    if(p.tipo === 'espera'){ cerrar(); total += (p.ms || 0); return; }
+    // Un cambio de tipo o de avance corta el tramo: ahi la maquina para.
+    if(tipo !== null && (p.tipo !== tipo || Math.abs((p.f||0) - avance) > 1e-9)) cerrar();
+    tipo = p.tipo; avance = p.f || 0; largo += p.largo || 0;
+  });
+  cerrar();
+  return total;
+}
+
+function renderDatos(){
+  const cont = document.getElementById('datosPrograma');
+  cont.innerHTML = '';
+  if(!prog){
+    cont.appendChild(nodo('div', 'vacio', 'Abre un .txt de G-code para empezar.'));
+    return;
+  }
+  const pasos = construirPasos();
+  const caja = cajaPrograma();
+  const total = tiempoDelPrograma(pasos);
+  const corte = pasos.filter(function(p){ return p.tipo === 'corte'; })
+                     .reduce(function(s, p){ return s + p.largo; }, 0);
+  const vacio = pasos.filter(function(p){ return p.tipo === 'mov'; })
+                     .reduce(function(s, p){ return s + p.largo; }, 0);
+
+  [['Líneas', prog.items.length],
+   ['Piezas', prog.bloques.length +
+      (prog.bloques.filter(function(b){ return b.off; }).length
+        ? ' (' + prog.bloques.filter(function(b){ return b.off; }).length + ' desactivadas)' : '')],
+   ['Coordenadas', prog.modo === 'inc' ? 'G91 incremental' : 'G90 absolutas'],
+   ['Unidades', prog.unidades === 'in' ? 'G20 pulgadas' : 'G21 mm'],
+   ['Cero de pieza', prog.trabajo || '—'],
+   ['Ocupa en X', caja ? (fmt2(caja.minX) + ' … ' + fmt2(caja.maxX) + ' ' + unidad()) : '—'],
+   ['Ocupa en Y', caja ? (fmt2(caja.minY) + ' … ' + fmt2(caja.maxY) + ' ' + unidad()) : '—'],
+   ['El 0,0 queda', !caja ? '—'
+      : ((caja.minX <= 0 && caja.maxX >= 0 && caja.minY <= 0 && caja.maxY >= 0)
+         ? 'dentro de la pieza' : 'fuera de la pieza')],
+   ['Recorrido cortando', fmt2(corte) + ' ' + unidad()],
+   ['Recorrido en vacío', fmt2(vacio) + ' ' + unidad()],
+   ['Tiempo estimado', tiempoTexto(total)]
+  ].forEach(function(par){
+    const d = nodo('div', 'dato');
+    d.appendChild(nodo('span', 'k', par[0]));
+    d.appendChild(nodo('span', 'v', String(par[1])));
+    cont.appendChild(d);
+  });
+
+  if(prog.modoMixto){
+    const d = nodo('div', 'aviso info');
+    d.textContent = 'El archivo cambia de G90 a G91 por el camino. Se respeta línea a línea tal como está.';
+    cont.appendChild(d);
+  }
+}
+
+// Longitud entre avance es el suelo teorico: supone que la maquina va a la F
+// nominal desde el primer milimetro. En tramos cortos -- un circulo de 1.75 de
+// diametro -- se pasa el rato acelerando y frenando y nunca llega.
+//
+// Se modela cada tramo continuo con un perfil trapezoidal: acelera, quiza
+// mantiene, frena. Dentro de un contorno la herramienta no para, asi que el
+// tramo continuo es la cadena entera, no cada orden.
+function tiempoDeTramo(largo, avance, acel){
+  const v = avance / 60;                        // unidad/min -> unidad/s
+  if(!(v > 0) || !(largo > 0)) return 0;
+  if(!(acel > 0)) return (largo / v) * 1000;    // sin aceleracion: el suelo de antes
+  const largoRampa = (v * v) / acel;            // lo que cuesta subir y bajar
+  const s = (largo >= largoRampa)
+    ? (largo / v + v / acel)                    // trapecio: llega a la F nominal
+    : 2 * Math.sqrt(largo / acel);              // triangulo: no le da tiempo
+  return s * 1000;
+}
+
+function tiempoTexto(ms){
+  const s = ms / 1000;
+  if(s < 60) return s.toFixed(1) + ' s';
+  const m = Math.floor(s / 60);
+  return m + ' min ' + Math.round(s - m*60) + ' s';
+}
+
+function renderCapas(){
+  const cont = document.getElementById('capasLista');
+  cont.innerHTML = '';
+  Object.keys(capas).forEach(function(k){
+    const c = capas[k];
+    const fila = nodo('label', 'capa-row');
+    const sw = nodo('span', 'swatch');
+    sw.style.borderTopColor = c.color;
+    if(k === 'traslado') sw.style.borderTopStyle = 'dashed';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox'; chk.checked = c.visible;
+    chk.addEventListener('change', function(){ c.visible = chk.checked; render(); });
+    fila.appendChild(sw);
+    fila.appendChild(nodo('span', 'name', c.nombre));
+    fila.appendChild(chk);
+    cont.appendChild(fila);
+  });
+}
+
+let arrastrado = null;      // la pieza que se esta moviendo
+
+// ¿El orden actual es ya el del archivo, sin encajes? Si lo es, el boton de
+// restaurar no tiene nada que hacer y se apaga: asi no parece averiado.
+function ordenEsElDelArchivo(){
+  if(!prog || !ordenOriginal) return true;
+  if(prog.raiz.length !== ordenOriginal.length) return false;
+  for(let i = 0; i < prog.raiz.length; i++){
+    if(prog.raiz[i] !== ordenOriginal[i]) return false;
+    if(prog.raiz[i].hijos.length) return false;
+  }
+  return true;
+}
+
+function actualizarBotonOrden(){
+  const b = document.getElementById('ordenOriginalBtn');
+  if(b) b.disabled = !prog || ordenEsElDelArchivo();
+  const e = document.getElementById('evitarBtn');
+  // Solo tiene sentido con dos o mas piezas que se puedan soltar.
+  if(e) e.disabled = !prog ||
+    prog.bloques.filter(function(x){ return x.cerrado && !x.esInterior && !x.off; }).length < 2;
+}
+
+function renderLista(){
+  actualizarBotonOrden();
+  const cont = document.getElementById('listaBloques');
+  cont.innerHTML = '';
+  if(!prog || !prog.raiz.length){
+    cont.appendChild(nodo('div', 'vacio', 'Sin piezas todavía.'));
+    return;
+  }
+  // Se monta fuera del documento y se cuelga de una vez: con un nido de
+  // cientos de piezas, colgarlas una a una cuesta el doble.
+  const trozo = document.createDocumentFragment();
+  pintarNivel(prog.raiz, null, trozo);
+  cont.appendChild(trozo);
+  const conHijos = prog.bloques.some(function(b){ return b.hijos.length; });
+  document.getElementById('arbolAcciones').style.display = conHijos ? 'flex' : 'none';
+}
+
+function plegarTodo(valor){
+  if(!prog) return;
+  prog.bloques.forEach(function(b){ b.plegado = valor && b.hijos.length > 0; });
+  renderLista();
+}
+
+function pintarNivel(lista, padre, cont){
+  cont.appendChild(zonaSoltar(padre, 0));
+  lista.forEach(function(b, i){
+    cont.appendChild(pintarPieza(b, padre));
+    cont.appendChild(zonaSoltar(padre, i + 1));
+  });
+}
+
+// Franja fina entre pieza y pieza. Solo se ve mientras se arrastra, para que
+// la lista no parezca un formulario lleno de huecos.
+function zonaSoltar(padre, indice){
+  const z = nodo('div', 'zona');
+  z.addEventListener('dragover', function(e){
+    if(!arrastrado) return;
+    if(padre && esDescendiente(padre, arrastrado)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    z.classList.add('activa');
+  });
+  z.addEventListener('dragleave', function(){ z.classList.remove('activa'); });
+  z.addEventListener('drop', function(e){
+    e.preventDefault();
+    z.classList.remove('activa');
+    if(!arrastrado) return;
+    soltarEn(arrastrado, padre, indice);
+  });
+  return z;
+}
+
+function pintarPieza(b, padre){
+  const puedeAbrazar = b.cerrado && b.nCortes > 0;
+  const caja = nodo('div', 'nodo ' + ((b.hijos.length || puedeAbrazar) ? 'contenedor' : 'hoja'));
+  caja.style.setProperty('--col', b.color);
+
+  if(b.off) caja.classList.add('off');
+
+  const fila = nodo('div', 'bloque' + (b.pos === seleccionado ? ' sel' : ''));
+  fila.draggable = true;
+
+  // Interruptor: activado / desactivado, sin salir del archivo.
+  const sw = document.createElement('input');
+  sw.type = 'checkbox'; sw.className = 'interruptor'; sw.checked = !b.off;
+  sw.title = b.off ? 'Desactivado. Sigue en el archivo, comentado con ";OFF". Marca para volver a cortarlo.'
+                   : 'Desactivar: se queda en el archivo comentado y la máquina no pasa por él.';
+  sw.addEventListener('click', function(e){ e.stopPropagation(); });
+  sw.addEventListener('change', function(){ alternarBloque(b); });
+  fila.appendChild(sw);
+
+  const hermanos = listaDe(prog, padre);
+  const i = hermanos.indexOf(b);
+  // El "donde" solo hace falta si un HERMANO se llama igual: dentro de la boca
+  // de su contorno, un circulo ya esta identificado por quien lo abraza.
+  const ambiguo = hermanos.some(function(o){ return o !== b && o.titulo === b.titulo; });
+
+  if(b.hijos.length){
+    const pl = nodo('button', 'plegar', b.plegado ? '▸' : '▾');
+    pl.title = b.plegado ? 'Desplegar' : 'Plegar';
+    pl.addEventListener('click', function(e){
+      e.stopPropagation();
+      b.plegado = !b.plegado;
+      renderLista();
+    });
+    fila.appendChild(pl);
+  }
+
+  const num = nodo('div', 'num', b.off ? '–' : String(b.puesto));
+  num.style.background = b.off ? '#b8b5ad' : b.color;
+  num.title = b.off ? 'Desactivado: no se corta' : ('Se corta en el puesto ' + b.puesto);
+  fila.appendChild(num);
+
+  const cuerpo = nodo('div', 'cuerpo');
+  cuerpo.appendChild(nodo('div', 'tit', b.titulo));
+  // Con la sangria del encaje el sitio es poco: el numero de tramos solo se
+  // dice cuando hay mas de uno, que es cuando informa de algo. El "donde" solo
+  // aparece en las piezas que comparten nombre con otra.
+  // Con la sangria del encaje el sitio es poco y hay que elegir: si la pieza
+  // comparte nombre con una hermana, manda saber CUAL es; si no, los tramos.
+  const donde = (ambiguo && b.donde) ? (' · ' + b.donde) : '';
+  const tramos = (!donde && b.nCortes > 1) ? (' · ' + b.nCortes + ' tramos') : '';
+  // Un punto de soldadura no tiene longitud: lo que informa es donde esta.
+  cuerpo.appendChild(nodo('div', 'sub',
+    b.tipo === 'punto'
+      ? ('X ' + fmt2(b.punto ? b.punto.x : 0) + ' · Y ' + fmt2(b.punto ? b.punto.y : 0))
+      : (fmt2(b.largo) + ' ' + unidad() + donde + tramos)));
+  fila.appendChild(cuerpo);
+
+  if(b.plegado && b.hijos.length){
+    fila.appendChild(nodo('span', 'dentro', b.hijos.length + ' dentro'));
+  }
+  if(b.off){
+    fila.appendChild(nodo('span', 'etq off', 'desactivado'));
+  } else if(b.tipo === 'punto' && !(b.plegado && b.hijos.length)){
+    fila.appendChild(nodo('span', 'etq punto', 'punto'));
+  } else if(b.nCortes && !(b.plegado && b.hijos.length)){
+    fila.appendChild(nodo('span', 'etq ' + (!b.cerrado ? 'abierto' : (b.esInterior ? 'int' : 'ext')),
+                          !b.cerrado ? 'abierto' : (b.esInterior ? 'interior' : 'exterior')));
+  }
+
+  const acc = nodo('div', 'acc');
+  const up = nodo('button', null, '▲'); up.disabled = (i <= 0); up.title = 'Subir en este nivel';
+  up.addEventListener('click', function(e){ e.stopPropagation(); soltarEn(b, padre, i - 1); });
+  const dn = nodo('button', null, '▼'); dn.disabled = (i >= hermanos.length - 1); dn.title = 'Bajar en este nivel';
+  dn.addEventListener('click', function(e){ e.stopPropagation(); soltarEn(b, padre, i + 2); });
+  acc.appendChild(up); acc.appendChild(dn);
+  if(b.nCortes){
+    const gir = nodo('button', 'girar', '⇄');
+    gir.title = 'Invertir el sentido de corte (ahora ' + (b.horario ? 'horario' : 'antihorario') + ')';
+    gir.addEventListener('click', function(e){ e.stopPropagation(); girarBloque(b); });
+    acc.appendChild(gir);
+  }
+  fila.appendChild(acc);
+
+  fila.addEventListener('click', function(){
+    seleccionado = (seleccionado === b.pos) ? -1 : b.pos;
+    renderLista(); render();
+  });
+  fila.addEventListener('dragstart', function(e){
+    arrastrado = b;
+    document.body.classList.add('arrastrando');
+    fila.classList.add('arrastrando');
+    e.dataTransfer.effectAllowed = 'move';
+    try{ e.dataTransfer.setData('text/plain', b.id); }catch(_){}
+  });
+  fila.addEventListener('dragend', function(){
+    arrastrado = null;
+    document.body.classList.remove('arrastrando');
+    renderLista();
+  });
+  caja.appendChild(fila);
+
+  // La boca: lo que esta aqui dentro se corta ANTES que esta pieza.
+  if(puedeAbrazar || b.hijos.length){
+    const boca = nodo('div', 'boca' + (b.hijos.length ? (b.plegado ? ' plegada' : '') : ' vacia'));
+    pintarNivel(b.hijos, b, boca);
+    caja.appendChild(boca);
+    if(b.hijos.length && !b.plegado){
+      caja.appendChild(nodo('div', 'pie', '↳ puesto ' + (b.pos + 1) + ': se corta ' + b.titulo));
+    }
+  }
+  return caja;
+}
+
+function soltarEn(b, padre, indice){
+  try{ guardarTextoSiSucio(); }catch(_){ return; }
+  pushUndo();
+  if(!moverA(b, padre, indice)){
+    undoStack.pop(); actualizarUndo();      // no se movio nada: la foto sobra
+    setStatus('Una pieza no puede meterse dentro de sí misma.', 'err');
+    renderLista();
+    return;
+  }
+  seleccionado = -1;
+  trasCambiarOrden(b.titulo + ' → puesto ' + (b.pos + 1) +
+                   (b.padre ? ' (dentro de ' + b.padre.titulo + ')' : ''));
+}
+
+// Desactivar no borra: el bloque se queda en el archivo comentado y la
+// maquina no pasa por el. Los hijos NO le siguen: dejar de cortar un contorno
+// no significa dejar de cortar los agujeros que lleva dentro.
+// Cada bloque activo tiene que quedarse donde esta, pase lo que pase con los
+// demas. Al encender o apagar uno, se recorre el programa en orden llevando la
+// posicion real de la maquina y se reescribe el traslado de entrada de cada
+// bloque activo para que siga aterrizando en su sitio de siempre.
+//
+// Hay que llamarla ANTES de remedir, mientras los destinos absolutos que dejo
+// el paso modal anterior siguen siendo validos.
+function reanclarBloques(){
+  if(!prog) return 0;
+  let px = 0, py = 0, n = 0;
+  prog.preambulo.forEach(function(it){ if(it.mov){ px = it.mov.a.x; py = it.mov.a.y; } });
+  prog.lineal.forEach(function(b){
+    const prim = b.items.find(function(it){ return it.mov; });
+    let ult = null;
+    b.items.forEach(function(it){ if(it.mov) ult = it.mov; });
+    if(b.off) return;                       // apagado: no se ejecuta, no mueve
+    if(prim){
+      const inc = (prim.modo === 'inc');
+      const antes = prim.raw;
+      prim.raw = fijarXY(prim.raw,
+        inc ? (prim.mov.a.x - px) : prim.mov.a.x,
+        inc ? (prim.mov.a.y - py) : prim.mov.a.y, inc);
+      if(prim.raw !== antes){ reTokenizar(prim); n++; }
+    }
+    if(ult){ px = ult.a.x; py = ult.a.y; }
+  });
+  return n;
+}
+
+function alternarBloque(b){
+  if(!prog) return;
+  try{ guardarTextoSiSucio(); }catch(_){ renderLista(); return; }
+  pushUndo();
+  b.off = !b.off;
+  b.items.forEach(function(it){ it.off = b.off; });
+  // Antes de volver a medir: los que siguen tienen que seguir donde estaban.
+  const reanclados = reanclarBloques();
+  seleccionado = -1;
+  trasEditar(b.titulo + (b.off ? ' desactivado: se queda en el archivo comentado.'
+                               : ' activado.') +
+             (reanclados ? (' Reanclados ' + reanclados + ' traslado(s).') : ''));
+}
+
+function girarBloque(b){
+  if(!prog) return;
+  try{ guardarTextoSiSucio(); }catch(_){ renderLista(); return; }
+  pushUndo();
+  if(!invertirBloque(b)){
+    undoStack.pop(); actualizarUndo();
+    setStatus('Esa pieza no tiene ningún tramo de corte que invertir.', 'err');
+    return;
+  }
+  seleccionado = -1;
+  // b.horario no se recalcula hasta que trasEditar vuelve a medir, asi que el
+  // sentido nuevo es el contrario del que hay ahora mismo.
+  const sentidoNuevo = b.horario ? 'antihorario' : 'horario';
+  trasEditar(b.titulo + ' invertido: ahora se corta en sentido ' + sentidoNuevo + '.');
+}
+
+function trasCambiarOrden(msg){
+  pararSim();
+  recalcular(prog);
+  prepararSim();               // el recorrido cambio: hay que rehacerlo
+  volcarTexto();
+  renderLista(); revisar(); renderDatos(); render();
+  podarUndo();
+  setStatus(msg, 'ok');
+}
+
+// Si el texto tiene cambios a mano sin aplicar, se avisa antes de pisarlo.
+function guardarTextoSiSucio(){
+  if(!textoSucio) return;
+  const sigue = window.confirm('El G-code de la derecha tiene cambios escritos a mano sin aplicar.\n\n¿Descartarlos y seguir?');
+  if(!sigue) throw new Error('cancelado');
+  textoSucio = false;
+}
+
+// ------------------------------------------------------------ texto
+// El recuadro se estira siempre hasta que cabe el programa entero, y se
+// reajusta en cada cambio: al reordenar, al escribir a mano y al abrir.
+function ajustarAltoTexto(){
+  const ta = document.getElementById('gcodeTexto');
+  ta.style.height = 'auto';
+  ta.style.height = (ta.scrollHeight + 2) + 'px';
+}
+
+function volcarTexto(){
+  const ta = document.getElementById('gcodeTexto');
+  ta.value = escribirPrograma();
+  textoSucio = false;
+  marcarNota();
+  ajustarAltoTexto();
+}
+
+function marcarNota(){
+  const n = document.getElementById('gcodeNota');
+  if(!prog){ n.textContent = '—'; n.className = 'gcode-nota'; return; }
+  if(textoSucio){
+    n.textContent = 'editado a mano — pulsa «Aplicar texto»';
+    n.className = 'gcode-nota sucio';
+  } else {
+    const l = document.getElementById('gcodeTexto').value.split('\n').length;
+    n.textContent = l + ' líneas · ' + prog.bloques.length + ' pieza(s)';
+    n.className = 'gcode-nota';
+  }
+}
+
+// ============================================================== SIMULACION
+let simPasos = [], simT = 0, simTotal = 0, simCorriendo = false, simUltimo = 0, simRAF = null;
+
+function prepararSim(){
+  simPasos = construirPasos();
+  simTotal = tiempoDelPrograma(simPasos);
+  const hay = simPasos.length > 0;
+  document.getElementById('simPlayBtn').disabled = !hay;
+  document.getElementById('simResetBtn').disabled = !hay;
+  actualizarSimUI();          // el total cambia al reordenar: que se vea
+}
+
+function pararSim(){
+  simCorriendo = false;
+  if(simRAF) cancelAnimationFrame(simRAF);
+  simRAF = null;
+  simT = 0;
+  actualizarSimUI();
+  document.getElementById('simPlayBtn').textContent = '▶ Probar';
+}
+
+function alternarSim(){
+  if(!simPasos.length) return;
+  if(simCorriendo){
+    simCorriendo = false;
+    if(simRAF) cancelAnimationFrame(simRAF);
+    simRAF = null;
+    document.getElementById('simPlayBtn').textContent = '▶ Seguir';
+    return;
+  }
+  if(simT >= simTotal) simT = 0;
+  simCorriendo = true;
+  simUltimo = performance.now();
+  document.getElementById('simPlayBtn').textContent = '⏸ Pausa';
+  simRAF = requestAnimationFrame(pasoSim);
+}
+
+function pasoSim(ahora){
+  if(!simCorriendo) return;
+  let dt = ahora - simUltimo;
+  simUltimo = ahora;
+  // Con la pestaña oculta (al pasarse a otro programa de GCoder) el navegador
+  // deja de dar fotogramas, y al volver llega uno con el hueco entero dentro.
+  // Ese rato no es tiempo de maquina: la prueba se queda donde estaba.
+  if(dt > 250) dt = 0;
+  simT += dt * velocidad;
+  if(simT >= simTotal){
+    simT = simTotal;
+    simCorriendo = false;
+    document.getElementById('simPlayBtn').textContent = '↺ Repetir';
+    setStatus('Recorrido terminado (' + tiempoTexto(simTotal) + ' de máquina).', 'ok');
+  }
+  actualizarSimUI();
+  render();
+  if(simCorriendo) simRAF = requestAnimationFrame(pasoSim);
+}
+
+function actualizarSimUI(){
+  const pct = simTotal > 0 ? (simT / simTotal * 100) : 0;
+  document.getElementById('simBarra').style.width = pct.toFixed(1) + '%';
+  document.getElementById('simTiempo').textContent = tiempoTexto(simT) + ' / ' + tiempoTexto(simTotal);
+  const e = estadoSim();
+  document.getElementById('simPaso').textContent =
+    e.idx < 0 ? '—' : ('bloque ' + (simPasos[e.idx].bloque + 1) + ' · ' +
+                       (simPasos[e.idx].tipo === 'corte' ? 'cortando'
+                        : simPasos[e.idx].tipo === 'espera' ? 'esperando' : 'en vacío'));
+}
+
+// Donde esta la maquina ahora mismo: que paso se esta ejecutando y que
+// fraccion lleva recorrida. Con eso el dibujo se corta por la mitad exacta.
+function estadoSim(){
+  if(simT <= 0) return { idx:-1, frac:0 };
+  let acum = 0;
+  for(let i = 0; i < simPasos.length; i++){
+    const ms = simPasos[i].ms || 0;
+    if(simT < acum + ms || i === simPasos.length - 1){
+      return { idx:i, frac: ms > 0 ? Math.min(1, (simT - acum) / ms) : 1 };
+    }
+    acum += ms;
+  }
+  return { idx:simPasos.length - 1, frac:1 };
+}
+
+function puntoEnPaso(paso, frac){
+  if(paso.tipo === 'espera') return { x:paso.x, y:paso.y };
+  const pts = paso.pts;
+  if(pts.length < 2) return pts[0] || { x:0, y:0 };
+  // repartido por longitud, para que la velocidad se vea constante en los arcos
+  let total = 0;
+  const largos = [];
+  for(let i = 1; i < pts.length; i++){
+    const d = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+    largos.push(d); total += d;
+  }
+  if(total < 1e-12) return pts[pts.length-1];
+  let objetivo = total * frac, acum = 0;
+  for(let i = 0; i < largos.length; i++){
+    if(acum + largos[i] >= objetivo){
+      const t = largos[i] > 0 ? (objetivo - acum) / largos[i] : 0;
+      return { x: pts[i].x + (pts[i+1].x - pts[i].x)*t,
+               y: pts[i].y + (pts[i+1].y - pts[i].y)*t };
+    }
+    acum += largos[i];
+  }
+  return pts[pts.length-1];
+}
+
+function cortarPuntos(pts, frac){
+  if(frac >= 1) return pts;
+  if(frac <= 0) return [pts[0]];
+  let total = 0;
+  const largos = [];
+  for(let i = 1; i < pts.length; i++){
+    const d = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+    largos.push(d); total += d;
+  }
+  if(total < 1e-12) return [pts[0]];
+  let objetivo = total * frac, acum = 0;
+  const out = [pts[0]];
+  for(let i = 0; i < largos.length; i++){
+    if(acum + largos[i] >= objetivo){
+      const t = largos[i] > 0 ? (objetivo - acum) / largos[i] : 0;
+      out.push({ x: pts[i].x + (pts[i+1].x - pts[i].x)*t,
+                 y: pts[i].y + (pts[i+1].y - pts[i].y)*t });
+      break;
+    }
+    out.push(pts[i+1]);
+    acum += largos[i];
+  }
+  return out;
+}
+
+function renderVelocidades(){
+  const cont = document.getElementById('velFila');
+  cont.innerHTML = '';
+  VELOCIDADES.forEach(function(v){
+    const b = nodo('div', 'vel-opt' + (velocidad === v ? ' active' : ''), '×' + v);
+    b.title = v === 1 ? 'Tiempo real: la velocidad que marcan las F del archivo' : v + ' veces más rápido que la máquina';
+    b.addEventListener('click', function(){ velocidad = v; renderVelocidades(); });
+    cont.appendChild(b);
+  });
+}
+
+// ============================================================== DIBUJO
+function camaraInicial(){ return { cx:0, cy:0, scale:20 }; }
+
+function limitesContenido(){
+  const pasos = construirPasos();
+  const xs = [], ys = [];
+  pasos.forEach(function(p){
+    if(!p.pts) return;
+    p.pts.forEach(function(q){ xs.push(q.x); ys.push(q.y); });
+  });
+  // Lo desactivado sigue viendose, asi que tambien cuenta para encuadrar.
+  if(prog) prog.lineal.forEach(function(b){
+    if(!b.off) return;
+    trazosDe(b).forEach(function(t){ t.forEach(function(q){ xs.push(q.x); ys.push(q.y); }); });
+    if(b.punto){ xs.push(b.punto.x); ys.push(b.punto.y); }
+  });
+  if(!xs.length) return null;
+  const minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+  const minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+  if((maxX-minX) < 1e-6 && (maxY-minY) < 1e-6) return null;
+  const span = Math.max(Math.max(maxX-minX, 0.5), Math.max(maxY-minY, 0.5));
+  const scale = Math.min((Math.min(W, H) - PAD*2) / span, 400);
+  return { cx:(minX+maxX)/2, cy:(minY+maxY)/2, scale:scale };
+}
+
+function ajustarVista(){
+  const b = limitesContenido();
+  if(!b){ setStatus('No hay recorrido que encuadrar.', ''); return; }
+  camera = b; camaraLista = true;
+  render();
+}
+
+function render(){
+  limpiarSvg();
+  if(!camera) camera = camaraInicial();
+  const scale = camera.scale, cxMid = camera.cx, cyMid = camera.cy;
+  const aPantalla = function(x, y){ return [W/2 + (x-cxMid)*scale, H/2 - (y-cyMid)*scale]; };
+
+  dibujarRejilla(scale, cxMid, cyMid);
+
+  const pasos = simPasos.length ? simPasos : construirPasos();
+  const est = estadoSim();
+  const enMarcha = simT > 0;
+
+  // 1) el recorrido
+  pasos.forEach(function(paso, i){
+    if(paso.tipo === 'espera') return;
+    if(enMarcha && i > est.idx) return;                 // aun no ha llegado
+    const parcial = (enMarcha && i === est.idx) ? est.frac : 1;
+    const pts = cortarPuntos(paso.pts, parcial);
+    if(pts.length < 2) return;
+
+    const esCorte = paso.tipo === 'corte';
+    if(esCorte && !capas.cortes.visible) return;
+    if(!esCorte && !capas.traslado.visible) return;
+
+    const b = prog.lineal[paso.bloque];
+    const peligroso = !esCorte && prog.trasladosMalos &&
+      prog.trasladosMalos[claveTraslado(paso.pts[0], paso.pts[paso.pts.length-1])];
+    const atenuado = (seleccionado >= 0 && paso.bloque !== seleccionado);
+    const d = pts.map(function(p, k){
+      const s = aPantalla(p.x, p.y);
+      return (k ? 'L' : 'M') + s[0].toFixed(2) + ' ' + s[1].toFixed(2);
+    }).join(' ');
+
+    const linea = el('path', {
+      d: d, fill:'none',
+      stroke: esCorte ? (b ? b.color : capas.cortes.color)
+                      : (peligroso ? '#c1462f' : capas.traslado.color),
+      'stroke-width': esCorte ? (paso.bloque === seleccionado ? 3.4 : 2.2) : (peligroso ? 2.2 : 1.2),
+      'stroke-linecap':'round', 'stroke-linejoin':'round',
+      opacity: atenuado ? 0.18 : (esCorte ? 0.95 : (peligroso ? 0.95 : 0.55))
+    });
+    if(!esCorte) linea.setAttribute('stroke-dasharray', '5 4');
+    svg.appendChild(linea);
+  });
+
+  // 2) sentido de corte: una flecha en el primer tramo de cada bloque
+  if(capas.sentido.visible && prog){
+    prog.lineal.forEach(function(b, bi){
+      const p = pasos.find(function(q){ return q.bloque === bi && q.tipo === 'corte'; });
+      if(!p || p.pts.length < 2) return;
+      if(enMarcha && pasos.indexOf(p) > est.idx) return;
+      const mid = Math.max(1, Math.floor(p.pts.length/2));
+      const a = p.pts[mid-1], c = p.pts[mid];
+      const sa = aPantalla(a.x, a.y), sc = aPantalla(c.x, c.y);
+      const ang = Math.atan2(sc[1]-sa[1], sc[0]-sa[0]);
+      const L = 7;
+      const g = el('path', {
+        d: 'M' + (sc[0] - L*Math.cos(ang - 0.4)) + ' ' + (sc[1] - L*Math.sin(ang - 0.4)) +
+           ' L' + sc[0] + ' ' + sc[1] +
+           ' L' + (sc[0] - L*Math.cos(ang + 0.4)) + ' ' + (sc[1] - L*Math.sin(ang + 0.4)),
+        fill:'none', stroke:b.color, 'stroke-width':2, 'stroke-linecap':'round',
+        opacity: (seleccionado >= 0 && bi !== seleccionado) ? 0.2 : 0.85
+      });
+      svg.appendChild(g);
+    });
+  }
+
+  // 3) lo desactivado no desaparece: se ve en gris y a trazos
+  if(prog){
+    prog.lineal.forEach(function(b, bi){
+      if(!b.off) return;
+      const at = (seleccionado >= 0 && bi !== seleccionado);
+      const op = at ? 0.22 : 0.85;
+      trazosDe(b).forEach(function(pts){
+        if(pts.length < 2) return;
+        const d = pts.map(function(q, k){
+          const c = aPantalla(q.x, q.y);
+          return (k ? 'L' : 'M') + c[0].toFixed(2) + ' ' + c[1].toFixed(2);
+        }).join(' ');
+        svg.appendChild(el('path', { d:d, fill:'none', stroke:'#9b9890', 'stroke-width':1.7,
+          'stroke-dasharray':'6 5', 'stroke-linecap':'round', opacity:op }));
+      });
+      if(b.punto){
+        const c = aPantalla(b.punto.x, b.punto.y);
+        svg.appendChild(el('circle', { cx:c[0], cy:c[1], r:5.5, fill:'none', stroke:'#9b9890',
+          'stroke-width':1.7, 'stroke-dasharray':'3 3', opacity:op }));
+      }
+    });
+  }
+
+  // 4) los puntos de soldadura no dejan trazo: se marcan aparte
+  if(prog && capas.cortes.visible){
+    prog.lineal.forEach(function(b, bi){
+      if(b.tipo !== 'punto' || !b.punto) return;
+      if(enMarcha){
+        const q = pasos.find(function(z){ return z.bloque === bi; });
+        if(q && pasos.indexOf(q) > est.idx) return;
+      }
+      const s = aPantalla(b.punto.x, b.punto.y);
+      const at = (seleccionado >= 0 && bi !== seleccionado);
+      const g = el('g', { opacity: at ? 0.2 : 1 });
+      g.appendChild(el('circle', { cx:s[0], cy:s[1], r:6, fill:'#ffffff',
+                                   stroke:b.color, 'stroke-width':2.2 }));
+      g.appendChild(el('circle', { cx:s[0], cy:s[1], r:2, fill:b.color }));
+      svg.appendChild(g);
+    });
+  }
+
+  // 5) numeros de orden en el arranque de cada bloque
+  if(capas.numeros.visible && prog){
+    prog.lineal.forEach(function(b, bi){
+      if(b.off) return;                       // no tiene puesto: no se corta
+      const p = pasos.find(function(q){ return q.bloque === bi && q.tipo === 'corte'; });
+      // Un punto de soldadura no tiene trazo de corte: la chapa va sobre el.
+      if(!p && !(b.tipo === 'punto' && b.punto)) return;
+      if(p && enMarcha && pasos.indexOf(p) > est.idx) return;
+      if(!p && enMarcha){
+        const q = pasos.find(function(z){ return z.bloque === bi; });
+        if(q && pasos.indexOf(q) > est.idx) return;
+      }
+      const orig = p ? p.pts[0] : b.punto;
+      const s = aPantalla(orig.x, orig.y);
+      const atenuado = (seleccionado >= 0 && bi !== seleccionado);
+      const g = el('g', { opacity: atenuado ? 0.25 : 1 });
+      g.appendChild(el('circle', { cx:s[0], cy:s[1], r:9, fill:b.color, stroke:'#fff', 'stroke-width':1.6 }));
+      const t = el('text', { x:s[0], y:s[1]+3.6, 'text-anchor':'middle', 'font-size':10,
+                             'font-family':'IBM Plex Mono, monospace', 'font-weight':700, fill:'#fff' });
+      t.textContent = String(b.puesto);
+      g.appendChild(t);
+      svg.appendChild(g);
+    });
+  }
+
+  // 4) el cabezal, donde va la maquina ahora mismo
+  if(enMarcha && est.idx >= 0){
+    const paso = simPasos[est.idx];
+    const p = puntoEnPaso(paso, est.frac);
+    const s = aPantalla(p.x, p.y);
+    const cortando = paso.tipo === 'corte';
+    svg.appendChild(el('circle', { cx:s[0], cy:s[1], r:11, fill:'none',
+      stroke: cortando ? '#d9541f' : '#1f8f84', 'stroke-width':1.2, opacity:0.45 }));
+    svg.appendChild(el('circle', { cx:s[0], cy:s[1], r:4.6,
+      fill: cortando ? '#d9541f' : '#1f8f84', stroke:'#fff', 'stroke-width':1.8 }));
+  }
+
+  dibujarReglas(scale, cxMid, cyMid);
+
+  document.getElementById('etiquetaEscala').textContent = '1 ' + unidad() + ' = ' + scale.toFixed(2) + ' px';
+  document.getElementById('badgeEstado').textContent = !prog ? 'sin programa'
+    : (prog.bloques.length + ' pieza(s)' + (enMarcha ? ' · probando' : ''));
+}
+
+// ---------------------------------------------------- rejilla y reglas (mm)
+function valorBonito(bruto){
+  if(!isFinite(bruto) || bruto <= 0) return 1;
+  const exp = Math.floor(Math.log10(bruto));
+  const base = bruto / Math.pow(10, exp);
+  let b;
+  if(base < 1.5) b = 1; else if(base < 3.5) b = 2; else if(base < 7.5) b = 5; else b = 10;
+  return b * Math.pow(10, exp);
+}
+
+function dibujarRejilla(scale, cxMid, cyMid){
+  const mundoX = function(sx){ return cxMid + (sx-W/2)/scale; };
+  const mundoY = function(sy){ return cyMid - (sy-H/2)/scale; };
+  const xMin = mundoX(0), xMax = mundoX(W);
+  const yMin = mundoY(H), yMax = mundoY(0);
+  let paso = 1; const cadaMayor = 5;
+  if(scale < 4) paso = valorBonito(6/scale);
+  const g = el('g', {});
+  for(let k = Math.floor(xMin/paso); k <= Math.ceil(xMax/paso); k++){
+    const xw = k*paso, sx = W/2 + (xw-cxMid)*scale;
+    const mayor = (Math.round(xw/paso) % cadaMayor === 0);
+    g.appendChild(el('line', { x1:sx, y1:0, x2:sx, y2:H, stroke: mayor?'#cbc7b9':'#e3e0d6', 'stroke-width':1 }));
+  }
+  for(let k = Math.floor(yMin/paso); k <= Math.ceil(yMax/paso); k++){
+    const yw = k*paso, sy = H/2 - (yw-cyMid)*scale;
+    const mayor = (Math.round(yw/paso) % cadaMayor === 0);
+    g.appendChild(el('line', { x1:0, y1:sy, x2:W, y2:sy, stroke: mayor?'#cbc7b9':'#e3e0d6', 'stroke-width':1 }));
+  }
+  const sx0 = W/2 + (0-cxMid)*scale, sy0 = H/2 - (0-cyMid)*scale;
+  if(sx0 >= 0 && sx0 <= W) g.appendChild(el('line', { x1:sx0, y1:0, x2:sx0, y2:H, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  if(sy0 >= 0 && sy0 <= H) g.appendChild(el('line', { x1:0, y1:sy0, x2:W, y2:sy0, stroke:'#20221f', 'stroke-width':1.3, opacity:0.5 }));
+  svg.appendChild(g);
+}
+
+const RULER_H = 26;
+function dibujarReglas(scale, cxMid, cyMid){
+  const paso = valorBonito(70/scale);
+  const dec = paso < 1 ? 2 : (paso < 10 ? 1 : 0);
+  const fs = 12;
+  const mundoX = function(sx){ return cxMid + (sx-W/2)/scale; };
+  const mundoY = function(sy){ return cyMid - (sy-H/2)/scale; };
+
+  const yMin0 = mundoY(H-RULER_H), yMax0 = mundoY(0);
+  const kyIni = Math.ceil(yMin0/paso), kyFin = Math.floor(yMax0/paso);
+  let maxLen = 0;
+  for(let k = kyIni; k <= kyFin; k++) maxLen = Math.max(maxLen, (k*paso).toFixed(dec).length);
+  const RULER_W = Math.max(26, maxLen*fs*0.62 + 14);
+  const xMin = mundoX(RULER_W), xMax = mundoX(W);
+
+  // Con preserveAspectRatio "meet" el SVG puede ser mas ancho que el viewBox y
+  // overflow:hidden recorta a la CAJA, no al viewBox: sin estas tapas el dibujo
+  // se seguiria viendo fuera de las reglas.
+  const FUERA = 4000;
+  [ { x:W, y:-FUERA, width:FUERA, height:H+2*FUERA },
+    { x:-FUERA, y:-FUERA, width:W+2*FUERA, height:FUERA }
+  ].forEach(function(a){
+    const m = el('rect', Object.assign({ fill:'#ffffff' }, a));
+    m.style.pointerEvents = 'none';
+    svg.appendChild(m);
+  });
+  const bandaH = el('rect', { x:-FUERA, y:H-RULER_H, width:W+2*FUERA, height:RULER_H+FUERA, fill:'#ffffff' });
+  const bandaV = el('rect', { x:-FUERA, y:-FUERA, width:RULER_W+FUERA, height:H+2*FUERA, fill:'#ffffff' });
+  bandaH.style.pointerEvents = 'none'; bandaV.style.pointerEvents = 'none';
+  svg.appendChild(bandaH); svg.appendChild(bandaV);
+  svg.appendChild(el('line', { x1:-FUERA, y1:H-RULER_H, x2:W+FUERA, y2:H-RULER_H, stroke:'#20221f', 'stroke-width':1.5 }));
+  svg.appendChild(el('line', { x1:RULER_W, y1:-FUERA, x2:RULER_W, y2:H+FUERA, stroke:'#20221f', 'stroke-width':1.5 }));
+
+  for(let k = Math.ceil(xMin/paso); k <= Math.floor(xMax/paso); k++){
+    const xw = k*paso, sx = W/2 + (xw-cxMid)*scale;
+    if(sx < RULER_W) continue;
+    svg.appendChild(el('line', { x1:sx, y1:H-RULER_H, x2:sx, y2:H-RULER_H+6, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:sx, y:H-6, 'text-anchor':'middle', 'font-size':fs,
+                           'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = xw.toFixed(dec); svg.appendChild(t);
+  }
+  for(let k = kyIni; k <= kyFin; k++){
+    const yw = k*paso, sy = H/2 - (yw-cyMid)*scale;
+    if(sy > H-RULER_H) continue;
+    svg.appendChild(el('line', { x1:RULER_W-6, y1:sy, x2:RULER_W, y2:sy, stroke:'#20221f', 'stroke-width':1.3 }));
+    const t = el('text', { x:RULER_W-9, y:sy+3, 'text-anchor':'end', 'font-size':fs,
+                           'font-family':'IBM Plex Mono, monospace', fill:'#151714', 'font-weight':600 });
+    t.textContent = yw.toFixed(dec); svg.appendChild(t);
+  }
+  const esq = el('text', { x:7, y:H-6, 'font-size':18, 'font-family':'IBM Plex Mono, monospace',
+                           'font-weight':700, fill:'#111111' });
+  esq.textContent = unidad(); svg.appendChild(esq);
+}
+
+// ---------------------------------------------------------- zoom y arrastre
+function clientAsvg(cx, cy){
+  const pt = svg.createSVGPoint();
+  pt.x = cx; pt.y = cy;
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return { x:0, y:0 };
+  const p = pt.matrixTransform(ctm.inverse());
+  return { x:p.x, y:p.y };
+}
+function zoomBy(f){
+  if(!camera) return;
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*f));
+  render();
+}
+function iniciarPan(e){
+  if(!camera) return;
+  isPanning = true;
+  svg.classList.add('panning');
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  panStartPt = clientAsvg(cx, cy);
+  panStartCamera = { cx:camera.cx, cy:camera.cy };
+  window.addEventListener('mousemove', moverPan);
+  window.addEventListener('mouseup', terminarPan);
+  window.addEventListener('touchmove', moverPan, { passive:false });
+  window.addEventListener('touchend', terminarPan);
+}
+function moverPan(e){
+  if(!isPanning) return;
+  e.preventDefault();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  const cur = clientAsvg(cx, cy);
+  camera.cx = panStartCamera.cx - (cur.x - panStartPt.x)/camera.scale;
+  camera.cy = panStartCamera.cy + (cur.y - panStartPt.y)/camera.scale;
+  render();
+}
+function terminarPan(){
+  isPanning = false;
+  svg.classList.remove('panning');
+  window.removeEventListener('mousemove', moverPan);
+  window.removeEventListener('mouseup', terminarPan);
+  window.removeEventListener('touchmove', moverPan);
+  window.removeEventListener('touchend', terminarPan);
+}
+function ruedaZoom(e){
+  if(!camera) return;
+  e.preventDefault();
+  const pt = clientAsvg(e.clientX, e.clientY);
+  const mx = camera.cx + (pt.x-W/2)/camera.scale;
+  const my = camera.cy - (pt.y-H/2)/camera.scale;
+  const f = e.deltaY < 0 ? 1.12 : (1/1.12);
+  camera.scale = Math.min(2000, Math.max(0.02, camera.scale*f));
+  camera.cx = mx - (pt.x-W/2)/camera.scale;
+  camera.cy = my + (pt.y-H/2)/camera.scale;
+  render();
+}
+
+// ============================================================== ARCHIVO
+
+/* Que NO es un programa de corte.
+
+   Este era el unico de los cuatro programas que se tragaba cualquier cosa: a
+   una lamina medida le contestaba "1 bloque de corte" —habia leido el contorno
+   que la lamina lleva dentro— y a un dibujo del Disenador, "0 bloques". Abrir
+   el archivo que no toca y creer el resultado es exactamente el problema que
+   hubo en el taller, asi que aqui se dice que no y se dice a donde va.
+
+   Ojo con la lamina: la marca cuenta solo si esta SOLA en su linea. Un
+   recorrido de soldadura lleva sus medidas dentro, comentadas ("; [CIRCULOS]"),
+   y ese si se abre aqui. Es la misma regla que usa el servidor para decidir
+   que es cada archivo, para que los dos digan siempre lo mismo. */
+function noEsDeAqui(texto){
+  const cabeza = texto.slice(0, 20000);
+  if(/^[ 	]*\[CIRCULOS\][ 	]*$/m.test(cabeza)){
+    return 'Esto es una l\u00e1mina medida, no un programa de corte: son los ' +
+           'agujeros con sus bordes, no un recorrido. \u00c1brela en Soldadura L\u00e1ser.';
+  }
+  if(/"partName"/.test(cabeza) || (/"entities"/.test(cabeza) && /"points"/.test(cabeza))){
+    return 'Esto es un dibujo del Dise\u00f1ador de Contornos, no G-code. ' +
+           '\u00c1brelo ah\u00ed, y desde ah\u00ed genera el corte.';
+  }
+  if(!/^\s*[GgMm]\d/m.test(cabeza)){
+    return 'Aqu\u00ed no hay G-code: ninguna l\u00ednea empieza por G o por M.';
+  }
+  return '';
+}
+
+function cargarTexto(texto, nombre){
+  const pega = noEsDeAqui(texto);
+  if(pega){ setStatus(pega, 'err'); return; }
+  try{
+    prog = leerPrograma(texto);
+  }catch(err){
+    setStatus('No se pudo interpretar el archivo.', 'err');
+    return;
+  }
+  ordenOriginal = prog.bloques.slice();      // plano, tal como venia el archivo
+  // Abrir (o aplicar el texto) rehace el programa entero: las fotos anteriores
+  // apuntan a lineas que ya no existen, asi que la pila se vacia.
+  undoStack = []; redoStack = []; actualizarUndo();
+  seleccionado = -1;
+  if(nombre) document.getElementById('nombreArchivo').value = nombre.replace(/\.(txt|nc|gcode|tap|cnc)$/i, '');
+  camaraLista = false;
+  pararSim();
+  prepararSim();
+  volcarTexto();
+  renderLista(); revisar(); renderDatos(); renderVariables();
+  const b = limitesContenido();
+  if(b){ camera = b; camaraLista = true; }
+  render();
+  document.getElementById('hintBar').innerHTML = (prog.naturaleza === 'puntos')
+    ? 'Arrastra los puntos para cambiar el orden de soldadura. <b>Probar</b> lo recorre en vivo.'
+    : 'Arrastra una pieza a la <b>boca</b> de otra para que la abrace: lo abrazado se corta antes. <b>Probar</b> lo recorre en vivo.';
+  setStatus('Leído: ' + prog.items.length + ' líneas, ' + prog.bloques.length + ' bloque(s) de corte.', 'ok');
+}
+
+function aplicarTexto(){
+  const ta = document.getElementById('gcodeTexto');
+  if(!ta.value.trim()){ setStatus('El texto está vacío.', 'err'); return; }
+  cargarTexto(ta.value, null);
+  setStatus('Texto aplicado: se ha vuelto a interpretar el programa.', 'ok');
+}
+
+function guardar(){
+  // Al arrancar, prog YA existe: es un programa vacio. Mirar solo si
+  // existe dejaba guardar cero bytes encima del archivo recien abierto
+  // si le dabas a Guardar antes de que terminara de cargar.
+  if(!prog || !prog.items || !prog.items.length){
+    setStatus('No hay nada que guardar: abre un programa primero.', 'err');
+    return;
+  }
+  const nombre = sanitizeFilename(document.getElementById('nombreArchivo').value) || 'programa';
+  downloadTextFile(escribirPrograma(), nombre + '.txt');
+  setStatus('Guardado como "' + nombre + '.txt".', 'ok');
+}
+
+// ============================================================== ARRANQUE
+document.getElementById('abrirBtn').addEventListener('click', function(){
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = function(ev){ cargarTexto(ev.target.result, f.name); };
+  r.onerror = function(){ setStatus('No se pudo leer el archivo.', 'err'); };
+  r.readAsText(f);
+  e.target.value = '';
+});
+document.getElementById('deshacerBtn').addEventListener('click', deshacer);
+document.getElementById('rehacerBtn').addEventListener('click', rehacer);
+document.getElementById('guardarBtn').addEventListener('click', guardar);
+document.getElementById('ordenOriginalBtn').addEventListener('click', function(){
+  if(!prog || !ordenOriginal){ setStatus('No hay programa cargado.', 'err'); return; }
+  if(ordenEsElDelArchivo()){
+    setStatus('El orden ya es el del archivo: no hay nada que restaurar.', '');
+    return;
+  }
+  try{ guardarTextoSiSucio(); }catch(_){ return; }
+  pushUndo();
+
+  // Se cuenta lo que se deshace para poder decirlo: un boton que siempre dice
+  // "hecho" no se distingue de uno averiado.
+  const encajes = prog.bloques.filter(function(b){ return b.hijos.length; }).length;
+  const movidas = prog.lineal.filter(function(b, i){ return b !== ordenOriginal[i]; }).length;
+
+  prog.bloques.forEach(function(b){ b.hijos = []; });
+  prog.raiz = ordenOriginal.slice();
+  recalcular(prog);
+  seleccionado = -1;
+
+  const partes = [];
+  if(movidas) partes.push(movidas + ' pieza(s) al orden del archivo');
+  if(encajes) partes.push('deshecho(s) ' + encajes + ' encaje(s)');
+  trasCambiarOrden(partes.join(' · ') + '. Las variables y los interruptores no se tocan.');
+});
+document.getElementById('ordenarBtn').addEventListener('click', function(){
+  try{ encajarPorGeometria(); }catch(_){}
+});
+document.getElementById('evitarBtn').addEventListener('click', function(){
+  try{ ordenarEvitandoLoCortado(); }catch(_){}
+});
+document.getElementById('aplicarBtn').addEventListener('click', aplicarTexto);
+document.getElementById('revertirBtn').addEventListener('click', function(){
+  if(!prog){ setStatus('No hay programa cargado.', 'err'); return; }
+  volcarTexto();
+  setStatus('Descartados los cambios escritos a mano.', '');
+});
+document.getElementById('plegarBtn').addEventListener('click', function(){ plegarTodo(true); });
+document.getElementById('desplegarBtn').addEventListener('click', function(){ plegarTodo(false); });
+document.getElementById('gcodeTexto').addEventListener('input', function(){
+  textoSucio = true;
+  marcarNota();
+  ajustarAltoTexto();          // crece o encoge segun se escribe
+});
+document.getElementById('simPlayBtn').addEventListener('click', alternarSim);
+document.getElementById('simResetBtn').addEventListener('click', function(){
+  pararSim(); render();
+});
+document.getElementById('zoomInBtn').addEventListener('click', function(){ zoomBy(1.25); });
+document.getElementById('zoomOutBtn').addEventListener('click', function(){ zoomBy(1/1.25); });
+document.getElementById('zoomFitBtn').addEventListener('click', ajustarVista);
+svg.addEventListener('mousedown', iniciarPan);
+svg.addEventListener('touchstart', iniciarPan, { passive:false });
+svg.addEventListener('wheel', ruedaZoom, { passive:false });
+
+window.addEventListener('keydown', function(e){
+  const enCampo = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+  if(enCampo) return;
+  if(e.key === ' '){ e.preventDefault(); alternarSim(); }
+  else if(e.key === 'Escape'){ pararSim(); render(); }
+});
+
+// Ctrl+Z y Ctrl+Y valen tambien escribiendo en el recuadro del G-code: alli el
+// navegador ya deshace el texto, asi que solo se atiende fuera de los campos.
+window.addEventListener('keydown', function(e){
+  if(!(e.ctrlKey || e.metaKey)) return;
+  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase();
+  if(k === 'z' && !e.shiftKey){ e.preventDefault(); deshacer(); }
+  else if(k === 'y' || (k === 'z' && e.shiftKey)){ e.preventDefault(); rehacer(); }
+});
+
+renderCapas();
+renderVelocidades();
+renderVariables();
+prepararSim();
+render();
+setStatus('Listo. Abre un archivo .txt de G-code.', '');
+
+/* ================================================================
+   Puerta de GCoder. El hub llama aqui al abrir un archivo de un
+   proyecto; el guardado va por el puente, asi que no hace falta nada mas.
+   Si el programa se abre suelto, esto no lo llama nadie y no estorba.
+   ================================================================ */
+window.GCODER_ABRIR = function(nombre, texto){
+  cargarTexto(texto, nombre);
+};
+
+/* Un campo numerico que ya trae un numero no deja teclear un negativo.
+
+   Pinchas, el cursor cae detras de lo que hay, tecleas "-5" y quedaria "0-5",
+   que no es un numero: el navegador descarta la tecla sin decir nada y parece
+   que el guion este roto. Por eso los campos vacios si lo aceptaban y los
+   rellenos no.
+
+   Seleccionando el contenido al entrar, lo que tecleas sustituye a lo que
+   habia, que es lo que uno espera de un campo de dos cifras. Para corregir un
+   digito suelto, un segundo clic coloca el cursor como siempre. */
+document.addEventListener('focusin', function(ev){
+  const el = ev.target;
+  if(el && el.tagName === 'INPUT' && el.type === 'number'){
+    /* En un type=number solo vale select(): setSelectionRange revienta. */
+    try { el.select(); } catch(err) {}
+  }
+});
+
+</script>
+
+</body>
+</html>
+<!-- Diseñado por Rolando Ordoñez Rodriguez A01177301 -->

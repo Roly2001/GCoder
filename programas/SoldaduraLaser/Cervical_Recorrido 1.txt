@@ -1,0 +1,63 @@
+; Recorrido: Recorrido 1 (incremental)
+
+G21
+G90 G58 G01 X-4.3465 Y0.0420 Z0 A0 F400   ; -> Punto 3
+G91
+
+G04 P100                         ; espera
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera (sirve también de apertura del siguiente punto)
+
+G01 X2.2215 Y-0.3200   ; -> Punto 2
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X2.1250 Y0.2780   ; -> Punto 1
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X0.2682 Y-4.6544   ; -> Punto 8
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X0.7800 Y-4.8980   ; -> Punto 7
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X-3.2476 Y0.1010   ; -> Punto 6
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X-3.1999 Y-0.0601   ; -> Punto 5
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+G01 X0.7514 Y4.8965   ; -> Punto 4
+M08 (GAS ON)
+M07 (LASER ON)
+G04 P18                          ; solda
+M09 (LASER OFF, GAS OFF)
+G04 P100                         ; espera
+
+M30

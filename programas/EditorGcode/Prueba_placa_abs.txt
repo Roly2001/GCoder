@@ -1,0 +1,40 @@
+; Placa X
+; Ti Gr2 · 0.5 mm
+; F corte 150   ·   F traslado 900
+; Coordenadas absolutas (G90)
+
+G21
+G90 G55 X0 Y0 Z0 A0 F900
+
+; --- Circulo 1 (r 2) ---
+G01 X4 Y6 F900
+M08
+M07
+G03 X4 Y6 I2 J0 F150
+M09
+
+; --- Circulo 2 (r 3.5) ---
+G01 X11.5 Y10 F900
+M08
+M07
+G03 X11.5 Y10 I3.5 J0 F150
+M09
+
+; --- Circulo 3 (r 1.25) ---
+G01 X22.75 Y14 F900
+M08
+M07
+G03 X22.75 Y14 I1.25 J0 F150
+M09
+
+; --- Contorno exterior 1 ---
+G01 X0 Y0 F900
+M08
+M07
+G01 X0 Y20 F150
+G01 X30 Y20 F150
+G01 X30 Y0 F150
+G01 X0 Y0 F150
+M09
+
+M30

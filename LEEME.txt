@@ -1,0 +1,498 @@
+=====================================================================
+ GCODER - hub de programas
+=====================================================================
+
+QUE ES
+------
+Una ventana con pestanas. Cada pestana carga uno de tus programas HTML.
+Todo vive dentro de esta carpeta: los programas estan en programas/ y se
+apuntan desde programas.json con rutas relativas. Asi, para llevarte el
+sistema entero basta con copiar esta carpeta.
+
+
+COMO ANADIR UN PROGRAMA
+-----------------------
+Edita programas.json y anade un bloque:
+
+    {
+      "id": "sketch",
+      "nombre": "Sketch CAD",
+      "descripcion": "Dibujo tipo CAD con restricciones.",
+      "icono": "*",
+      "carpeta": "programas/MiSketch",
+      "archivo": "Sketch_v*.html",
+      "estado": "listo"
+    }
+
+  id          Identificador corto, sin espacios. Debe ser unico.
+  carpeta     Donde vive el programa, normalmente "programas/LoQueSea".
+              USA BARRAS NORMALES ( / ), no invertidas: en JSON dan
+              problemas. Al ser relativa, se resuelve respecto a este
+              mismo archivo, y por eso el conjunto es portable.
+  archivo     Patron del archivo. El asterisco permite versionar:
+              con "Sketch_v*.html" siempre se abre la version MAS
+              ALTA que exista (v1.10 cuenta como mayor que v1.9).
+              Si no versionas, pon el nombre exacto.
+  estado      "listo" o "pendiente". Los pendientes salen en gris
+              con un cartel, para que veas lo que falta.
+
+Guarda el archivo y vuelve a abrir GCoder. No hay que reconstruir
+nada: programas.json y hub.html se leen del disco cada vez.
+
+
+COMO SE ACTUALIZA UN PROGRAMA
+-----------------------------
+Guardas la version nueva en su carpeta (p.ej. SoldaduraLaser_v1.18.html)
+y ya esta. El boton "Recargar" de la barra superior vuelve a mirar el
+disco y carga la version mas alta sin cerrar GCoder.
+
+Arriba a la derecha se muestra siempre que archivo exacto esta cargado.
+
+
+COMO FUNCIONA POR DENTRO (y por que asi)
+----------------------------------------
+Los programas se cargan en <iframe>. La parte importante:
+
+  * Todo se sirve por http://127.0.0.1:<puerto aleatorio>, NO por
+    file://. Con file:// el navegador trata cada archivo como un
+    origen distinto y el hub no puede comunicarse con el programa
+    que carga: no puede leer su DOM ni inyectarle codigo. Con un
+    servidor local todos comparten origen y si puede.
+
+  * El servidor (servidor.py) monta cada programa en /p/<id>/
+    apuntando a su carpeta real, resuelta desde programas.json.
+    Incluye proteccion contra rutas que intenten salirse de su
+    carpeta.
+
+  * pywebview solo inyecta window.pywebview en la pagina principal,
+    no dentro de los iframes. Por eso el hub instala a mano el puente
+    de guardado en cada iframe cuando termina de cargar (funcion
+    instalarPuente en hub.html). Sin eso, las exportaciones de los
+    programas no abririan el dialogo nativo.
+
+  * Los iframes se crean la primera vez que abres su pestana y luego
+    se ocultan, no se destruyen. Asi cada programa conserva su estado
+    al cambiar de pestana: no pierdes el trabajo a medias.
+
+
+
+PROYECTOS: UNA CARPETA POR PIEZA
+--------------------------------
+Al abrir GCoder lo primero que sale es la pantalla de PROYECTOS. Cada
+proyecto es una PIEZA, y dentro esta todo lo suyo: la lamina medida, sus
+recorridos, su contorno y su programa de corte.
+
+     Proyectos/
+       Cervical/
+         proyecto.json
+         Cervical.lamina.txt        <- circulos medidos, contorno y materiales
+         Cervical.contorno.txt      <- el dibujo del Disenador
+         Cervical.corte.txt         <- G-code de corte
+         Cervical.recorrido-1.txt   <- G-code de soldadura
+
+Es por PIEZA y no por programa a proposito: la Cervical pasa por el
+Disenador, el Editor, la Soldadura y Origen. Una carpeta por programa
+repartiria una sola pieza en cuatro sitios, que es justo el lio que se
+quiso quitar.
+
+En cada tarjeta hay un boton por programa. Pulsas uno y se abre ESE
+programa con EL archivo que le corresponde; si hay varios que le sirven,
+te pregunta cual. Cada archivo tiene ademas sus propios botones a la
+derecha, para abrirlo en el programa que quieras.
+
+Arriba a la derecha, la pastilla dice que proyecto esta abierto. Todo lo
+que guardes desde cualquier programa cae en SU carpeta: te propone el
+nombre segun la convencion (Pieza.tipo.txt) y, si estabas editando un
+archivo del proyecto, te propone guardarlo encima. Nadie escribe rutas.
+
+COMO SE NOMBRAN LOS ARCHIVOS
+
+  Pieza.tipo.txt              contorno, corte, coordenadas, recalibrado
+  Pieza.recorrido-1.txt       si ya hay uno, el siguiente se numera
+  Pieza.lamina-AAAA-MM-DD.txt las LAMINAS llevan la FECHA
+
+Las laminas llevan fecha porque se vuelven a medir en cada corrida: lo que
+distingue una de otra es el dia, no un numero de orden. "Cervical.lamina-3"
+no dice nada; "Cervical.lamina-2026-09-03" dice de que dia es esa medicion.
+Si hay dos del mismo dia, la segunda se numera al final (-2).
+
+Por eso, al abrir una lamina de otro dia y guardarla, te propone la de HOY:
+vuelves a medir los huecos, guardas, y la medicion anterior se queda donde
+estaba. No se pisa nunca una corrida con otra.
+
+Los recorridos NO llevan fecha a proposito: suele haber varios del mismo dia
+(Recorrido 1, Recorrido 2 de la misma lamina) y ahi lo que los separa es el
+numero.
+
+Para crear un proyecto, la ultima tarjeta ("Nuevo proyecto"): escribe el
+nombre de la pieza y listo. Se crea la carpeta y queda abierto.
+
+Los proyectos viven SIEMPRE junto a GCoder.exe. Si copias la carpeta a
+otro equipo o a un USB, se van con ella.
+
+
+
+RECORRIDOS EN ORIGEN
+--------------------
+Origen no solo recalibra: tambien monta recorridos, igual que el programa de
+puntos de soldadura.
+
+En Parametros, pon la salida en "Recorrido nuevo" y aparece la seccion
+RECORRIDOS. Ahi:
+
+  * "+ Nuevo recorrido" crea uno. La primera vez se crea con TODOS los puntos,
+    que es lo que hacia antes; a partir de ahi los creas vacios.
+  * "+ Anadir puntos" y vas pulsando los puntos en el dibujo. Volver a pulsar
+    uno lo quita. Cuando termines, "Listo".
+  * Cada recorrido tiene SUS parametros: cero de pieza (G54..G59), absolutas o
+    incrementales, F de traslado y las dos esperas G04. No se pisan entre
+    ellos: puedes tener uno en G58 absoluto y otro en G56 incremental.
+  * Los puntos se ordenan con las flechas, y se quitan con la equis.
+  * Cada uno tiene su vista de G-code y su boton de exportar.
+
+En el dibujo se ven todos a la vez, cada uno de su color y con el numero de
+orden en cada punto. El que tengas seleccionado se ve entero y los demas
+atenuados; el seleccionado es tambien el que sale en el cuadro de G-code de
+abajo.
+
+Un recorrido exportado es un archivo NUEVO: no pisa el que abriste, aunque los
+dos sean recorridos. Lo decide el nombre que le pone el programa.
+
+
+CADA ARCHIVO DICE LO QUE ES
+---------------------------
+Todo lo que guarda GCoder lleva una primera linea como esta:
+
+     ; GCODER v1 tipo=recorrido-soldadura proyecto=Cervical fecha=2026-09-04
+
+No la lee ninguna maquina (es un comentario) pero si la leen los
+programas. Gracias a ella la lista de un proyecto dice de cada archivo si
+es una lamina, un recorrido, un corte o un contorno, sin tener que
+abrirlo. Si un archivo no la trae, se reconoce igual por su contenido.
+
+Y hay dos cosas mas que evitan el error de abrir el archivo que no era:
+
+  * Los RECORRIDOS de soldadura llevan dentro sus MEDIDAS DE ORIGEN
+    (circulos, contorno y materiales), comentadas. La maquina las ignora;
+    el programa de puntos de soldadura las lee. Asi, abriendo el
+    recorrido se recupera TODO, igual que con la lamina.
+
+  * Si abres un archivo que no toca, el programa lo dice y te manda al
+    sitio: un programa de corte en el de soldadura avisa de que ese va al
+    Editor de G-code; un recorrido antiguo (sin medidas dentro) ofrece
+    recuperar los centros y advierte de que los diametros no estan.
+
+
+ABRIRLO SIN EL .EXE
+-------------------
+Para probar desde un navegador normal:
+
+     python servir.py
+
+y abrir http://127.0.0.1:8817/. Hace falta el servidor: con el HTML
+suelto (file://) no hay proyectos, porque no hay nada que responda.
+
+
+
+EL COLOR NO ES ADORNO
+---------------------
+Hay tres sistemas de color, y los tres dicen algo:
+
+  * POR PROGRAMA. Cada uno tiene su tono, y lo lleva en su pestana del hub,
+    en sus botones y en el hilo de arriba de su ventana:
+
+        Soldadura Laser ....... naranja    el laser encendido
+        Disenador de Contornos  azul       plano de taller
+        Editor de G-code ...... violeta    la secuencia, el orden
+        Origen ................ verde      medir y dar por bueno
+        Cortes de Stent ....... turquesa
+
+    Sale de "color" en programas.json: si cambias ahi el valor, cambia todo.
+
+  * POR TIPO DE ARCHIVO. En la lista de un proyecto, una lamina, un recorrido,
+    un corte y un contorno se distinguen por color sin leer el nombre. Esto es
+    respuesta directa al dia que se abrio el archivo equivocado: hasta
+    entonces, todos los .txt se veian exactamente igual.
+
+  * POR PIEZA. Cada proyecto tiene su franja de color arriba, sacada de su
+    nombre. Es estable: la Cervical sale siempre del mismo color, en cualquier
+    equipo, aunque cambie el orden de la rejilla.
+
+Dentro de los programas NO se toco ningun color que ya significara algo: la
+seleccion sigue siendo azul, lo que corta sigue en naranja, los traslados en
+verde agua. Solo cambio el fondo (las columnas laterales eran blanco puro) y
+se anadio el hilo de identidad.
+
+
+LOS ICONOS
+----------
+Todos se generan con codigo, no se dibujan a mano.
+
+EL DE LA APP (la ventana y la barra de tareas):
+
+     cd empaquetar
+     python icono.py
+
+Produce icono.ico (7 tamanos, del 256 al 16, para el .exe) y logotipo.png (el
+logotipo de la barra y de la cabecera del hub). El dibujo es el haz cayendo
+sobre la lamina, con el punto al rojo donde toca.
+
+Hay ONCE propuestas hechas, en dos familias. Se ven todas, a todos los
+tamanos, con:
+
+     python icono_variantes.py haz      -> empaquetar/icono_propuestas.png
+     python icono_variantes.py yunque
+
+  FAMILIA DEL HAZ
+        G  el haz sobre la lamina                       <- el que esta puesto
+        H  igual, pero saliendo de la boquilla del cabezal
+        I  cortando: la lamina aparece partida por la ranura
+        J  todo en contorno, solo el punto macizo
+        K  el haz entrando inclinado
+        L  haz fino y charco fundido ancho
+        M  la boquilla de la H con el charco de la L
+
+  FAMILIA DEL YUNQUE
+        D  el yunque macizo y el haz sobre su cara
+        E  el yunque en contorno y el haz por delante
+        F  como D pero con el haz en el eje
+        R  la reticula de centrado (ahora es el icono de Origen)
+
+Para cambiarlo, en icono.py pon ELEGIDO = "M" (o la letra que sea), vuelve a
+ejecutarlo y reconstruye el .exe con empaquetar/reconstruir.bat. El icono se
+mete desde GCoder.spec (icon=...), asi que sin reconstruir no cambia.
+
+Un aviso del dibujo: lleva DOS versiones a proposito. A 16 px el detalle fino
+desaparece y queda una mancha, asi que los tamanos pequenos usan un dibujo con
+menos elementos y trazos mas gruesos. Para revisarlo de un vistazo, icono.py
+deja empaquetar/icono_muestra.png con la tira de todos los tamanos. Mirar solo
+el de 256 no sirve: el icono se juega en el de 16.
+
+LOS DE CADA PROGRAMA:
+
+Son dibujos de trazo (SVG), SIN fondo ni marco: heredan el color del programa,
+asi que valen igual en una pestana, en un boton o en la barra de su ventana.
+
+        Soldadura Laser ....... el haz cayendo sobre la lamina
+        Disenador de Contornos  el lapiz y la regla
+        Editor de G-code ...... un recorrido con sus nudos (el orden)
+        Origen ................ la reticula de centrado
+        Cortes de Stent ....... la malla de rombos
+
+Viven en hub.html (la tabla ICONOS) y cada programa lleva el suyo repetido en
+su propia barra, para que la pestana y el titulo sean lo mismo. En
+programas.json, "icono" es el NOMBRE del dibujo ("haz", "regla", "camino",
+"reticula", "malla"). Si pones cualquier otra cosa se pinta como texto, asi que
+un programa nuevo puede seguir usando un simbolo del teclado sin tocar nada.
+
+
+SI ALGO NO APARECE
+------------------
+Abre una consola en esta carpeta y ejecuta:
+
+     GCoder.exe --info informe.txt
+
+Genera informe.txt con cada programa, la carpeta donde lo busco, el
+archivo que encontro y el problema si lo hay. No abre ventana.
+
+El error mas comun es el patron de "archivo": si no encaja con
+ningun archivo real, el programa sale como no disponible.
+
+
+LLEVARLO A OTRA COMPUTADORA (O A UN USB)
+----------------------------------------
+RESUMEN, por si tienes prisa:
+
+  1. Copia GCoder.zip (o la carpeta GCoder entera) a la otra maquina.
+  2. Descomprimela donde quieras. Da igual la ruta y da igual el disco.
+  3. Abre GCoder.exe. Si sale "Windows protegio tu PC", pulsa
+     "Mas informacion" -> "Ejecutar de todas formas" (no esta firmado).
+  4. Si algo no aparece:  GCoder.exe --info informe.txt
+
+No hay que instalar nada: el .exe lleva Python dentro y el motor de la ventana
+(WebView2) ya viene con Windows 10 y 11.
+
+TUS PROYECTOS VIAJAN CON EL. La carpeta Proyectos/ va dentro, asi que en la
+otra maquina te encuentras tus piezas tal cual las dejaste.
+
+Copia la carpeta GCoder ENTERA. Ya esta todo dentro:
+
+     GCoder/
+       GCoder.exe
+       hub.html
+       programas.json
+       icono.ico  logotipo.png
+       Proyectos/            <- tu trabajo: una carpeta por pieza
+         Cervical/
+         ...
+       programas/
+         SoldaduraLaser/
+         DisenoContorno/
+         EditorGcode/
+         Origen/
+
+No importa donde la dejes ni en que disco: en programas.json las rutas son
+RELATIVAS ("programas/SoldaduraLaser") y se resuelven respecto al propio
+programas.json. Vale igual desde un USB, sin importar que letra le toque.
+
+No hace falta instalar nada. Los .exe llevan Python dentro y el motor de la
+ventana (WebView2) ya viene con Windows 10 y 11.
+
+Si algun programa vive fuera del conjunto, en "carpeta" se admiten tambien:
+  ../OtraCarpeta                 relativa hacia fuera
+  D:/Trabajo/MiPrograma          absoluta
+  %USERPROFILE%/Desktop/...      con variables del sistema
+
+Para comprobar que en el equipo nuevo encuentra todo:
+
+     GCoder.exe --info informe.txt
+
+Te dice, por cada programa, la ruta tal como esta escrita y la ruta a la que
+se resuelve. Si algo falla, ahi se ve enseguida.
+
+QUE RESPALDAR: solo los .html, programas.json y los .py. Son unos 3 MB. Los
+.exe y las carpetas empaquetar/build se regeneran con reconstruir.bat, asi
+que puedes borrarlas para aligerar la copia (unos 29 MB menos).
+
+AVISO: al abrir un .exe recien copiado, Windows puede mostrar "Windows
+protegio tu PC" (SmartScreen), porque no esta firmado. Se abre con
+"Mas informacion" -> "Ejecutar de todas formas".
+
+
+
+SI LA OTRA COMPUTADORA BLOQUEA EL .EXE O LOS .ZIP
+-------------------------------------------------
+Pasa, y no es que el archivo este mal: GCoder.exe lo genera PyInstaller y no
+va firmado, asi que algunos antivirus lo borran del .zip al descomprimirlo sin
+avisar. Te quedas con la carpeta entera pero sin el ejecutable.
+
+Ya se hizo lo que se podia por ese lado: el .exe se empaqueta en modo CARPETA
+(con su _internal al lado) en vez de en un solo archivo. Un .exe de un solo
+archivo se descomprime a si mismo cada vez que arranca, y eso es justo lo que
+disparan las heuristicas; asi es un lanzador normal y pasa mucho mas facil.
+Si aun asi lo borran, sigue leyendo.
+
+NO PASA NADA: el .exe solo es una ventana. Todo lo demas funciona sin el.
+
+  OPCION 1 - Llevarlo como CARPETA, no como .zip
+    Copia la carpeta GCoder tal cual a un USB. Muchos filtros miran los .zip
+    y no las carpetas. Si el .exe sobrevive, lo abres y ya esta.
+
+  OPCION 2 - Sin .exe, con Python  (funciona TODO, proyectos incluidos)
+    Doble clic en "ABRIR GCoder.bat".
+    Arranca el servidor y abre el navegador solo. No cierres la ventana
+    negra mientras trabajas: es el servidor.
+    Solo hace falta Python instalado (python.org, marcando "Add to PATH").
+
+  OPCION 3 - Sin .exe y sin Python  (lo basico, sin proyectos)
+    Entra en la carpeta "programas" y abre con el navegador el .html de
+    version mas alta de cada uno:
+
+        programas\SoldaduraLaser\SoldaduraLaser_v1.27.html
+        programas\DisenoContorno\DisenoContorno_v1.21.html
+        programas\EditorGcode\EditorGcode_v1.11.html
+        programas\Origen\Origen_v1.6.html
+
+    Miden, dibujan, editan y generan G-code exactamente igual. Lo que se
+    pierde es la pantalla de Proyectos y el guardado en su carpeta: lo que
+    guardes ira a Descargas y lo colocas tu.
+
+  SI QUIERES PASAR EL .EXE DE TODAS FORMAS
+    Cambiale la extension antes de copiarlo: GCoder.exe -> GCoder.exe.txt
+    En la otra maquina le quitas el .txt y ya. Esto salta los filtros que
+    solo miran la extension (no los que analizan el contenido).
+
+  Y SI EL ANTIVIRUS DE ALLA LO DEJA EXCLUIRLO
+    Anadir la carpeta GCoder a las exclusiones es lo mas comodo, pero eso
+    depende de si tienes permiso en esa maquina.
+
+
+
+SI TE SALE UN ERROR DE LOCALHOST
+--------------------------------
+GCoder trabaja hablando consigo mismo por http://127.0.0.1 (tu propia
+maquina). No sale a internet nunca: los programas son un solo archivo HTML
+cada uno, sin CDN, sin fuentes de fuera y sin una sola llamada de red. Que la
+maquina no tenga internet NO es el problema.
+
+Si el navegador dice que no puede acceder a localhost, mira esto por orden:
+
+  1. LA VENTANA NEGRA. Si usas "ABRIR GCoder.bat", esa ventana es el
+     servidor. Tiene que quedarse abierta mientras trabajas. Si la cierras,
+     se cae todo. Y fijate en lo que dice: te escribe la direccion exacta
+     (puede no ser el 8817 si ese estaba ocupado).
+
+  2. EL PROXY. Es la causa mas comun en una maquina de taller o de empresa.
+     Si hay un proxy configurado y no hay internet, el navegador intenta
+     sacar hasta 127.0.0.1 por ese proxy y se queda esperando.
+
+     Comprobarlo:  Configuracion -> Red e Internet -> Proxy
+     Arreglarlo:   en "No usar el servidor proxy para las direcciones que
+                   empiecen por", anade:   127.0.0.1;localhost
+                   (o marca "No usar servidor proxy para direcciones
+                   locales")
+
+     GCoder.exe ya se lo salta el solo: le dice a su ventana que no use
+     proxy. Esto solo hace falta para el navegador cuando usas el .bat.
+
+  3. EL CORTAFUEGOS. Si Windows pregunta al arrancar, dale a permitir. Solo
+     es trafico dentro de la propia maquina.
+
+  4. QUE EL SERVIDOR ESTE VIVO. Con la ventana negra abierta, prueba a
+     escribir a mano en el navegador la direccion que te dijo. Si responde
+     ahi pero no en la pestana que se abrio sola, era el punto 2.
+
+Y si nada de esto va, siempre te queda abrir los programas sueltos desde la
+carpeta "programas": ahi no hay servidor ni localhost que valga.
+
+
+
+EL ACCESO DIRECTO EN EL ESCRITORIO
+----------------------------------
+A mano, dos clics:
+
+  1. Boton derecho sobre GCoder.exe
+  2. Enviar a  ->  Escritorio (crear acceso directo)
+
+Ya esta. Windows le pone solo el icono y, lo que importa, la carpeta de
+trabajo correcta, que es de donde GCoder saca sus Proyectos.
+
+En Windows 11, si no ves "Enviar a" en el menu, pulsa antes "Mostrar mas
+opciones" (o Mayusculas + boton derecho).
+
+NO ARRASTRES EL .EXE AL ESCRITORIO. Eso lo MUEVE, lo separa de la carpeta
+_internal —donde vive Python— y entonces ya no arranca. Si lo hiciste sin
+querer, devuelvelo a su carpeta y crea el acceso directo como arriba.
+
+(Se intento dejar un .bat que lo creara solo, y no merecio la pena: un .bat
+que genera y ejecuta un guion es un patron que los antivirus marcan como
+sospechoso, y en estas maquinas eso es justo lo que hay que evitar.)
+
+
+ARCHIVOS DE ESTA CARPETA
+------------------------
+  GCoder.exe        El programa.
+  _internal/        Las librerias del .exe. No se toca ni se mueve: si no
+                    esta al lado, GCoder.exe no arranca.
+  ABRIR GCoder.bat  Lo mismo, sin .exe: arranca el servidor con Python.
+                    Para maquinas donde bloqueen los ejecutables.
+  Proyectos/        Una carpeta por pieza. Es lo tuyo: respaldalo.
+  icono.ico         Icono del .exe.   } se generan con
+  logotipo.png      Logotipo del hub. } empaquetar/icono.py
+  programas/        Los programas en si, uno por carpeta.
+  programas.json    La lista de programas. Es lo que editaras.
+  hub.html          La interfaz de pestanas.
+  app.py            Lanzador: ventana nativa + guardado con dialogo.
+  servidor.py       Servidor local: montajes y API de proyectos.
+  servir.py         Arranca solo el servidor, para abrirlo en un navegador.
+  empaquetar/       Para reconstruir el .exe (reconstruir.bat).
+
+hub.html y programas.json tambien van dentro del .exe como respaldo:
+si estan junto al ejecutable se usan esos, y si no, los internos.
+
+
+NOTA
+----
+Para reconstruir hace falta Python 3.10 con pywebview y pyinstaller.
+Ver empaquetar/LEEME.txt: explica el parche de dis que necesita este
+Python concreto y que hacer si la reconstruccion falla.
